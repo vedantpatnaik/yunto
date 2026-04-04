@@ -11,6 +11,7 @@
     "db:seed": "cd packages/backend && npx prisma db seed",
     "db:studio": "cd packages/backend && npx prisma studio"
   },
+  "packageManager": "npm@11.9.0",
   "devDependencies": {
     "turbo": "^2.4.0",
     "typescript": "^5.7.0"
