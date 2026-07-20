@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   ArrowLeft,
   ArrowUpRight,
@@ -21,7 +21,20 @@ import {
   X,
 } from "lucide-react";
 import whatsapp from "@/assets/icons/whatsapp.svg";
-import { useCreators, useUsers, type Creator, type User } from "@/api/hooks";
+import {
+  useCampaignFull,
+  useCampaigns,
+  useCreators,
+  useNotes,
+  useReminders,
+  useUsers,
+  type Agency,
+  type Campaign,
+  type CampaignFull,
+  type User,
+} from "@/api/hooks";
+
+type CreatorRow = CampaignFull["creatorList"][number];
 
 /**
  * Super Admin — Campaigns / Assign.
@@ -79,13 +92,23 @@ function CampaignTag({ tag }: { tag: TagInfo }) {
   );
 }
 
-type Person = {
+/**
+ * A card slot: geometry + palette only (Figma-fixed). Every text value on the card
+ * is filled from a live record by withLive() — slots carry no record data.
+ */
+type Slot = {
   x: number;
   y: number;
-  name: string;
   avatarBg?: string;
-  initial?: string;
   initialColor?: string;
+  /** PieChart tint of this slot's campaign tag; the tag's text comes from the campaign. */
+  tagColor?: string;
+  cancel?: boolean;
+};
+
+type Person = Slot & {
+  name: string;
+  initial?: string;
   avg: string;
   campaigns: string;
   n2: string;
@@ -93,7 +116,6 @@ type Person = {
   n7: string;
   tag?: TagInfo;
   active?: boolean;
-  cancel?: boolean;
 };
 
 function PersonCard({ p }: { p: Person }) {
@@ -175,6 +197,25 @@ function compact(n: number): string {
   return `${n}`;
 }
 
+/** budget is a raw integer (e.g. 120000) shown compactly in Indian units as "1.2L" / "2.5Cr". */
+function formatBudget(n: number): string {
+  if (n >= 10_000_000) return `${(n / 10_000_000).toFixed(1).replace(/\.0$/, "")}Cr`;
+  if (n >= 100_000) return `${(n / 100_000).toFixed(1).replace(/\.0$/, "")}L`;
+  if (n >= 1_000) return `${Math.round(n / 1_000)}k`;
+  return `${n}`;
+}
+
+/** full amount with Indian grouping: 250000 -> "2,50,000". */
+function inr(n: number): string {
+  return n.toLocaleString("en-IN");
+}
+
+/** "2025-07-20T14:00:00Z" -> "20" / "Fri" / "02:00 pm" for the date chips + time pills. */
+const dayNum = (iso: string) => String(new Date(iso).getDate());
+const dayName = (iso: string) => new Date(iso).toLocaleDateString("en-US", { weekday: "short" });
+const timeOfDay = (iso: string) =>
+  new Date(iso).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: true }).toLowerCase();
+
 /** "SALES_MANAGER" -> "Sales Manager" for the person-card subtitle. */
 function prettyRole(role: string): string {
   return role
@@ -183,89 +224,51 @@ function prettyRole(role: string): string {
     .join(" ");
 }
 
-/** Overlay a real user's name/role onto a static person-card slot (keeps its coords/stats). */
-function withUser(p: Person, u: User | undefined): Person {
-  if (!u) return p;
+/**
+ * Fill a slot from a real user and the campaigns that user actually owns.
+ * Campaign.contactPerson holds the owning user's name — the only user↔campaign link
+ * the schema has — so the card's counts are that user's real campaign book:
+ * the flag pill is the total, and the three pie pills are the CampaignStatus split
+ * (ACTIVE / DONE / DRAFT) matching the three tints the frame uses.
+ */
+function withLive(s: Slot, u: User, own: Campaign[]): Person {
+  const byStatus = (status: string) => String(own.filter((c) => c.status === status).length);
+  const tagged = own[0];
   return {
-    ...p,
+    ...s,
     name: u.name,
+    initial: s.avatarBg ? u.name.charAt(0) : undefined,
     avg: prettyRole(u.role),
-    initial: p.avatarBg ? u.name.charAt(0) : p.initial,
+    campaigns: `${own.length} Campaigns`,
+    n2: byStatus("ACTIVE"),
+    n4: byStatus("DONE"),
+    n7: byStatus("DRAFT"),
+    tag:
+      s.tagColor && tagged
+        ? { name: tagged.name, status: tagged.status, statusColor: s.tagColor }
+        : undefined,
+    active: own.some((c) => c.status === "ACTIVE"),
   };
 }
 
-const CURRENT: Person[] = [
-  {
-    x: 20,
-    y: 163,
-    name: "Rahul Sharma",
-    avatarBg: "#F4C1C1",
-    initial: "R",
-    initialColor: "#B93636",
-    avg: "Average Completion: 10 Days",
-    campaigns: "7 Campaigns",
-    n2: "4",
-    n4: "1",
-    n7: "2",
-    tag: { name: "Zostel Trip", status: "Deliverables Discuss", statusColor: "#79B282" },
-    cancel: true,
-  },
-  {
-    x: 20,
-    y: 256,
-    name: "Piyush",
-    avg: "Average Completion: 10 Days",
-    campaigns: "5 Campaigns",
-    n2: "2",
-    n4: "2",
-    n7: "1",
-    tag: { name: "Titan Watch", status: "Waiting for deliverables", statusColor: "#75A7C7" },
-    active: true,
-    cancel: true,
-  },
+/** Fill the fixed card slots with real records; slots past the end of the data render nothing. */
+function fillSlots(slots: Slot[], users: (User | undefined)[], campaigns: Campaign[]): Person[] {
+  return slots.reduce<Person[]>((acc, slot, i) => {
+    const u = users[i];
+    if (u) acc.push(withLive(slot, u, campaigns.filter((c) => c.contactPerson === u.name)));
+    return acc;
+  }, []);
+}
+
+const CURRENT: Slot[] = [
+  { x: 20, y: 163, avatarBg: "#F4C1C1", initialColor: "#B93636", tagColor: "#79B282", cancel: true },
+  { x: 20, y: 256, tagColor: "#75A7C7", cancel: true },
 ];
 
-const PEOPLE: Person[] = [
-  {
-    x: 18,
-    y: 465,
-    name: "Pooja Singh",
-    avatarBg: "#DAFCFF",
-    initial: "P",
-    initialColor: "#007E89",
-    avg: "Average Completion: 3 Days",
-    campaigns: "5 Campaigns",
-    n2: "2",
-    n4: "2",
-    n7: "1",
-    tag: { name: "Base Skincare", status: "Completed with shoots", statusColor: "#EBB363" },
-  },
-  {
-    x: 18,
-    y: 600,
-    name: "Lisa Rai",
-    avatarBg: "#FFDBF6",
-    initial: "L",
-    initialColor: "#BB389A",
-    avg: "Average Completion: 2 Days",
-    campaigns: "1 Campaigns",
-    n2: "1",
-    n4: "1",
-    n7: "0",
-  },
-  {
-    x: 19,
-    y: 739,
-    name: "Sneha Verma",
-    avatarBg: "#EDEEFF",
-    initial: "S",
-    initialColor: "#3845BB",
-    avg: "Average Completion: 2 Days",
-    campaigns: "1 Campaigns",
-    n2: "1",
-    n4: "1",
-    n7: "0",
-  },
+const PEOPLE: Slot[] = [
+  { x: 18, y: 465, avatarBg: "#DAFCFF", initialColor: "#007E89", tagColor: "#EBB363" },
+  { x: 18, y: 600, avatarBg: "#FFDBF6", initialColor: "#BB389A" },
+  { x: 19, y: 739, avatarBg: "#EDEEFF", initialColor: "#3845BB" },
 ];
 
 /* --------------------------------------------------------------------- */
@@ -274,8 +277,15 @@ const PEOPLE: Person[] = [
 function AssignModal() {
   const navigate = useNavigate();
   const users = useUsers().data ?? [];
-  const current = CURRENT.map((p, i) => withUser(p, users[i]));
-  const people = PEOPLE.map((p, i) => withUser(p, users[i + CURRENT.length]));
+  const campaigns = useCampaigns().data ?? [];
+
+  // People are bucketed by their Prisma Role into the three sub-sections the frame shows.
+  const managers = users.filter((u) => u.role.endsWith("_MANAGER"));
+  const leads = users.filter((u) => u.role === "SUPER_ADMIN");
+  const employees = users.filter((u) => u.role.endsWith("_EMPLOYEE"));
+
+  const current = fillSlots(CURRENT, users, campaigns);
+  const people = fillSlots(PEOPLE, [managers[0], leads[0], employees[0]], campaigns);
   return (
     <div className="absolute left-[493px] top-[87px] h-[851px] w-[550px] rounded-[24px] bg-white shadow-[0_24px_70px_rgba(0,0,0,0.28)]">
       {/* header */}
@@ -296,14 +306,14 @@ function AssignModal() {
       {/* Current Assigned section */}
       <span className="absolute left-[18px] top-[76px] text-[20px] leading-none text-black/70">Current Assigned</span>
       <div className="absolute left-[191px] top-[82px]">
-        <CountBadge n="1" size={24} />
+        <CountBadge n={String(current.length)} size={24} />
       </div>
       <Divider x={225} y={94.5} w={157} />
 
       {/* Team Lead sub-header */}
       <span className="absolute left-[18px] top-[125px] text-[15px] leading-none text-black/70">Team Lead</span>
       <div className="absolute left-[157px] top-[125px]">
-        <CountBadge n="1" size={22.4} />
+        <CountBadge n={String(current.length)} size={22.4} />
       </div>
       <Divider x={191} y={136} w={160} />
 
@@ -324,7 +334,7 @@ function AssignModal() {
       {/* Manager sub-header */}
       <span className="absolute left-[18px] top-[427px] text-[15px] leading-none text-black/70">Manager</span>
       <div className="absolute left-[157px] top-[427px]">
-        <CountBadge n="1" size={22.4} />
+        <CountBadge n={String(managers.length)} size={22.4} />
       </div>
       <Divider x={191} y={438} w={160} />
       <ChevronDown className="absolute left-[363px] top-[430px] h-[16px] w-[16px] text-black" strokeWidth={1.8} />
@@ -332,7 +342,7 @@ function AssignModal() {
       {/* Team Lead sub-header (people) */}
       <span className="absolute left-[69px] top-[562px] text-[15px] leading-none text-black/70">Team Lead</span>
       <div className="absolute left-[208px] top-[562px]">
-        <CountBadge n="1" size={22.4} />
+        <CountBadge n={String(leads.length)} size={22.4} />
       </div>
       <Divider x={242} y={573} w={160} />
       <ChevronDown className="absolute left-[414px] top-[565px] h-[16px] w-[16px] text-black" strokeWidth={1.8} />
@@ -340,7 +350,7 @@ function AssignModal() {
       {/* Employees sub-header */}
       <span className="absolute left-[70px] top-[701px] text-[15px] leading-none text-black/70">Employees</span>
       <div className="absolute left-[209px] top-[701px]">
-        <CountBadge n="9" size={22.4} />
+        <CountBadge n={String(employees.length)} size={22.4} />
       </div>
       <Divider x={243} y={712} w={160} />
       <ChevronDown className="absolute left-[415px] top-[704px] h-[16px] w-[16px] text-black" strokeWidth={1.8} />
@@ -366,7 +376,19 @@ function BgChip({ children }: { children: ReactNode }) {
   );
 }
 
-function CreatorCard({ x, c }: { x: number; c: Creator }) {
+function CreatorCard({
+  x,
+  c,
+  matchPct,
+  agency,
+  agencyStars,
+}: {
+  x: number;
+  c: CreatorRow;
+  matchPct?: number;
+  agency?: Agency;
+  agencyStars: number | null;
+}) {
   const navigate = useNavigate();
   return (
     <div
@@ -394,10 +416,10 @@ function CreatorCard({ x, c }: { x: number; c: Creator }) {
           <Users className="h-[12px] w-[12px]" strokeWidth={1.6} />{compact(c.followers)}
         </span>
         <span className="flex h-[24px] items-center gap-[2px] rounded-[12px] bg-white px-[5px] text-[10px] text-black/80">
-          <Eye className="h-[12px] w-[12px] text-[#2CC37F]" strokeWidth={1.6} />900k Avg. views
+          <Eye className="h-[12px] w-[12px] text-[#2CC37F]" strokeWidth={1.6} />{compact(c.avgViews)} Avg. views
         </span>
         <span className="flex h-[24px] items-center gap-[2px] rounded-[12px] bg-white px-[5px] text-[10px] text-black/80">
-          <Heart className="h-[12px] w-[12px]" strokeWidth={1.6} />4.5% ER
+          <Heart className="h-[12px] w-[12px]" strokeWidth={1.6} />{c.engagementRate.toFixed(1)}% ER
         </span>
       </div>
       <div className="absolute left-[10px] top-[82px] flex gap-[4px]">
@@ -405,10 +427,10 @@ function CreatorCard({ x, c }: { x: number; c: Creator }) {
           <Star className="h-[12px] w-[12px] text-[#FFC107]" strokeWidth={1.6} fill="#FDD835" />{c.stars.toFixed(1)} Stars
         </span>
         <span className="flex h-[24px] items-center gap-[2px] rounded-[12px] bg-white px-[5px] text-[10px] text-black/80">
-          <Eye className="h-[12px] w-[12px] text-[#2CC37F]" strokeWidth={1.6} />0.23p CPV
+          <Eye className="h-[12px] w-[12px] text-[#2CC37F]" strokeWidth={1.6} />{c.cpv.toFixed(2)}p CPV
         </span>
         <span className="flex h-[24px] items-center gap-[2px] rounded-[12px] bg-white px-[5px] text-[10px] text-black/80">
-          80% Match
+          {matchPct != null ? `${matchPct}% Match` : ""}
         </span>
       </div>
       {/* managed by */}
@@ -417,14 +439,15 @@ function CreatorCard({ x, c }: { x: number; c: Creator }) {
         <span className="flex items-center gap-[6px]">
           <span className="h-[24px] w-[24px] rounded-full bg-[#1FB37A]" />
           <span className="flex flex-col">
-            <span className="text-[10.2px] text-black/90">Stellar Talents</span>
+            <span className="text-[10.2px] text-black/90">{agency?.name ?? ""}</span>
             <span className="flex items-center gap-[3px] text-[8px] text-black/60">
-              <Star className="h-[10px] w-[10px] text-[#FFC107]" strokeWidth={1.6} fill="#FDD835" />4.8 Stars
+              <Star className="h-[10px] w-[10px] text-[#FFC107]" strokeWidth={1.6} fill="#FDD835" />
+              {agencyStars != null ? `${agencyStars.toFixed(1)} Stars` : ""}
             </span>
           </span>
         </span>
         <span className="flex h-[25px] items-center gap-[3px] rounded-[8px] bg-white/70 px-[6px] text-[12px] font-medium text-[#571A9F]">
-          ₹65.5K
+          {agency ? `₹${formatBudget(agency.earnings)}` : ""}
         </span>
       </div>
     </div>
@@ -433,7 +456,34 @@ function CreatorCard({ x, c }: { x: number; c: Creator }) {
 
 function Background() {
   const navigate = useNavigate();
-  const creators = useCreators().data ?? [];
+  const [sp] = useSearchParams();
+  const campaigns = useCampaigns().data ?? [];
+  const id = sp.get("id") ?? campaigns[0]?.id ?? null;
+  const { data: item } = useCampaignFull(id);
+  const creators = item?.creatorList ?? [];
+  const inv = item?.invoice ?? null;
+  const agency = item?.agency;
+  const users = useUsers().data ?? [];
+  const notes = useNotes().data ?? [];
+  const reminders = useReminders().data ?? [];
+  const [followUp, prevActivity] = reminders;
+
+  // creatorList is a trimmed projection (no matchPct) — read it off the full Creator record.
+  const allCreators = useCreators().data ?? [];
+  const matchById = new Map(allCreators.map((c) => [c.id, c.matchPct]));
+  // Agency has no rating column; its star score is the mean of the creators it manages.
+  const roster = agency ? allCreators.filter((c) => c.agencyId === agency.id) : [];
+  const agencyStars = roster.length ? roster.reduce((s, c) => s + c.stars, 0) / roster.length : null;
+
+  /**
+   * Per-creator line items on the invoice. There is no per-creator amount column, so the
+   * creator pool (invoice budget − agency fee) is split by each creator's share of the
+   * campaign's total avg. views; the struck price is that same share of the gross budget.
+   */
+  const totalViews = creators.reduce((s, c) => s + c.avgViews, 0);
+  const share = (i: number, pot: number) =>
+    creators[i] && totalViews ? Math.round((creators[i].avgViews / totalViews) * pot) : 0;
+  const pool = inv ? Math.max(inv.budget - inv.agencyFee, 0) : 0;
   return (
     <>
       {/* back button */}
@@ -446,7 +496,7 @@ function Background() {
 
       {/* title */}
       <h1 className="absolute left-[268px] top-[230px] text-[34px] font-normal leading-none text-black">
-        Nike’s Diwali
+        {item?.name ?? ""}
       </h1>
 
       {/* team container */}
@@ -454,22 +504,24 @@ function Background() {
 
       {/* chips row */}
       <div className="absolute left-[270px] top-[314px] flex gap-[8px]">
-        <BgChip>12 July - 20 July</BgChip>
-        <BgChip>Zostel Trip</BgChip>
-        <BgChip>www.yourwebsite.com</BgChip>
-        <BgChip>Budget ₹1.2L</BgChip>
-        <BgChip>Paid</BgChip>
+        <BgChip>{item?.timeline ?? ""}</BgChip>
+        <BgChip>{item?.brandName ?? ""}</BgChip>
+        <BgChip>{item?.website ?? ""}</BgChip>
+        <BgChip>{item ? `Budget ₹${formatBudget(item.budget)}` : ""}</BgChip>
+        <BgChip>{item?.status ?? ""}</BgChip>
       </div>
 
       {/* assigned to */}
       <div className="absolute left-[271px] top-[378px] flex items-center">
         <span className="h-[45px] w-[45px] rounded-full bg-gradient-to-br from-[#C8E6FF] to-[#C8B3ED]" />
         <span className="-ml-[23px] flex h-[45px] w-[45px] items-center justify-center rounded-full bg-[#F4C1C1] text-[15px] text-[#B93636]">
-          R
+          {users[0]?.name.charAt(0) ?? ""}
         </span>
         <div className="ml-[8px]">
           <div className="text-[12px] leading-none text-black/70">Assigned to</div>
-          <div className="mt-[4px] text-[16px] leading-none text-black/90">Rahul, Piyush</div>
+          <div className="mt-[4px] text-[16px] leading-none text-black/90">
+            {users.slice(0, CURRENT.length).map((u) => u.name.split(" ")[0]).join(", ")}
+          </div>
         </div>
       </div>
 
@@ -478,7 +530,7 @@ function Background() {
         <PieChart className="h-[32px] w-[32px] text-[#79B282]" strokeWidth={2} />
         <div>
           <div className="text-[12px] leading-none text-black/70">Campaign Progress</div>
-          <div className="mt-[6px] text-[18px] leading-none text-black/90">50%</div>
+          <div className="mt-[6px] text-[18px] leading-none text-black/90">{item ? `${item.progress}%` : ""}</div>
         </div>
       </div>
 
@@ -487,7 +539,7 @@ function Background() {
         <span className="h-[38px] w-[38px] rounded-full bg-gradient-to-br from-[#FFD6E7] to-[#C8B3ED]" />
         <div className="ml-[10px]">
           <div className="text-[12px] leading-none text-black/70">Lead Source</div>
-          <div className="mt-[6px] text-[18px] leading-none text-black/90">Leena Sharma</div>
+          <div className="mt-[6px] text-[18px] leading-none text-black/90">{item?.contactPerson ?? ""}</div>
         </div>
         <div className="ml-auto flex items-center gap-[5px]">
           <span
@@ -509,6 +561,7 @@ function Background() {
         <span className="absolute right-[10px] top-[8px] flex h-[24px] w-[24px] items-center justify-center rounded-full bg-[#FEFCFF]">
           <Plus className="h-[10px] w-[10px] text-black" strokeWidth={1.8} />
         </span>
+        {/* Campaign has no brief/message column and no campaign→message relation — copy stays static. */}
         <div className="absolute left-[12px] top-[33px] h-[130px] w-[236px] rounded-[12px] bg-white p-[6px] text-[12px] font-light leading-[20px] text-black/60">
           We are launching a new skincare product
         </div>
@@ -521,6 +574,7 @@ function Background() {
         </span>
         <div className="absolute left-[12px] top-[38px] flex h-[36px] w-[128px] items-center gap-[6px] rounded-[12px] bg-white px-[5px]">
           <Instagram className="h-[16px] w-[16px] text-[#C837AB]" strokeWidth={1.6} />
+          {/* No Deliverable model / no deliverable column on Campaign — counts stay static. */}
           <div className="flex flex-col gap-[3px] text-[12px] font-light text-black/60">
             <span className="text-[8px]">1 Collab Reel</span>
             <span className="text-[8px]">2 Stories</span>
@@ -535,7 +589,7 @@ function Background() {
         </span>
         <div className="absolute left-[12px] top-[38px] h-[130px] w-[236px] rounded-[12px] bg-white p-[6px]">
           <span className="text-[12px] text-black/70">Today</span>
-          <div className="mt-[8px] text-[12px] font-light text-black/60">here comes your note</div>
+          <div className="mt-[8px] text-[12px] font-light text-black/60">{notes[0]?.body ?? ""}</div>
         </div>
       </div>
 
@@ -544,7 +598,14 @@ function Background() {
         <span className="absolute left-[10px] top-[8px] text-[12px] text-black">Creators</span>
       </div>
       {creators.slice(0, 2).map((c, i) => (
-        <CreatorCard key={c.id} x={i === 0 ? 272 : 554} c={c} />
+        <CreatorCard
+          key={c.id}
+          x={i === 0 ? 272 : 554}
+          c={c}
+          matchPct={matchById.get(c.id)}
+          agency={agency}
+          agencyStars={agencyStars}
+        />
       ))}
 
       {/* Follow Up card */}
@@ -555,20 +616,24 @@ function Background() {
         </span>
         <div className="absolute left-[10px] top-[39px] h-[184px] w-[272px] rounded-[12px] bg-white">
           <span className="absolute left-[0px] top-[0px] text-[12px] text-black/70">Today</span>
-          <div className="absolute left-[13px] top-[70px] flex items-center gap-[6px]">
-            <span className="flex h-[52px] w-[38px] flex-col items-center justify-center rounded-[18px] bg-[#D8DDFF] text-[15px] font-light leading-[16px] text-black">
-              <span>20</span>
-              <span>Fri</span>
-            </span>
-            <div>
-              <div className="text-[16px] leading-none text-black">Follow - Up Scheduled</div>
-              <div className="mt-[8px] flex items-center gap-[4px]">
-                <span className="h-[14px] w-[14px] rounded-full bg-gradient-to-br from-[#FFD6E7] to-[#C8B3ED]" />
-                <span className="text-[10.2px] text-black/90">Priya Sharma</span>
+          {followUp && (
+            <>
+              <div className="absolute left-[13px] top-[70px] flex items-center gap-[6px]">
+                <span className="flex h-[52px] w-[38px] flex-col items-center justify-center rounded-[18px] bg-[#D8DDFF] text-[15px] font-light leading-[16px] text-black">
+                  <span>{dayNum(followUp.dueAt)}</span>
+                  <span>{dayName(followUp.dueAt)}</span>
+                </span>
+                <div>
+                  <div className="text-[16px] leading-none text-black">{followUp.title}</div>
+                  <div className="mt-[8px] flex items-center gap-[4px]">
+                    <span className="h-[14px] w-[14px] rounded-full bg-gradient-to-br from-[#FFD6E7] to-[#C8B3ED]" />
+                    <span className="text-[10.2px] text-black/90">{item?.contactPerson ?? ""}</span>
+                  </div>
+                </div>
               </div>
-            </div>
-          </div>
-          <X className="absolute right-[8px] top-[36px] h-[16px] w-[16px] text-black/70" strokeWidth={1.6} />
+              <X className="absolute right-[8px] top-[36px] h-[16px] w-[16px] text-black/70" strokeWidth={1.6} />
+            </>
+          )}
         </div>
       </div>
 
@@ -579,32 +644,34 @@ function Background() {
           <ArrowUpRight className="h-[14px] w-[14px] text-black" strokeWidth={1.7} />
         </span>
         <div className="absolute left-[10px] top-[43px] h-[375px] w-[270px] rounded-[12px] bg-white">
-          <div className="mt-[16px] text-center text-[16px] font-medium leading-none text-black">Brand Name</div>
+          <div className="mt-[16px] text-center text-[16px] font-medium leading-none text-black">{inv?.brandName ?? "Brand Name"}</div>
           {/* invoice token */}
           <div className="mx-[30px] mt-[16px] flex flex-col items-center rounded-[6px] border border-dashed border-black/30 py-[3px]">
             <span className="font-mono text-[9px] font-medium text-black">Invoice</span>
-            <span className="font-mono text-[12px] font-bold tracking-tight text-black">INV-2025-045</span>
+            <span className="font-mono text-[12px] font-bold tracking-tight text-black">{inv?.number ?? ""}</span>
           </div>
           <div className="mx-[22px] mt-[18px] h-px bg-[#E9E9E9]" />
           {/* rows */}
           <div className="mx-[22px] mt-[13px] flex items-center justify-between text-[13px] font-medium text-black">
             <span>Brand Budget</span>
-            <span className="text-[12px] text-black/50">₹2,50,000</span>
+            <span className="text-[12px] text-black/50">{inv ? `₹${inr(inv.budget)}` : ""}</span>
           </div>
           <div className="mx-[22px] mt-[4px] flex items-center justify-between text-[12px] text-black/50">
-            <span>Leena Sharma</span>
+            <span>{creators[0]?.name ?? ""}</span>
             <span className="flex items-center gap-[4px]">
-              <span className="text-[#E44E26]">- ₹1,00,000</span>
+              <span className="text-[#E44E26]">{inv && creators[0] ? `- ₹${inr(share(0, pool))}` : ""}</span>
               <span className="flex h-[16px] w-[16px] items-center justify-center rounded-full bg-[#ECEAEA]">
                 <Pencil className="h-[8px] w-[8px] text-black/70" strokeWidth={1.6} />
               </span>
             </span>
           </div>
           <div className="mx-[22px] mt-[4px] flex items-center justify-between text-[12px] text-black/50">
-            <span>Riya Sharma</span>
+            <span>{creators[1]?.name ?? ""}</span>
             <span className="flex items-center gap-[4px]">
-              <span className="text-[7.2px] text-[#E44E26] line-through">₹1,20,000</span>
-              <span className="text-[#E44E26]">- ₹1,00,000</span>
+              <span className="text-[7.2px] text-[#E44E26] line-through">
+                {inv && creators[1] ? `₹${inr(share(1, inv.budget))}` : ""}
+              </span>
+              <span className="text-[#E44E26]">{inv && creators[1] ? `- ₹${inr(share(1, pool))}` : ""}</span>
               <span className="flex h-[16px] w-[16px] items-center justify-center rounded-full bg-[#ECEAEA]">
                 <Pencil className="h-[8px] w-[8px] text-black/70" strokeWidth={1.6} />
               </span>
@@ -621,8 +688,10 @@ function Background() {
                 Added
               </span>
               <span className="flex items-center gap-[4px]">
-                <span className="rounded-full bg-white px-[6px] py-[3px] text-[12px] font-medium text-[#3DBB6C]">15%</span>
-                <span className="text-[12px] text-black/50">₹30,000</span>
+                <span className="rounded-full bg-white px-[6px] py-[3px] text-[12px] font-medium text-[#3DBB6C]">
+                  {inv && inv.budget ? `${Math.round((inv.agencyFee / inv.budget) * 100)}%` : ""}
+                </span>
+                <span className="text-[12px] text-black/50">{inv ? `₹${inr(inv.agencyFee)}` : ""}</span>
               </span>
             </div>
           </div>
@@ -635,7 +704,7 @@ function Background() {
           {/* estimate */}
           <div className="mx-[12px] mt-[13px] flex items-center justify-between">
             <span className="text-[13px] font-medium text-black">Estimate Payout</span>
-            <span className="text-[15px] font-semibold text-[#3DBB6C]">₹2,50,000</span>
+            <span className="text-[15px] font-semibold text-[#3DBB6C]">{inv ? `₹${inr(inv.payout)}` : ""}</span>
           </div>
         </div>
       </div>
@@ -645,31 +714,35 @@ function Background() {
         <span className="absolute left-[12px] top-[8px] text-[12px] text-black">Activity</span>
         <div className="absolute left-[12px] top-[38px] h-[225px] w-[212px] rounded-[12px] bg-white p-[6px]">
           <span className="text-[12px] text-black/70">Today</span>
-          <div className="mt-[19px] flex items-center gap-[6px]">
-            <span className="flex h-[52px] w-[36px] flex-col items-center justify-center rounded-[18px] bg-[#D8DDFF] text-[13px] font-light leading-[16px] text-black">
-              <span>20</span>
-              <span>Fri</span>
-            </span>
-            <div>
-              <div className="text-[16px] leading-none text-black">Follow up schedule</div>
-              <span className="mt-[6px] flex h-[24px] w-[74px] items-center gap-[4px] rounded-full bg-white px-[6px] text-[10.2px] text-black/60 shadow-[0_1px_3px_rgba(0,0,0,0.08)]">
-                <Clock className="h-[12px] w-[12px]" strokeWidth={1.6} />02:00 pm
+          {followUp && (
+            <div className="mt-[19px] flex items-center gap-[6px]">
+              <span className="flex h-[52px] w-[36px] flex-col items-center justify-center rounded-[18px] bg-[#D8DDFF] text-[13px] font-light leading-[16px] text-black">
+                <span>{dayNum(followUp.dueAt)}</span>
+                <span>{dayName(followUp.dueAt)}</span>
               </span>
+              <div>
+                <div className="text-[16px] leading-none text-black">{followUp.title}</div>
+                <span className="mt-[6px] flex h-[24px] w-[74px] items-center gap-[4px] rounded-full bg-white px-[6px] text-[10.2px] text-black/60 shadow-[0_1px_3px_rgba(0,0,0,0.08)]">
+                  <Clock className="h-[12px] w-[12px]" strokeWidth={1.6} />{timeOfDay(followUp.dueAt)}
+                </span>
+              </div>
             </div>
-          </div>
+          )}
           <span className="mt-[16px] block text-[12px] text-black/70">Yesterday</span>
-          <div className="mt-[10px] flex items-center gap-[6px]">
-            <span className="flex h-[52px] w-[36px] flex-col items-center justify-center rounded-[18px] bg-[#EFEFF0] text-[13px] font-light leading-[16px] text-black">
-              <span>19</span>
-              <span>Thu</span>
-            </span>
-            <div>
-              <div className="text-[16px] leading-none text-black">Call</div>
-              <span className="mt-[6px] flex h-[24px] w-[74px] items-center gap-[4px] rounded-full bg-white px-[6px] text-[10.2px] text-black/60 shadow-[0_1px_3px_rgba(0,0,0,0.08)]">
-                <Clock className="h-[12px] w-[12px]" strokeWidth={1.6} />01:00 pm
+          {prevActivity && (
+            <div className="mt-[10px] flex items-center gap-[6px]">
+              <span className="flex h-[52px] w-[36px] flex-col items-center justify-center rounded-[18px] bg-[#EFEFF0] text-[13px] font-light leading-[16px] text-black">
+                <span>{dayNum(prevActivity.dueAt)}</span>
+                <span>{dayName(prevActivity.dueAt)}</span>
               </span>
+              <div>
+                <div className="text-[16px] leading-none text-black">{prevActivity.title}</div>
+                <span className="mt-[6px] flex h-[24px] w-[74px] items-center gap-[4px] rounded-full bg-white px-[6px] text-[10.2px] text-black/60 shadow-[0_1px_3px_rgba(0,0,0,0.08)]">
+                  <Clock className="h-[12px] w-[12px]" strokeWidth={1.6} />{timeOfDay(prevActivity.dueAt)}
+                </span>
+              </div>
             </div>
-          </div>
+          )}
         </div>
       </div>
     </>

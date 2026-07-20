@@ -8,7 +8,7 @@ import progressStar from "@/assets/icons/campaigns-progress-star.svg";
 import progress2 from "@/assets/icons/campaigns-progress2.svg";
 import progress4 from "@/assets/icons/campaigns-progress4.svg";
 import { useNavigate } from "react-router-dom";
-import { useCampaigns, useAgencies } from "@/api/hooks";
+import { useList, useAgencies, type Campaign } from "@/api/hooks";
 
 /**
  * Super Admin — Campaigns Workspace.
@@ -18,6 +18,7 @@ import { useCampaigns, useAgencies } from "@/api/hooks";
 type CardData = {
   id: string;
   name: string;
+  date: string;
   progress: string;
   budget: string;
   agencyName: string;
@@ -41,6 +42,26 @@ function progressIcon(p: number): string {
   return progressStar;
 }
 
+/** createdAt -> the card's "12 July" stamp. */
+function formatDay(iso?: string): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? "" : d.toLocaleDateString("en-GB", { day: "numeric", month: "long" });
+}
+
+/** Minutes -> the compact "15min" / "4h" / "2d" reading in the header. */
+function formatDuration(min: number): string {
+  if (min >= 1440) return `${Math.round(min / 1440)}d`;
+  if (min >= 60) return `${Math.round(min / 60)}h`;
+  return `${Math.round(min)}min`;
+}
+
+/** Share of leads that reached CONVERTED, as a whole percentage. */
+function conversionPct(rows: { status: string }[]): number {
+  if (!rows.length) return 0;
+  return Math.round((rows.filter((l) => l.status === "CONVERTED").length / rows.length) * 100);
+}
+
 /* ------------------------------ primitives ----------------------------- */
 function StatChip({ icon, width, children }: { icon: string; width: string; children: ReactNode }) {
   return (
@@ -51,9 +72,15 @@ function StatChip({ icon, width, children }: { icon: string; width: string; chil
   );
 }
 
+/** Placeholder occupying one card slot while campaigns load / when none match. */
+function CardSlot() {
+  return <div className="relative h-[193px] w-[266px] rounded-[12px] bg-[#F5F5F5]" />;
+}
+
 function CampaignCard({
   id,
   name,
+  date,
   progress,
   budget,
   agencyName,
@@ -73,7 +100,7 @@ function CampaignCard({
         <ArrowUpRight className="h-[15px] w-[15px] text-ink" strokeWidth={1.8} />
       </span>
       {/* date */}
-      <span className="absolute left-[193px] top-[13px] text-[8px] leading-none text-ink/[0.47]">12 July</span>
+      <span className="absolute left-[193px] top-[13px] text-[8px] leading-none text-ink/[0.47]">{date}</span>
 
       {/* agency header */}
       <div className="absolute left-[8px] top-[6px] flex items-center gap-[5px]">
@@ -127,25 +154,53 @@ function CampaignCard({
 export default function CampaignsPage() {
   const navigate = useNavigate();
   const [activeFilter, setActiveFilter] = useState("25%");
-  const { data } = useCampaigns();
+  const { data, isLoading } = useList<Campaign & { createdAt: string }>("campaigns");
   const { data: agencies } = useAgencies();
+  const { data: leadRows, isLoading: leadsLoading } =
+    useList<{ id: string; status: string; createdAt: string; updatedAt: string }>("leads");
+
   const agencyMap = new Map((agencies ?? []).map((a) => [a.id, a]));
-  const cards: CardData[] = (data ?? []).map((c) => {
+  const toCard = (c: Campaign & { createdAt: string }): CardData => {
     const agency = c.agencyId ? agencyMap.get(c.agencyId) : undefined;
     return {
       id: c.id,
       name: c.name,
+      date: formatDay(c.createdAt),
       progress: progressIcon(c.progress),
       budget: formatBudget(c.budget),
-      agencyName: agency?.name ?? "",
-      agencyDescription: agency?.description ?? agency?.name ?? "",
+      agencyName: agency?.name ?? c.brandName,
+      agencyDescription: agency?.description ?? agency?.name ?? c.brandName,
       contactPerson: c.contactPerson ?? "",
       engagementRate: c.engagementRate ?? "",
       peopleCount: c.peopleCount ?? 0,
     };
-  });
-  const row1 = cards.slice(0, 4);
-  const row2 = cards.slice(4, 8);
+  };
+
+  // Top strip: the four most recent campaigns (the API lists createdAt-desc).
+  const campaigns = data ?? [];
+  const row1Src = campaigns.slice(0, 4);
+  const shown = new Set(row1Src.map((c) => c.id));
+  // Lower strip sits under the "25% Progress" heading, so surface the
+  // remaining campaigns whose progress sits closest to that quarter mark.
+  const row2Src = campaigns
+    .filter((c) => !shown.has(c.id))
+    .sort((a, b) => Math.abs(a.progress - 25) - Math.abs(b.progress - 25))
+    .slice(0, 4);
+  const row1 = row1Src.map(toCard);
+  const row2 = row2Src.map(toCard);
+
+  // Header stats, derived from the lead pipeline.
+  const leads = leadRows ?? [];
+  const answered = leads.filter((l) => l.status !== "NEW");
+  const avgResponseMin = answered.length
+    ? answered.reduce((s, l) => s + (new Date(l.updatedAt).getTime() - new Date(l.createdAt).getTime()), 0) /
+      answered.length /
+      60_000
+    : 0;
+  const conversionRate = conversionPct(leads);
+  // Trend = newer half of the pipeline vs the older half, in percentage points.
+  const mid = Math.floor(leads.length / 2);
+  const conversionTrend = leads.length >= 2 ? conversionPct(leads.slice(0, mid)) - conversionPct(leads.slice(mid)) : 0;
 
   return (
     <>
@@ -153,13 +208,18 @@ export default function CampaignsPage() {
       <h1 className="absolute left-[254px] top-[158px] text-[40px] font-normal leading-none text-ink">WORKSPACE</h1>
 
       {/* top-right stats */}
-      <span className="absolute left-[938px] top-[168px] text-[32px] font-normal leading-none text-ink">15min</span>
+      <span className="absolute left-[938px] top-[168px] text-[32px] font-normal leading-none text-ink">
+        {leadsLoading ? "—" : formatDuration(avgResponseMin)}
+      </span>
       <span className="absolute left-[1031px] top-[171px] w-[58px] text-[12px] font-light leading-[15px] text-ink/70">Response Time</span>
 
-      <span className="absolute left-[1106px] top-[167px] text-[32px] font-normal leading-none text-ink">50%</span>
+      <span className="absolute left-[1106px] top-[167px] text-[32px] font-normal leading-none text-ink">
+        {leadsLoading ? "—" : `${conversionRate}%`}
+      </span>
       <span className="absolute left-[1207px] top-[157px] flex h-[15px] items-center gap-[2px] rounded-[9px] bg-[#DCFF68] px-[3px] text-[12px] font-light leading-none text-ink">
         <ArrowUp className="h-[9px] w-[9px]" strokeWidth={2} />
-        2%
+        {conversionTrend < 0 ? "-" : ""}
+        {Math.abs(conversionTrend)}%
       </span>
       <span className="absolute left-[1171px] top-[172px] w-[70px] text-[12px] font-light leading-[15px] text-ink/70">Conversion Rate</span>
 
@@ -202,11 +262,14 @@ export default function CampaignsPage() {
 
       {/* first row of campaign cards */}
       <div className="absolute left-[259px] top-[304px] flex gap-[15px]">
+        {(isLoading || row1.length === 0) &&
+          Array.from({ length: 4 }, (_, i) => <CardSlot key={`s1-${i}`} />)}
         {row1.map((c) => (
           <CampaignCard
             key={c.id}
             id={c.id}
             name={c.name}
+            date={c.date}
             progress={c.progress}
             budget={c.budget}
             agencyName={c.agencyName}
@@ -227,11 +290,14 @@ export default function CampaignsPage() {
 
       {/* second row of campaign cards */}
       <div className="absolute left-[260px] top-[601px] flex gap-[15px]">
+        {(isLoading || row2.length === 0) &&
+          Array.from({ length: 4 }, (_, i) => <CardSlot key={`s2-${i}`} />)}
         {row2.map((c) => (
           <CampaignCard
             key={c.id}
             id={c.id}
             name={c.name}
+            date={c.date}
             progress={c.progress}
             budget={c.budget}
             agencyName={c.agencyName}

@@ -19,7 +19,7 @@ import {
   LoaderCircle,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { useCreators, type Creator } from "@/api/hooks";
+import { useCreators, useAgencies, type Creator, type Agency } from "@/api/hooks";
 
 /**
  * Super Admin — New lead / creator list (New-lead sub-flow).
@@ -36,12 +36,8 @@ import { useCreators, type Creator } from "@/api/hooks";
 
 type Variant = "internal" | "agency";
 
-const ROW: { x: number; variant: Variant }[] = [
-  { x: 282, variant: "internal" },
-  { x: 563, variant: "agency" },
-  { x: 844, variant: "agency" },
-  { x: 1125, variant: "agency" },
-];
+/** Column x-offsets of the single card row (4 slots). */
+const ROW_X = [282, 563, 844, 1125];
 
 const MANAGED_GRAD =
   "linear-gradient(90deg, rgba(104,1,254,0.06), rgba(217,217,217,0.06))";
@@ -51,6 +47,16 @@ function compact(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1).replace(/\.0$/, "")}M`;
   if (n >= 1_000) return `${Math.round(n / 1_000)}k`;
   return `${n}`;
+}
+
+/**
+ * Indicative deal value for a creator, in rupees: CPV (paise per view) x avg views / 100.
+ * Rendered without the currency symbol so each caller keeps its own "₹" spacing.
+ */
+function dealValue(c: Creator): string {
+  const rupees = (c.cpv * c.avgViews) / 100;
+  if (rupees >= 1000) return `${(rupees / 1000).toFixed(1).replace(/\.0$/, "")}K`;
+  return `${Math.round(rupees)}`;
 }
 
 /* ------------------------------ primitives ----------------------------- */
@@ -99,7 +105,7 @@ function Metric({
   );
 }
 
-function InternalManaged() {
+function InternalManaged({ creator }: { creator: Creator }) {
   return (
     <>
       <span
@@ -113,33 +119,43 @@ function InternalManaged() {
       <div className="absolute left-[170px] top-[140.9px] flex h-[22px] w-[69px] items-center justify-center gap-[3px] rounded-[8px] bg-white">
         <Coins className="h-[13px] w-[13px]" strokeWidth={1.7} style={{ color: "#C29B3B" }} />
         <span className="text-[12px] font-medium leading-none" style={{ color: "#571A9F" }}>
-          ₹ 60K
+          ₹ {dealValue(creator)}
         </span>
       </div>
     </>
   );
 }
 
-function AgencyManaged() {
+function AgencyManaged({
+  creator,
+  agency,
+  discount,
+}: {
+  creator: Creator;
+  agency?: Agency;
+  discount: number;
+}) {
   return (
     <>
       <span
         className="absolute left-[8px] top-[132px] h-[33px] w-[237px] rounded-[10.83px]"
         style={{ background: MANAGED_GRAD }}
       />
-      <div
-        className="absolute left-[106px] top-[126px] flex h-[12px] w-[47px] items-center justify-center rounded-[3px]"
-        style={{ background: "linear-gradient(90deg,#A27CEE,#7F4BE7)" }}
-      >
-        <span className="whitespace-nowrap text-[9px] leading-none text-white">-45% OFF</span>
-      </div>
+      {discount > 0 ? (
+        <div
+          className="absolute left-[106px] top-[126px] flex h-[12px] w-[47px] items-center justify-center rounded-[3px]"
+          style={{ background: "linear-gradient(90deg,#A27CEE,#7F4BE7)" }}
+        >
+          <span className="whitespace-nowrap text-[9px] leading-none text-white">-{discount}% OFF</span>
+        </div>
+      ) : null}
       <span className="absolute left-[13px] top-[137px] h-[24px] w-[24px] rounded-full bg-gradient-to-br from-[#C8E6FF] to-[#C8B3ED]" />
       <span className="absolute left-[41px] top-[136.2px] text-[10.2px] leading-none text-ink/90">
-        Stellar Talents
+        {agency?.name ?? ""}
       </span>
       <span className="absolute left-[41px] top-[147.8px] flex items-center gap-[4px]">
         <Star className="h-[12px] w-[12px]" strokeWidth={0} style={{ color: "#FFC107", fill: "#FFC107" }} />
-        <span className="text-[8px] leading-none text-ink/60">4.8 Stars</span>
+        <span className="text-[8px] leading-none text-ink/60">{creator.stars.toFixed(1)} Stars</span>
       </span>
       <div
         className="absolute left-[163px] top-[136px] flex h-[25px] w-[75px] items-center justify-center gap-[3px] rounded-[8px]"
@@ -147,18 +163,31 @@ function AgencyManaged() {
       >
         <Coins className="h-[13px] w-[13px]" strokeWidth={1.7} style={{ color: "#C29B3B" }} />
         <span className="text-[12px] font-medium leading-none" style={{ color: "#571A9F" }}>
-          ₹65.5K
+          ₹{dealValue(creator)}
         </span>
       </div>
     </>
   );
 }
 
-function CreatorCard({ x, y, variant, creator }: { x: number; y: number; variant: Variant; creator: Creator }) {
+function CreatorCard({
+  x,
+  y,
+  creator,
+  agency,
+  discount,
+}: {
+  x: number;
+  y: number;
+  creator: Creator;
+  agency?: Agency;
+  discount: number;
+}) {
   const navigate = useNavigate();
+  const variant: Variant = creator.agencyId ? "agency" : "internal";
   return (
     <div
-      onClick={() => navigate("/creators/detail")}
+      onClick={() => navigate(`/creators/detail?id=${creator.id}`)}
       className="absolute h-[193px] w-[266px] rounded-[12px] bg-[#F5F5F5] cursor-pointer"
       style={{ left: x, top: y }}
     >
@@ -202,17 +231,21 @@ function CreatorCard({ x, y, variant, creator }: { x: number; y: number; variant
         {`${creator.cpv.toFixed(2)}p CPV`}
       </Metric>
       <Metric icon={Sparkles} iconColor="#603CFF" left={173} top={82} width={79}>
-        80% Match
+        {`${creator.matchPct ?? 0}% Match`}
       </Metric>
 
       {/* managed by */}
       <span className="absolute left-[8px] top-[112px] text-[9.3px] leading-none text-ink/70">
         Managed by:
       </span>
-      {variant === "internal" ? <InternalManaged /> : <AgencyManaged />}
+      {variant === "internal" ? (
+        <InternalManaged creator={creator} />
+      ) : (
+        <AgencyManaged creator={creator} agency={agency} discount={discount} />
+      )}
 
       {/* selection checkbox */}
-      {variant === "internal" ? (
+      {creator.listed ? (
         <span className="absolute left-[240px] top-[167px] flex h-[15px] w-[15px] items-center justify-center rounded-[5px] bg-white">
           <Check className="h-[9px] w-[9px] text-ink" strokeWidth={2.5} />
         </span>
@@ -226,8 +259,19 @@ function CreatorCard({ x, y, variant, creator }: { x: number; y: number; variant
 /* -------------------------------- page --------------------------------- */
 export default function NewLeadCreatorListPage() {
   const navigate = useNavigate();
-  const { data: creators } = useCreators();
-  const list = (creators ?? []).slice(0, ROW.length);
+  const { data: creators, isLoading } = useCreators();
+  const { data: agencies } = useAgencies();
+  const all = creators ?? [];
+  const list = all.slice(0, ROW_X.length);
+  const agencyById = new Map((agencies ?? []).map((a) => [a.id, a]));
+
+  // "% OFF" has no schema equivalent — derive it as how far below the roster's
+  // average CPV this creator prices, i.e. a real discount off the going rate.
+  const avgCpv = all.length ? all.reduce((s, c) => s + c.cpv, 0) / all.length : 0;
+  const discountOf = (c: Creator) =>
+    avgCpv > 0 ? Math.max(0, Math.round((1 - c.cpv / avgCpv) * 100)) : 0;
+
+  const selectedCount = list.filter((c) => c.listed).length;
   return (
     <>
       {/* back button — 235,153 · black circle */}
@@ -278,7 +322,7 @@ export default function NewLeadCreatorListPage() {
         <Check className="h-[11px] w-[11px] text-ink" strokeWidth={2.5} />
       </span>
       <span className="absolute left-[1029px] top-[262px] text-[12px] font-light leading-[15px] text-ink">
-        1 selected
+        {selectedCount} selected
       </span>
 
       {/* content panel */}
@@ -290,11 +334,23 @@ export default function NewLeadCreatorListPage() {
       </h2>
 
       {/* creator cards — single row */}
-      {ROW.map((c, i) =>
+      {ROW_X.map((x, i) =>
         list[i] ? (
-          <CreatorCard key={c.x} x={c.x} y={371} variant={c.variant} creator={list[i]} />
+          <CreatorCard
+            key={list[i].id}
+            x={x}
+            y={371}
+            creator={list[i]}
+            agency={list[i].agencyId ? agencyById.get(list[i].agencyId as string) : undefined}
+            discount={discountOf(list[i])}
+          />
         ) : null,
       )}
+      {list.length === 0 ? (
+        <span className="absolute left-[282px] top-[371px] h-[193px] w-[266px] text-[12px] leading-[15px] text-ink/50">
+          {isLoading ? "Loading creators…" : "No creators yet"}
+        </span>
+      ) : null}
     </>
   );
 }

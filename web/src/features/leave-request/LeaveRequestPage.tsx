@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { useLeaves, useUpdate } from "@/api/hooks";
+import { useLeaves, useMe, useUpdate, useUsers, type User } from "@/api/hooks";
 import {
   Search,
   Users,
@@ -54,6 +54,52 @@ function Txt({
       {children}
     </div>
   );
+}
+
+/* ------------------------------ date helpers ---------------------------- */
+/** Local yyyy-mm-dd key, for whole-day comparisons that ignore clock time. */
+function dayKey(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+/** true when today falls inside [from, to], inclusive. */
+function coversToday(from: string, to: string): boolean {
+  const a = new Date(from);
+  const b = new Date(to);
+  if (Number.isNaN(a.getTime()) || Number.isNaN(b.getTime())) return false;
+  const t = dayKey(new Date());
+  return dayKey(a) <= t && t <= dayKey(b);
+}
+
+/** dd/mm/yy from an ISO date string. */
+function fmtDate(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  return `${d.getDate()}/${String(d.getMonth() + 1).padStart(2, "0")}/${String(d.getFullYear()).slice(-2)}`;
+}
+
+/** dd/mm/yyyy, zero-padded — the Upcoming Events date format. */
+function fmtLong(d: Date): string {
+  return `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}`;
+}
+
+/** Human duration between two ISO dates, e.g. "One day" / "3 days". */
+function spanLabel(from: string, to: string): string {
+  const a = new Date(from);
+  const b = new Date(to);
+  if (Number.isNaN(a.getTime()) || Number.isNaN(b.getTime())) return "";
+  const days = Math.max(1, Math.round((b.getTime() - a.getTime()) / 86_400_000));
+  return days <= 1 ? "One day" : `${days} days`;
+}
+
+/** First letter of a name, for the circular avatar chips. */
+function initial(name: string): string {
+  return name.trim().charAt(0).toUpperCase();
+}
+
+/** Zero-padded two-digit count, matching the Figma "02" / "01" balance chips. */
+function pad2(n: number): string {
+  return String(n).padStart(2, "0");
 }
 
 /* ------------------------------- top pills ------------------------------ */
@@ -167,14 +213,14 @@ function ActionPill({
   );
 }
 
-/* -------------------------- right-column October pill ------------------- */
-function MonthPill({ x, y }: { x: number; y: number }) {
+/* -------------------------- right-column month pill --------------------- */
+function MonthPill({ x, y, label }: { x: number; y: number; label: string }) {
   return (
     <div
       className="absolute flex items-center gap-[6px] rounded-[28px] bg-white/90 pl-[16px] pr-[12px]"
       style={{ left: x, top: y, width: 101, height: 28 }}
     >
-      <span className="whitespace-nowrap text-[14px] font-light leading-none text-black/[0.99]">October</span>
+      <span className="whitespace-nowrap text-[14px] font-light leading-none text-black/[0.99]">{label}</span>
       <ChevronDown className="h-[13px] w-[13px] shrink-0 text-ink" strokeWidth={1.7} />
     </div>
   );
@@ -244,6 +290,7 @@ function LeaveRow({
   role,
   email,
   date,
+  reason,
   onApprove,
   onReject,
 }: {
@@ -253,6 +300,7 @@ function LeaveRow({
   role: string;
   email: string;
   date: string;
+  reason: string;
   onApprove?: () => void;
   onReject?: () => void;
 }) {
@@ -289,7 +337,7 @@ function LeaveRow({
         Reason for leave
       </Txt>
       <Txt l={675} t={top + 31} s={10} lh={13} cls="font-light text-black/70">
-        Sick Leave
+        {reason}
       </Txt>
       {/* pdf chip */}
       <div
@@ -321,12 +369,17 @@ function LeaveRow({
 /* ------------------------------ calendar data --------------------------- */
 const COLS = [250, 358, 466, 574, 682, 790, 898];
 const ROWS = [479, 577, 675, 773, 871];
-const GRID: number[][] = [
-  [1, 2, 3, 4, 5, 6, 7],
-  [8, 9, 10, 11, 12, 13, 14],
-  [15, 16, 17, 18, 19, 20, 21],
-  [22, 23, 24, 25, 26, 27, 28],
-  [29, 30, 31, 1, 2, 3, 4],
+/** Avatar tones for the per-day "who's out" chips, cycled by employee order. */
+const BADGE_TONES = [
+  { bg: "#C6A6DF", color: "#6000AA" },
+  { bg: "#C4F1D2", color: "#007726" },
+  { bg: "#D4CFFF", color: "#1A0C9A" },
+  { bg: "#FFE3CF", color: "#DB6714" },
+];
+/** Avatar tones for the two Upcoming Events rows. */
+const EVENT_TONES = [
+  { bg: "#C6A6DF", color: "#6000AA" },
+  { bg: "#DDF7FF", color: "#0F7D9E" },
 ];
 const WEEKDAYS: { label: string; x: number; color: string }[] = [
   { label: "Mon", x: 282, color: "#000000" },
@@ -344,16 +397,96 @@ export default function LeaveRequestPage() {
   const [params] = useSearchParams();
   const idParam = params.get("id");
   const { data: leaves } = useLeaves();
-  const leave = idParam
-    ? leaves?.find((l) => l.id === idParam)
-    : leaves?.find((l) => l.status === "PENDING") ?? leaves?.[0];
+  const { data: users } = useUsers();
+  const { data: me } = useMe();
   const upd = useUpdate("leaves");
 
-  const decide = (status: "APPROVED" | "REJECTED") => {
+  const userById = new Map((users ?? []).map((u) => [u.id, u] as const));
+
+  /* ---- attendance stats (top pills) ---- */
+  const headcount = (users ?? []).length;
+  const approved = (leaves ?? []).filter((l) => l.status === "APPROVED");
+  const outToday = approved.filter((l) => coversToday(l.from, l.to));
+  const absent = new Set(outToday.map((l) => l.userId)).size;
+  const present = Math.max(0, headcount - absent);
+  const wfh = outToday.filter((l) => /wfh|work from home/i.test(l.type)).length;
+  const halfDay = outToday.filter((l) => /half/i.test(l.type)).length;
+
+  /* ---- leave balance = leaves the signed-in user has already taken, per type ---- */
+  const mine = approved.filter((l) => l.userId === me?.id);
+  const takenOf = (re: RegExp) => pad2(mine.filter((l) => re.test(l.type)).length);
+
+  /* ---- "On leave / Today" card: whoever is out now, else the next one up ---- */
+  const current =
+    outToday[0] ??
+    [...approved]
+      .filter((l) => new Date(l.to).getTime() >= Date.now())
+      .sort((a, b) => new Date(a.from).getTime() - new Date(b.from).getTime())[0];
+  const person = current ? userById.get(current.userId) : undefined;
+  // Reporting manager = the *_MANAGER sitting on the same team.
+  const manager = (users ?? []).find(
+    (u) => u.role.endsWith("MANAGER") && !!person?.team && u.team?.id === person.team.id,
+  );
+
+  /* ---- calendar: the live current month, laid out Mon-first in the Figma's 5x7 grid ---- */
+  const today = new Date();
+  const monthLabel = today.toLocaleDateString("en-US", { month: "long" });
+  const firstOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+  const lead = (firstOfMonth.getDay() + 6) % 7; // Monday-first offset
+  const cellDate = (r: number, c: number) =>
+    new Date(today.getFullYear(), today.getMonth(), 1 - lead + r * 7 + c);
+
+  /* ---- who is out on a given day, for the calendar avatar chips ---- */
+  const outOn = (d: Date): User[] => {
+    const k = dayKey(d);
+    const seen = new Map<string, User>();
+    for (const l of approved) {
+      const a = new Date(l.from);
+      const b = new Date(l.to);
+      if (Number.isNaN(a.getTime()) || Number.isNaN(b.getTime())) continue;
+      if (dayKey(a) > k || k > dayKey(b)) continue;
+      const u = userById.get(l.userId);
+      if (u) seen.set(u.id, u); // one chip per person, even with overlapping leaves
+    }
+    return [...seen.values()];
+  };
+  const toneOf = (id: string) => {
+    const i = (users ?? []).findIndex((u) => u.id === id);
+    return BADGE_TONES[(i < 0 ? 0 : i) % BADGE_TONES.length];
+  };
+
+  /* ---- Upcoming Events: work anniversaries derived from each employee's join date.
+         The schema has no birthday/dob column, so User.createdAt (returned by
+         GET /users) is the only real per-person yearly date to celebrate. ---- */
+  const joinedMs = (u: User): number => {
+    const raw = (u as User & { createdAt?: string }).createdAt;
+    return raw ? new Date(raw).getTime() : NaN;
+  };
+  const anniversaries = (users ?? [])
+    .map((u) => ({ user: u, joined: joinedMs(u) }))
+    .filter((x) => Number.isFinite(x.joined))
+    .map(({ user, joined }) => {
+      const j = new Date(joined);
+      const on = new Date(today.getFullYear(), j.getMonth(), j.getDate());
+      if (dayKey(on) < dayKey(today)) on.setFullYear(on.getFullYear() + 1);
+      return { user, on };
+    })
+    .sort((a, b) => a.on.getTime() - b.on.getTime());
+  const anniversaryDays = new Set(anniversaries.map((a) => dayKey(a.on)));
+  const upcoming = anniversaries.slice(0, 2);
+
+  /* ---- modal rows: the ?id= request first, then the rest of the pending queue ---- */
+  const pending = (leaves ?? []).filter((l) => l.status === "PENDING");
+  const focused = idParam ? (leaves ?? []).find((l) => l.id === idParam) : undefined;
+  const rows = (focused ? [focused, ...pending.filter((l) => l.id !== focused.id)] : pending).slice(0, 2);
+  const ROW_GRADS = [
+    "linear-gradient(135deg, #FCE0C8 0%, #E39A63 100%)",
+    "linear-gradient(135deg, #F6C9DA 0%, #C07CA0 100%)",
+  ];
+
+  const decide = (id: string, status: "APPROVED" | "REJECTED") => {
     try {
-      if (leave?.id) {
-        upd.mutate({ id: leave.id, data: { status } });
-      }
+      upd.mutate({ id, data: { status } });
       navigate("/people/leaves");
     } catch {
       navigate("/people/leaves");
@@ -393,15 +526,15 @@ export default function LeaveRequestPage() {
           className="absolute flex items-center justify-center rounded-full text-[10px] font-normal text-white"
           style={{ left: 46, top: 17, width: 14, height: 14, background: "#20A271" }}
         >
-          4
+          {headcount}
         </span>
       </div>
 
       {/* ===== top-right stat pills ===== */}
-      <StatPill numX={811} badgeX={872} labelX={856} num="18" badgeBg="#DCFF68" dir="up" icon={Users} label="Present" />
-      <StatPill numX={939} badgeX={1000} labelX={984} num="2" badgeBg="#FFB0B1" dir="down" icon={UserX} label="Absent" />
-      <StatPill numX={1067} badgeX={1128} labelX={1112} num="0" badgeBg="#DCFF68" dir="up" icon={House} label="WFH" />
-      <StatPill numX={1195} badgeX={1256} labelX={1240} num="1" badgeBg="#DCFF68" dir="up" badgeText="1" label="Half Day" />
+      <StatPill numX={811} badgeX={872} labelX={856} num={String(present)} badgeBg="#DCFF68" dir="up" icon={Users} label="Present" />
+      <StatPill numX={939} badgeX={1000} labelX={984} num={String(absent)} badgeBg="#FFB0B1" dir="down" icon={UserX} label="Absent" />
+      <StatPill numX={1067} badgeX={1128} labelX={1112} num={String(wfh)} badgeBg="#DCFF68" dir="up" icon={House} label="WFH" />
+      <StatPill numX={1195} badgeX={1256} labelX={1240} num={String(halfDay)} badgeBg="#DCFF68" dir="up" badgeText={String(halfDay)} label="Half Day" />
 
       {/* ===== date pill ===== */}
       <div className="absolute rounded-[18px] bg-white" style={{ left: 1300, top: 151, width: 90, height: 32 }}>
@@ -412,7 +545,7 @@ export default function LeaveRequestPage() {
           <Calendar className="h-[14px] w-[14px] text-ink" strokeWidth={1.6} />
         </div>
         <span className="absolute text-[12px] font-light leading-none text-ink/90" style={{ left: 30, top: 10 }}>
-          30/09/25
+          {fmtDate(today.toISOString())}
         </span>
       </div>
 
@@ -439,7 +572,7 @@ export default function LeaveRequestPage() {
       {/* ===== header action pills ===== */}
       <ActionPill x={664} w={100} label="Add Holiday" onClick={() => navigate("/people/holidays")} />
       <ActionPill x={770} w={114} label="Apply for leave" onClick={() => navigate("/people/apply-leave")} />
-      <ActionPill x={890} w={108} label="October" chevron />
+      <ActionPill x={890} w={108} label={monthLabel} chevron />
 
       {/* ===== Leave Balance ===== */}
       <Txt l={257} t={306} s={18} lh={24} cls="font-light text-ink">
@@ -454,7 +587,7 @@ export default function LeaveRequestPage() {
         className="absolute flex items-center justify-center rounded-full border"
         style={{ left: 264, top: 352, width: 42, height: 42, borderColor: "#731FB4" }}
       >
-        <span className="text-[14px] font-normal leading-none text-[#6000AA]">02</span>
+        <span className="text-[14px] font-normal leading-none text-[#6000AA]">{takenOf(/casual/i)}</span>
       </div>
       <Txt l={311} t={364} s={14} lh={24} cls="font-normal text-black/90">
         Causal Leave
@@ -468,7 +601,7 @@ export default function LeaveRequestPage() {
         className="absolute flex items-center justify-center rounded-full border"
         style={{ left: 434, top: 352, width: 42, height: 42, borderColor: "#6CA478" }}
       >
-        <span className="text-[14px] font-normal leading-none text-[#6CA478]">01</span>
+        <span className="text-[14px] font-normal leading-none text-[#6CA478]">{takenOf(/sick/i)}</span>
       </div>
       <Txt l={481} t={364} s={14} lh={24} cls="font-normal text-black/90">
         Sick Leave
@@ -484,9 +617,10 @@ export default function LeaveRequestPage() {
       {/* ===== calendar grid cells ===== */}
       {ROWS.map((ry, r) =>
         COLS.map((cx, c) => {
-          const day = GRID[r][c];
+          const d = cellDate(r, c);
+          const day = d.getDate();
           const isSun = c === 6;
-          const isToday = r === 0 && c === 3; // the 4th
+          const isToday = dayKey(d) === dayKey(today);
           return (
             <div
               key={`cell-${r}-${c}`}
@@ -519,30 +653,41 @@ export default function LeaveRequestPage() {
         })
       )}
 
-      {/* ===== day decorations (over cells) ===== */}
-      {/* 4th — today */}
-      <DayBadge x={640} y={535} bg="#C6A6DF" color="#6000AA" letter="T" />
-      {/* 12th */}
-      <DayBadge x={750} y={637} bg="#C4F1D2" color="#007726" letter="S" />
-      {/* 16th cake */}
-      <div className="absolute text-[13px] leading-none" style={{ left: 430, top: 690 }}>
-        🎂
-      </div>
-      {/* 22nd cake */}
-      <div className="absolute text-[13px] leading-none" style={{ left: 322, top: 788 }}>
-        🎂
-      </div>
-      {/* 24th holiday chip */}
-      <div
-        className="absolute flex items-center gap-[3px] rounded-full bg-white pl-[5px] pr-[6px]"
-        style={{ left: 478, top: 818, height: 26, border: "0.6px solid #E4E4E4" }}
-      >
-        <span className="h-[8px] w-[8px] rounded-full" style={{ background: "#88DFA9" }} />
-        <span className="text-[10px] font-normal leading-none text-black/80">Holiday</span>
-      </div>
-      {/* 25th — overlapping K + P */}
-      <DayBadge x={640} y={830} bg="#D4CFFF" color="#1A0C9A" letter="K" />
-      <DayBadge x={624} y={830} bg="#FFE3CF" color="#DB6714" letter="P" />
+      {/* ===== day decorations (over cells) — cakes = work anniversaries, ===== */}
+      {/* ===== avatar chips = whoever is on approved leave that day        ===== */}
+      {ROWS.flatMap((ry, r) =>
+        COLS.flatMap((cx, c) => {
+          const d = cellDate(r, c);
+          const marks: ReactNode[] = [];
+          if (anniversaryDays.has(dayKey(d))) {
+            marks.push(
+              <div
+                key={`cake-${r}-${c}`}
+                className="absolute text-[13px] leading-none"
+                style={{ left: cx + 72, top: ry + 15 }}
+              >
+                🎂
+              </div>,
+            );
+          }
+          outOn(d)
+            .slice(0, 3)
+            .forEach((u, i) => {
+              const tone = toneOf(u.id);
+              marks.push(
+                <DayBadge
+                  key={`out-${r}-${c}-${u.id}`}
+                  x={cx + 66 - i * 16}
+                  y={ry + 56}
+                  bg={tone.bg}
+                  color={tone.color}
+                  letter={initial(u.name)}
+                />,
+              );
+            });
+          return marks;
+        }),
+      )}
 
       {/* =============================================================== */}
       {/* ===== right column cards =====                                  */}
@@ -556,42 +701,50 @@ export default function LeaveRequestPage() {
       <Txt l={1025} t={231} s={12} lh={24} cls="font-normal text-ink">
         On leave
       </Txt>
-      <MonthPill x={1263} y={223} />
+      <MonthPill x={1263} y={223} label={monthLabel} />
       <div className="absolute rounded-[12px] bg-white" style={{ left: 1025, top: 262, width: 327, height: 188 }} />
       <Txt l={1025} t={264} s={12} lh={16} cls="font-normal text-black/70">
         Today
       </Txt>
       <div className="absolute bg-black/10" style={{ left: 1066, top: 271.5, width: 92, height: 1 }} />
-      {/* Tanvi leave entry */}
-      <div
-        className="absolute rounded-[32px] border border-[#D6D6D6] bg-white"
-        style={{ left: 1025, top: 293, width: 318, height: 62 }}
-      />
-      <div
-        className="absolute flex items-center justify-center rounded-full"
-        style={{ left: 1032, top: 303, width: 42, height: 42, background: "#C6A6DF" }}
-      >
-        <span className="text-[14px] font-normal leading-none text-[#6000AA]">T</span>
-      </div>
-      <Txt l={1079} t={304} s={14} lh={18} cls="font-normal text-black/90">
-        Tanvi Sharma
-      </Txt>
-      <Txt l={1181} t={306.5} s={10} lh={13} cls="font-light text-black/70">
-        Operations
-      </Txt>
-      <Txt l={1079} t={323} s={10} lh={12} w={90} cls="font-light text-black/70">
-        Rep. Manager: Vishal Sharma
-      </Txt>
-      <Txt l={1181} t={330} s={10} lh={13} cls="font-light text-black/70">
-        Sick Leave
-      </Txt>
-      <div
-        className="absolute flex items-center gap-[3px] rounded-[7px] border border-black/10 bg-white pl-[5px] pr-[6px]"
-        style={{ left: 1245, top: 325, height: 23 }}
-      >
-        <FileText className="h-[13px] w-[13px] text-[#D14343]" strokeWidth={1.6} />
-        <span className="text-[10.3px] font-light leading-none text-black/70">Medical..pdf</span>
-      </div>
+      {/* on-leave entry */}
+      {current && person ? (
+        <>
+          <div
+            className="absolute rounded-[32px] border border-[#D6D6D6] bg-white"
+            style={{ left: 1025, top: 293, width: 318, height: 62 }}
+          />
+          <div
+            className="absolute flex items-center justify-center rounded-full"
+            style={{ left: 1032, top: 303, width: 42, height: 42, background: "#C6A6DF" }}
+          >
+            <span className="text-[14px] font-normal leading-none text-[#6000AA]">{initial(person.name)}</span>
+          </div>
+          <Txt l={1079} t={304} s={14} lh={18} cls="font-normal text-black/90">
+            {person.name}
+          </Txt>
+          <Txt l={1181} t={306.5} s={10} lh={13} cls="font-light text-black/70">
+            {person.team?.name ?? person.role}
+          </Txt>
+          <Txt l={1079} t={323} s={10} lh={12} w={90} cls="font-light text-black/70">
+            Rep. Manager: {manager?.name ?? "—"}
+          </Txt>
+          <Txt l={1181} t={330} s={10} lh={13} cls="font-light text-black/70">
+            {current.type}
+          </Txt>
+          <div
+            className="absolute flex items-center gap-[3px] rounded-[7px] border border-black/10 bg-white pl-[5px] pr-[6px]"
+            style={{ left: 1245, top: 325, height: 23 }}
+          >
+            <FileText className="h-[13px] w-[13px] text-[#D14343]" strokeWidth={1.6} />
+            <span className="text-[10.3px] font-light leading-none text-black/70">Medical..pdf</span>
+          </div>
+        </>
+      ) : (
+        <Txt l={1032} t={315} s={12} lh={16} cls="font-light text-black/40">
+          No one on leave
+        </Txt>
+      )}
 
       {/* ---- Upcoming Events ---- */}
       <div
@@ -601,50 +754,47 @@ export default function LeaveRequestPage() {
       <Txt l={1025} t={484} s={12} lh={24} cls="font-normal text-ink">
         Upcoming Events
       </Txt>
-      <MonthPill x={1263} y={476} />
+      <MonthPill x={1263} y={476} label={monthLabel} />
       <div className="absolute rounded-[12px] bg-white" style={{ left: 1025, top: 515, width: 327, height: 188 }} />
-      {/* birthday row 1 */}
-      <div className="absolute rounded-[32px] bg-white" style={{ left: 1025, top: 531, width: 326, height: 62 }} />
-      <div className="absolute text-[18px] leading-none" style={{ left: 1037, top: 549 }}>
-        🎂
-      </div>
-      <Txt l={1071} t={545} s={12} lh={16} cls="font-light text-black/70">
-        Happy birthday
-      </Txt>
-      <div
-        className="absolute flex items-center justify-center rounded-full"
-        style={{ left: 1071, top: 563, width: 16, height: 16, background: "#C6A6DF" }}
-      >
-        <span className="text-[8px] font-normal leading-none text-[#6000AA]">T</span>
-      </div>
-      <Txt l={1092} t={563} s={14} lh={16} cls="font-normal text-ink">
-        Tanvi Sharma
-      </Txt>
-      <Bunting x={1167} y={533} />
-      <Txt l={1269} t={550} s={12} lh={24} cls="font-light text-black/70">
-        16/09/2025
-      </Txt>
-      {/* birthday row 2 */}
-      <div className="absolute rounded-[32px] bg-white" style={{ left: 1025, top: 605, width: 326, height: 62 }} />
-      <div className="absolute text-[18px] leading-none" style={{ left: 1037, top: 623 }}>
-        🎂
-      </div>
-      <Txt l={1071} t={619} s={12} lh={16} cls="font-light text-black/70">
-        Happy birthday
-      </Txt>
-      <div
-        className="absolute flex items-center justify-center rounded-full"
-        style={{ left: 1071, top: 637, width: 16, height: 16, background: "#DDF7FF" }}
-      >
-        <span className="text-[8px] font-normal leading-none text-[#0F7D9E]">P</span>
-      </div>
-      <Txt l={1092} t={637} s={14} lh={16} cls="font-normal text-ink">
-        Pooja Sharma
-      </Txt>
-      <Bunting x={1167} y={607} />
-      <Txt l={1269} t={624} s={12} lh={24} cls="font-light text-black/70">
-        22/09/2025
-      </Txt>
+      {upcoming.length === 0 ? (
+        <Txt l={1037} t={553} s={12} lh={16} cls="font-light text-black/40">
+          No upcoming events
+        </Txt>
+      ) : (
+        upcoming.map(({ user, on }, i) => {
+          const tone = EVENT_TONES[i % EVENT_TONES.length];
+          const dy = i * 74;
+          return (
+            <div key={user.id}>
+              <div
+                className="absolute rounded-[32px] bg-white"
+                style={{ left: 1025, top: 531 + dy, width: 326, height: 62 }}
+              />
+              <div className="absolute text-[18px] leading-none" style={{ left: 1037, top: 549 + dy }}>
+                🎂
+              </div>
+              <Txt l={1071} t={545 + dy} s={12} lh={16} cls="font-light text-black/70">
+                Work anniversary
+              </Txt>
+              <div
+                className="absolute flex items-center justify-center rounded-full"
+                style={{ left: 1071, top: 563 + dy, width: 16, height: 16, background: tone.bg }}
+              >
+                <span className="text-[8px] font-normal leading-none" style={{ color: tone.color }}>
+                  {initial(user.name)}
+                </span>
+              </div>
+              <Txt l={1092} t={563 + dy} s={14} lh={16} cls="font-normal text-ink">
+                {user.name}
+              </Txt>
+              <Bunting x={1167} y={533 + dy} />
+              <Txt l={1269} t={550 + dy} s={12} lh={24} cls="font-light text-black/70">
+                {fmtLong(on)}
+              </Txt>
+            </div>
+          );
+        })
+      )}
 
       {/* ---- Holidays ---- */}
       <div
@@ -654,22 +804,15 @@ export default function LeaveRequestPage() {
       <Txt l={1024} t={739} s={12} lh={24} cls="font-normal text-ink">
         Holidays
       </Txt>
-      <MonthPill x={1262} y={731} />
+      <MonthPill x={1262} y={731} label={monthLabel} />
       <div className="absolute rounded-[12px] bg-white" style={{ left: 1024, top: 770, width: 327, height: 188 }} />
       <Txt l={1024} t={772} s={12} lh={16} cls="font-normal text-black/70">
-        24/09/25
+        {fmtDate(today.toISOString())}
       </Txt>
       <div className="absolute bg-black/10" style={{ left: 1086, top: 779.5, width: 92, height: 1 }} />
-      <div
-        className="absolute rounded-[32px] border border-[#D6D6D6] bg-white"
-        style={{ left: 1024, top: 801, width: 318, height: 62 }}
-      />
-      <div
-        className="absolute rounded-full"
-        style={{ left: 1031, top: 811, width: 42, height: 42, background: "#88DFA9" }}
-      />
-      <Txt l={1079} t={823} s={14} lh={24} cls="font-normal text-black/90">
-        Holiday
+      {/* No Holiday model exists in the Prisma schema, so there is nothing to list here. */}
+      <Txt l={1031} t={823} s={12} lh={16} cls="font-light text-black/40">
+        No holidays scheduled
       </Txt>
 
       {/* =============================================================== */}
@@ -694,26 +837,28 @@ export default function LeaveRequestPage() {
       </div>
 
       {/* rows */}
-      <LeaveRow
-        top={469.5}
-        avatarGrad="linear-gradient(135deg, #FCE0C8 0%, #E39A63 100%)"
-        name="Harsh Negi"
-        role="Social media intern"
-        email="harshnegi@gmail.com"
-        date="Date: 9/09/25 (One day)"
-        onApprove={() => decide("APPROVED")}
-        onReject={() => decide("REJECTED")}
-      />
-      <LeaveRow
-        top={541.5}
-        avatarGrad="linear-gradient(135deg, #F6C9DA 0%, #C07CA0 100%)"
-        name="Tanya Sharma"
-        role="Graphic Design"
-        email="tanvi1@gmail.com"
-        date="Date: 5/09/25 (One day)"
-        onApprove={() => decide("APPROVED")}
-        onReject={() => decide("REJECTED")}
-      />
+      {rows.length === 0 && (
+        <Txt l={391} t={469.5} s={13} lh={18} cls="font-light text-black/40">
+          No pending leave requests
+        </Txt>
+      )}
+      {rows.map((l, i) => {
+        const u = userById.get(l.userId);
+        return (
+          <LeaveRow
+            key={l.id}
+            top={469.5 + i * 72}
+            avatarGrad={ROW_GRADS[i % ROW_GRADS.length]}
+            name={u?.name ?? ""}
+            role={u?.team?.name ?? u?.role ?? ""}
+            email={u?.email ?? ""}
+            date={`Date: ${fmtDate(l.from)} (${spanLabel(l.from, l.to)})`}
+            reason={l.reason ?? l.type}
+            onApprove={() => decide(l.id, "APPROVED")}
+            onReject={() => decide(l.id, "REJECTED")}
+          />
+        );
+      })}
     </>
   );
 }

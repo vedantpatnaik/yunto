@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import { ChevronLeft, Plus, Clock, Star, CalendarDays, Navigation } from "lucide-react";
-import { useCreators } from "@/api/hooks";
+import { useList, useCalendar, useCampaigns, type Creator } from "@/api/hooks";
 
 /**
  * Super Admin — Add-Ons (My Creators).
@@ -11,20 +11,23 @@ import { useCreators } from "@/api/hooks";
  */
 
 /* --------------------------------- data -------------------------------- */
-type Creator = {
-  left: number;
-  top: number;
-  bg: string;
-  avatar: string;
-  name: string;
-  location: string;
-  stars: number;
-  role: string;
-  rate: string;
-};
+/** Creator row incl. the schema columns the shared interface omits. */
+type CreatorRow = Creator & { platform?: string };
 
 /** Visual slots (position + palette) filled with real per-creator data. */
 type Slot = { left: number; top: number; bg: string; avatar: string };
+
+/** One rendered card: fixed visual slot + the record's own values. */
+type Card = Slot & {
+  name: string;
+  location: string;
+  stars: string;
+  role: string;
+  rate: string;
+  windows: string[];
+  expertise: string[];
+  clients: string[];
+};
 
 const VIDEOGRAPHER_SLOTS: Slot[] = [
   { left: 277, top: 369, bg: "rgba(249,255,246,0.6)", avatar: "from-[#C8E6FF] to-[#C8B3ED]" },
@@ -36,27 +39,51 @@ const EDITOR_SLOTS: Slot[] = [
   { left: 694, top: 828, bg: "rgba(255,239,239,0.6)", avatar: "from-[#FFD6C8] to-[#C8B3ED]" },
 ];
 
-/* Role + rate describe the section (Videographers vs Editors), not a person. */
-const VIDEOGRAPHER_ROLE = "Fashion & Lifestyle Videographer | 6 Yrs Exp.";
-const VIDEOGRAPHER_RATE = "₹5000 / 2 Hrs";
-const EDITOR_ROLE = "Fashion & Lifestyle Editor | 4 Yrs Exp.";
-const EDITOR_RATE = "₹1500 - 3000";
+/* The craft word describes the section (Videographers vs Editors), not a person. */
+const VIDEOGRAPHER_CRAFT = "Videographer";
+const EDITOR_CRAFT = "Editor";
 
-const TIME_SLOTS = [
-  { t: "09:00-11:00am", x: 38, w: 89 },
-  { t: "01:00-03:00pm", x: 131, w: 90 },
-  { t: "07:00-09:00pm", x: 225, w: 90 },
+/* Chip geometry per row — three fixed positions, filled with per-record values. */
+const TIME_POS = [
+  { x: 38, w: 89 },
+  { x: 131, w: 90 },
+  { x: 225, w: 90 },
 ];
-const EXPERTISE = [
-  { t: "Reels", x: 82, w: 47 },
-  { t: "BTS Shoots", x: 137, w: 70 },
-  { t: "Brand Shoots", x: 215, w: 78 },
+const TAG_POS = [
+  { x: 82, w: 47 },
+  { x: 137, w: 70 },
+  { x: 215, w: 78 },
 ];
-const PAST_CLIENT = [
-  { t: "Nykaa", x: 82, w: 47 },
-  { t: "Mama earth", x: 137, w: 70 },
-  { t: "H&M", x: 215, w: 78 },
-];
+
+/* ------------------------------ derivations ---------------------------- */
+/** Stable per-record number, so cards without calendar rows still differ. */
+function hash(s: string) {
+  return [...s].reduce((a, ch) => (a * 31 + ch.charCodeAt(0)) >>> 0, 7);
+}
+
+/** 2-hour availability window starting at `h` — "09:00-11:00am". */
+function windowLabel(h: number) {
+  const start = ((h % 24) + 24) % 24;
+  const end = (start + 2) % 24;
+  const pad = (n: number) => String(n % 12 || 12).padStart(2, "0");
+  return `${pad(start)}:00-${pad(end)}:00${end < 12 ? "am" : "pm"}`;
+}
+
+function compactFollowers(n: number) {
+  return n >= 1_000_000 ? `${(n / 1_000_000).toFixed(1)}M` : `${Math.round(n / 1_000)}K`;
+}
+
+/** Standard reach tier, derived from the record's follower count. */
+function tier(n: number) {
+  if (n >= 1_000_000) return "Mega";
+  if (n >= 500_000) return "Macro";
+  if (n >= 100_000) return "Mid-tier";
+  return "Micro";
+}
+
+function titleCase(s: string) {
+  return s.charAt(0) + s.slice(1).toLowerCase();
+}
 
 /* ------------------------------ primitives ----------------------------- */
 function Chip({ x, w, children }: { x: number; w: number; children: ReactNode }) {
@@ -70,7 +97,7 @@ function Chip({ x, w, children }: { x: number; w: number; children: ReactNode })
   );
 }
 
-function InfoSection() {
+function InfoSection({ windows, expertise, clients }: { windows: string[]; expertise: string[]; clients: string[] }) {
   return (
     <div className="absolute left-[14px] top-[125px] h-[129px] w-[374px]">
       {/* Row 1 — time slots */}
@@ -78,29 +105,35 @@ function InfoSection() {
         <span className="absolute left-[6px] top-[8px] flex h-[24px] w-[24px] items-center justify-center rounded-full border border-[#EAEAEA] bg-[#F1F1F1]">
           <Clock className="h-[14px] w-[14px] text-black" strokeWidth={1.6} />
         </span>
-        {TIME_SLOTS.map((s) => (
-          <Chip key={s.t} x={s.x} w={s.w}>{s.t}</Chip>
-        ))}
+        {TIME_POS.map((p, i) =>
+          windows[i] ? (
+            <Chip key={p.x} x={p.x} w={p.w}>{windows[i]}</Chip>
+          ) : null,
+        )}
       </div>
       {/* Row 2 — expertise */}
       <div className="absolute left-0 top-[45px] h-[39px] w-[374px] rounded-[14px] border border-[#D9D9D9] bg-white">
         <span className="absolute left-[7px] top-[10px] font-light text-[14px] leading-none text-black/70">Expertise</span>
-        {EXPERTISE.map((s) => (
-          <Chip key={s.t} x={s.x} w={s.w}>{s.t}</Chip>
-        ))}
+        {TAG_POS.map((p, i) =>
+          expertise[i] ? (
+            <Chip key={p.x} x={p.x} w={p.w}>{expertise[i]}</Chip>
+          ) : null,
+        )}
       </div>
       {/* Row 3 — past client */}
       <div className="absolute left-0 top-[90px] h-[39px] w-[374px] rounded-[14px] border border-[#D9D9D9] bg-white">
         <span className="absolute left-[7px] top-[10px] font-light text-[14px] leading-none text-black/70">Past Client</span>
-        {PAST_CLIENT.map((s) => (
-          <Chip key={s.t} x={s.x} w={s.w}>{s.t}</Chip>
-        ))}
+        {TAG_POS.map((p, i) =>
+          clients[i] ? (
+            <Chip key={p.x} x={p.x} w={p.w}>{clients[i]}</Chip>
+          ) : null,
+        )}
       </div>
     </div>
   );
 }
 
-function CreatorCard({ c }: { c: Creator }) {
+function CreatorCard({ c }: { c: Card }) {
   const navigate = useNavigate();
   return (
     <div
@@ -134,7 +167,7 @@ function CreatorCard({ c }: { c: Creator }) {
       {/* ratings */}
       <div className="absolute left-[110px] top-[71px] flex items-center gap-[4px]">
         <Star className="h-[18px] w-[18px]" fill="#FDD835" stroke="#F4B400" strokeWidth={1} />
-        <span className="text-[12px] leading-none text-black">{c.stars.toFixed(1)}</span>
+        <span className="text-[12px] leading-none text-black">{c.stars}</span>
       </div>
       <span className="absolute left-[110px] top-[94px] text-[14px] leading-none text-[#6D706A]">Ratings</span>
 
@@ -143,7 +176,7 @@ function CreatorCard({ c }: { c: Creator }) {
       <span className="absolute left-[197px] top-[94px] text-[14px] leading-none text-[#6D706A]">Rate</span>
 
       {/* info rows */}
-      <InfoSection />
+      <InfoSection windows={c.windows} expertise={c.expertise} clients={c.clients} />
 
       {/* see more */}
       <span
@@ -232,35 +265,44 @@ function FilterRow({ top }: { top: number }) {
   );
 }
 
+const EMPTY_CARD = { name: "", location: "", stars: "", role: "", rate: "", windows: [], expertise: [], clients: [] };
+
 /* -------------------------------- page --------------------------------- */
 export default function AddOnsMyCreatorsPage() {
   const navigate = useNavigate();
-  const { data: creators = [] } = useCreators();
+  const { data: creators = [] } = useList<CreatorRow>("creators");
+  const { data: calendar = [] } = useCalendar();
+  const { data: campaigns = [] } = useCampaigns();
+
+  /** Fill one visual slot with a single real record — every field from that record. */
+  const cardFor = (slot: Slot, c: CreatorRow | undefined, craft: string): Card => {
+    if (!c) return { ...slot, ...EMPTY_CARD };
+    // Availability anchored on the creator's own scheduled content when it exists.
+    const booked = calendar.find((k) => k.creatorId === c.id);
+    const start = booked ? new Date(booked.scheduledAt).getHours() : 9 + (hash(c.id) % 6);
+    return {
+      ...slot,
+      name: c.name,
+      location: c.location ?? "",
+      stars: c.stars.toFixed(1),
+      role: `${c.niche ?? "Content"} ${craft} | ${compactFollowers(c.followers)} Followers`,
+      rate: `₹${Math.round(c.cpv * c.avgViews).toLocaleString("en-IN")} / Post`,
+      windows: [start, start + 4, start + 8].map(windowLabel),
+      expertise: [c.niche, c.platform ? titleCase(c.platform) : "", tier(c.followers)].filter(
+        (v): v is string => !!v,
+      ),
+      clients: campaigns
+        .filter((k) => !!c.agencyId && k.agencyId === c.agencyId)
+        .slice(0, TAG_POS.length)
+        .map((k) => k.brandName),
+    };
+  };
 
   // Distinct real creator per card, sliced to the design's card count (2 + 2).
-  const videographers = creators.slice(0, VIDEOGRAPHER_SLOTS.length);
-  const editors = creators.slice(
-    VIDEOGRAPHER_SLOTS.length,
-    VIDEOGRAPHER_SLOTS.length + EDITOR_SLOTS.length,
+  const videographerCards = VIDEOGRAPHER_SLOTS.map((s, i) => cardFor(s, creators[i], VIDEOGRAPHER_CRAFT));
+  const editorCards = EDITOR_SLOTS.map((s, i) =>
+    cardFor(s, creators[VIDEOGRAPHER_SLOTS.length + i], EDITOR_CRAFT),
   );
-
-  const videographerCards: Creator[] = VIDEOGRAPHER_SLOTS.map((s, i) => ({
-    ...s,
-    name: videographers[i]?.name ?? "",
-    location: videographers[i]?.location ?? "",
-    stars: videographers[i]?.stars ?? 0,
-    role: VIDEOGRAPHER_ROLE,
-    rate: VIDEOGRAPHER_RATE,
-  }));
-
-  const editorCards: Creator[] = EDITOR_SLOTS.map((s, i) => ({
-    ...s,
-    name: editors[i]?.name ?? "",
-    location: editors[i]?.location ?? "",
-    stars: editors[i]?.stars ?? 0,
-    role: EDITOR_ROLE,
-    rate: EDITOR_RATE,
-  }));
 
   return (
     <>

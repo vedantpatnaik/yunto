@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import { useState } from "react";
 import type { LucideIcon } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { useCreate } from "@/api/hooks";
+import { useCreate, useCreators, type Creator } from "@/api/hooks";
 import {
   Search,
   ChevronDown,
@@ -62,10 +62,29 @@ function CheckBox({ on }: { on?: boolean }) {
   );
 }
 
-function CreatorCard({ listed }: { listed: boolean }) {
+const compactN = (n: number) =>
+  n >= 1_000_000 ? `${(n / 1_000_000).toFixed(n % 1_000_000 === 0 ? 0 : 1)}M`
+  : n >= 1_000 ? `${Math.round(n / 1_000)}k` : `${n}`;
+
+/** Estimated spend for one creator: CPV × average views. */
+const creatorCost = (c: Creator) => Math.round(c.cpv * c.avgViews);
+
+function CreatorCard({ c, avgER, avgCpv, selected, onToggle }: {
+  c: Creator;
+  avgER: number;
+  avgCpv: number;
+  selected: boolean;
+  onToggle: () => void;
+}) {
+  const listed = c.listed ?? false;
+  // Creator has no "performance delta" / "pricing suggestion" column — both are derived
+  // from this creator's engagement rate and CPV measured against the cohort averages.
+  const delta = avgER > 0 ? Math.round((c.engagementRate / avgER - 1) * 100) : 0;
+  const suggestion = c.cpv < avgCpv ? "Increase" : "Decrease";
   return (
     <div
-      className="relative h-[193px] w-[266px] rounded-[12px]"
+      onClick={onToggle}
+      className="relative h-[193px] w-[266px] cursor-pointer rounded-[12px]"
       style={{
         backgroundImage:
           "linear-gradient(#F5F5F5,#F5F5F5),linear-gradient(135deg,#BC9733,#EFDB74,#F7EF8A,#D1AB46,#E4BE58)",
@@ -79,13 +98,13 @@ function CreatorCard({ listed }: { listed: boolean }) {
       <span className="absolute left-[30px] top-[29px] text-[13px] leading-none">🔥</span>
 
       {/* name + handle */}
-      <div className="absolute left-[51px] top-[10px] text-[12px] leading-[15px] text-ink/90">Leena Sharma</div>
-      <div className="absolute left-[51px] top-[26px] text-[8px] leading-[13px] text-ink/70">@leenabliss</div>
+      <div className="absolute left-[51px] top-[10px] max-w-[105px] truncate text-[12px] leading-[15px] text-ink/90">{c.name}</div>
+      <div className="absolute left-[51px] top-[26px] text-[8px] leading-[13px] text-ink/70">{c.handle}</div>
 
-      {/* Delhi pill */}
+      {/* location pill */}
       <div className="absolute left-[163px] top-[8px] flex h-[24px] items-center gap-[2px] rounded-[12px] bg-white px-[5px]">
         <span className="text-[10px] leading-none">📍</span>
-        <span className="text-[10px] text-ink">Delhi</span>
+        <span className="text-[10px] text-ink">{c.location ?? "India"}</span>
       </div>
 
       {/* arrow button */}
@@ -95,16 +114,16 @@ function CreatorCard({ listed }: { listed: boolean }) {
 
       {/* stat row 1 */}
       <div className="absolute left-[10px] top-[51px] flex gap-[3px]">
-        <Stat icon={Users} iconClass="text-ink">1.2M</Stat>
-        <Stat icon={Eye} iconClass="text-[#2CC37F]">900k Avg. views</Stat>
-        <Stat icon={Heart} iconClass="text-[#EC4899]">4.5% ER</Stat>
+        <Stat icon={Users} iconClass="text-ink">{compactN(c.followers)}</Stat>
+        <Stat icon={Eye} iconClass="text-[#2CC37F]">{compactN(c.avgViews)} Avg. views</Stat>
+        <Stat icon={Heart} iconClass="text-[#EC4899]">{c.engagementRate.toFixed(1)}% ER</Stat>
       </div>
 
       {/* stat row 2 */}
       <div className="absolute left-[10px] top-[82px] flex gap-[3px]">
-        <Stat icon={Star} iconClass="fill-[#FDD835] text-[#FDD835]">4.8 Stars</Stat>
-        <Stat icon={Eye} iconClass="text-[#2CC37F]">0.23p CPV</Stat>
-        <Stat icon={Sparkles} iconClass="fill-[#603CFF] text-[#603CFF]">0% Match</Stat>
+        <Stat icon={Star} iconClass="fill-[#FDD835] text-[#FDD835]">{c.stars} Stars</Stat>
+        <Stat icon={Eye} iconClass="text-[#2CC37F]">{c.cpv.toFixed(2)}p CPV</Stat>
+        <Stat icon={Sparkles} iconClass="fill-[#603CFF] text-[#603CFF]">{c.matchPct ?? 0}% Match</Stat>
       </div>
 
       {/* performance */}
@@ -120,10 +139,12 @@ function CreatorCard({ listed }: { listed: boolean }) {
         }}
       >
         <Activity className="h-[13px] w-[13px] text-[#FF4B55]" strokeWidth={2} />
-        <span className="ml-[3px] text-[10px] font-medium text-ink">+35% above avg</span>
+        <span className="ml-[3px] text-[10px] font-medium text-ink">
+          {delta > 0 ? "+" : ""}{delta}% {delta < 0 ? "below" : "above"} avg
+        </span>
         <IndianRupee className="ml-[10px] h-[12px] w-[12px] text-[#FF4B55]" strokeWidth={2} />
         <span className="ml-[4px] text-[10px] font-medium text-ink">Suggestion:</span>
-        <span className="ml-[3px] text-[10px] font-medium text-[#FF4B55]">Increase</span>
+        <span className="ml-[3px] text-[10px] font-medium text-[#FF4B55]">{suggestion}</span>
       </div>
 
       {/* footer: listed state + checkbox */}
@@ -132,16 +153,13 @@ function CreatorCard({ listed }: { listed: boolean }) {
         <span className="text-[12px] font-light text-ink/70">{listed ? "Listed" : "Unlisted"}</span>
       </div>
       <div className="absolute left-[240px] top-[167px] flex h-[15px] w-[15px] items-center justify-center rounded-[5px] border border-[#C9C9C9] bg-white">
-        <Check className="h-[10px] w-[10px] text-black" strokeWidth={2.6} />
+        {selected && <Check className="h-[10px] w-[10px] text-black" strokeWidth={2.6} />}
       </div>
     </div>
   );
 }
 
 /* -------------------------------- page --------------------------------- */
-const REC_CARDS: boolean[] = [false, true, true];
-const ALL_CARDS: boolean[] = [false, true, true];
-
 /** Parse counts like "1.2M" / "900k" / "500" / "0 - 500" into a number. */
 function parseCount(v: string): number {
   const m = v.trim().toLowerCase().match(/^([\d.]+)\s*([mk])?/);
@@ -155,11 +173,30 @@ function parseCount(v: string): number {
 export default function AddCreatorPage() {
   const navigate = useNavigate();
   const create = useCreate("creators");
+  const { data: creators, isLoading } = useCreators();
 
   const [followers, setFollowers] = useState("");
   const [location, setLocation] = useState("");
   const [niche, setNiche] = useState("");
   const [avgViews, setAvgViews] = useState("");
+  // Explicit user picks; a creator not yet touched defaults to its `listed` flag.
+  const [picked, setPicked] = useState<Record<string, boolean>>({});
+
+  const all = creators ?? [];
+  const avgER = all.length ? all.reduce((s, c) => s + c.engagementRate, 0) / all.length : 0;
+  const avgCpv = all.length ? all.reduce((s, c) => s + c.cpv, 0) / all.length : 0;
+  // "Recommended" = best brand-match scores; "All" = the remainder, in list order.
+  const ranked = [...all].sort((a, b) => (b.matchPct ?? 0) - (a.matchPct ?? 0));
+  const recommended = ranked.slice(0, 3);
+  const recIds = new Set(recommended.map((c) => c.id));
+  const others = all.filter((c) => !recIds.has(c.id)).slice(0, 3);
+
+  const isSelected = (c: Creator) => picked[c.id] ?? c.listed ?? false;
+  const toggle = (c: Creator) => setPicked((p) => ({ ...p, [c.id]: !(p[c.id] ?? c.listed ?? false) }));
+  const selected = all.filter(isSelected);
+  const estimateCost = selected.reduce((s, c) => s + creatorCost(c), 0);
+  // No turnaround column exists on Creator — estimated at one working day per 4 creators.
+  const tatDays = Math.max(1, Math.ceil(selected.length / 4));
 
   async function handleAdd() {
     try {
@@ -207,14 +244,14 @@ export default function AddCreatorPage() {
       <div className="absolute left-[686px] top-[158px] flex h-[48px] w-[48px] items-center justify-center rounded-full bg-[#F2F0F7]">
         <Search className="h-[22px] w-[22px] text-ink" strokeWidth={1.8} />
       </div>
-      {/* All 92,000 */}
+      {/* All <count> */}
       <div className="absolute left-[742px] top-[158px] flex h-[48px] w-[150px] items-center justify-center rounded-[24px] bg-black">
-        <span className="text-[20px] font-extralight text-white">All 92,000</span>
+        <span className="text-[20px] font-extralight text-white">All {all.length.toLocaleString("en-IN")}</span>
       </div>
       {/* selected count */}
       <div className="absolute left-[900px] top-[158px] flex h-[48px] w-[72px] items-center justify-center gap-[4px] rounded-[24px] bg-white">
         <Users className="h-[22px] w-[22px] text-ink" strokeWidth={1.7} />
-        <span className="flex h-[16px] w-[16px] items-center justify-center rounded-full bg-[#20A271] text-[10px] font-normal text-white">4</span>
+        <span className="flex h-[16px] w-[16px] items-center justify-center rounded-full bg-[#20A271] text-[10px] font-normal text-white">{selected.length}</span>
       </div>
       {/* listed toggle */}
       <div className="absolute left-[983px] top-[158px] flex h-[48px] w-[162px] items-center rounded-[24px] bg-white pl-[14px] pr-[12px]">
@@ -232,19 +269,19 @@ export default function AddCreatorPage() {
       {/* TAT Estimate box */}
       <div className="absolute left-[606px] top-[240px] h-[58px] w-[130px] rounded-[16px] bg-[#F2F1F6] px-[16px] pt-[12px]">
         <div className="text-[12px] font-light leading-none text-ink/55">TAT Estimate</div>
-        <div className="mt-[7px] text-[18px] font-semibold leading-none text-ink">1 Day</div>
+        <div className="mt-[7px] text-[18px] font-semibold leading-none text-ink">{tatDays} {tatDays === 1 ? "Day" : "Days"}</div>
       </div>
       {/* Estimate Cost box */}
       <div className="absolute left-[745px] top-[240px] h-[58px] w-[135px] rounded-[16px] bg-[#F2F1F6] px-[16px] pt-[12px]">
         <div className="text-[12px] font-light leading-none text-ink/55">Estimate Cost</div>
-        <div className="mt-[7px] text-[18px] font-semibold leading-none text-[#1E9E5A]">₹2,50,000</div>
+        <div className="mt-[7px] text-[18px] font-semibold leading-none text-[#1E9E5A]">₹{estimateCost.toLocaleString("en-IN")}</div>
       </div>
       {/* 1 selected */}
       <div className="absolute left-[898px] top-[249px] flex h-[36px] items-center gap-[7px]">
         <span className="flex h-[18px] w-[18px] items-center justify-center rounded-[5px] border border-[#C9C9C9] bg-white">
           <Check className="h-[11px] w-[11px] text-black" strokeWidth={2.6} />
         </span>
-        <span className="text-[14px] font-light text-ink">1 selected</span>
+        <span className="text-[14px] font-light text-ink">{selected.length} selected</span>
       </div>
 
       {/* --------------------------- creator grid --------------------------- */}
@@ -252,18 +289,30 @@ export default function AddCreatorPage() {
         Recommended Creators
       </h2>
       <div className="absolute left-[276px] top-[354px] flex gap-x-[5px]">
-        {REC_CARDS.map((listed, i) => (
-          <CreatorCard key={i} listed={listed} />
-        ))}
+        {recommended.length === 0 ? (
+          <div className="flex h-[193px] w-[808px] items-center justify-center text-[12px] font-light text-ink/50">
+            {isLoading ? "Loading creators…" : "No creators yet"}
+          </div>
+        ) : (
+          recommended.map((c) => (
+            <CreatorCard key={c.id} c={c} avgER={avgER} avgCpv={avgCpv} selected={isSelected(c)} onToggle={() => toggle(c)} />
+          ))
+        )}
       </div>
 
       <h2 className="absolute left-[286px] top-[566px] text-[36px] font-normal leading-none text-ink">
         All Creators
       </h2>
       <div className="absolute left-[276px] top-[620px] flex gap-x-[5px]">
-        {ALL_CARDS.map((listed, i) => (
-          <CreatorCard key={i} listed={listed} />
-        ))}
+        {others.length === 0 ? (
+          <div className="flex h-[193px] w-[808px] items-center justify-center text-[12px] font-light text-ink/50">
+            {isLoading ? "Loading creators…" : "No creators yet"}
+          </div>
+        ) : (
+          others.map((c) => (
+            <CreatorCard key={c.id} c={c} avgER={avgER} avgCpv={avgCpv} selected={isSelected(c)} onToggle={() => toggle(c)} />
+          ))
+        )}
       </div>
 
       {/* ---------------------------- filters panel ---------------------------- */}
@@ -399,17 +448,17 @@ export default function AddCreatorPage() {
         </span>
         {/* 4 selected */}
         <span className="absolute left-[48px] top-[23px] whitespace-nowrap text-[20px] leading-none text-white/70">
-          <span className="font-semibold text-white">4</span> selected
+          <span className="font-semibold text-white">{selected.length}</span> selected
         </span>
         {/* TAT */}
         <div className="absolute left-[143px] top-[17px]">
           <div className="text-[11px] font-light leading-none text-white/50">TAT Estimate</div>
-          <div className="mt-[6px] text-[16px] font-semibold leading-none text-white">1 Day</div>
+          <div className="mt-[6px] text-[16px] font-semibold leading-none text-white">{tatDays} {tatDays === 1 ? "Day" : "Days"}</div>
         </div>
         {/* Estimate */}
         <div className="absolute left-[275px] top-[17px]">
           <div className="text-[11px] font-light leading-none text-white/50">Estimate Cost</div>
-          <div className="mt-[6px] text-[16px] font-semibold leading-none text-[#3BD07C]">₹2,50,000</div>
+          <div className="mt-[6px] text-[16px] font-semibold leading-none text-[#3BD07C]">₹{estimateCost.toLocaleString("en-IN")}</div>
         </div>
         {/* Done */}
         <button

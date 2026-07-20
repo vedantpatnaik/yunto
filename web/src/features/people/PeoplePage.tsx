@@ -14,14 +14,31 @@ import {
   Plus,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { useUsers, type User } from "@/api/hooks";
+import { useUsers, useLeaves, type User } from "@/api/hooks";
 
 /**
  * Super Admin — People screen.
  * Exact reconstruction of Figma frame 4992:23048 ("Super Admin-people"), 1440×1024.
  * Built CLEAN: the captured frame had the TopBar profile dropdown + dim scrim open;
  * those sibling nodes are intentionally omitted so the underlying page renders at full opacity.
+ *
+ * All displayed figures are derived from /users + /leaves; the layout, coordinates and
+ * palette are untouched — only the text that lands in the DOM comes from the backend.
  */
+
+/* ------------------------------ formatting ----------------------------- */
+/** 2_000_000 -> "20L", 350_000 -> "3.5L", 66_667 -> "0.67L". */
+function lakh(n: number): string {
+  const v = n / 100_000;
+  return `${Number.isInteger(v) ? v : Number(v.toFixed(2))}L`;
+}
+const pad = (n: number) => String(n).padStart(2, "0");
+const dmy = (d: Date) => `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()}`;
+const dmyShort = (d: Date) =>
+  `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${String(d.getFullYear()).slice(-2)}`;
+
+/** A user record as returned by GET /users (the route also selects createdAt). */
+type UserRow = User & { createdAt?: string };
 
 /* ------------------------------ primitives ----------------------------- */
 function Txt({
@@ -192,55 +209,67 @@ function SectionHeader({
   );
 }
 
-type Person = {
+/** Fixed visual slot: position + avatar palette, identical to the Figma design. */
+type PersonSlot = {
   cx: number;
   cy: number;
   cw: number;
   abg: string;
-  letter: string;
   lcolor: string;
-  name: string;
-  sub: string;
 };
+type Person = PersonSlot & { user?: UserRow };
 
 function PersonRow({ dx, p }: { dx: number; p: Person }) {
   const tx = p.cx + p.cw - 105;
+  const u = p.user;
+  const target = u?.targetYearly ?? 0;
+  const achieved = u?.targetMonthly ?? 0;
+  const pct = target ? Math.round((achieved / target) * 100) : 0;
   return (
     <>
       <div
         className="absolute rounded-[30px] border border-black/[0.05] bg-white"
         style={{ left: p.cx + dx, top: p.cy, width: p.cw, height: 53 }}
       />
-      <div
-        className="absolute flex items-center justify-center rounded-full"
-        style={{ left: p.cx + 5 + dx, top: p.cy + 5, width: 42, height: 42, background: p.abg }}
-      >
-        <span className="text-[14px] font-normal leading-none" style={{ color: p.lcolor }}>
-          {p.letter}
-        </span>
-      </div>
-      <Txt l={p.cx + 50 + dx} t={p.cy + 7} s={14} lh={18} cls="font-normal text-ink/90">
-        {p.name}
-      </Txt>
-      <Txt l={p.cx + 50 + dx} t={p.cy + 29} s={10} lh={13} cls="font-light text-ink/70">
-        {p.sub}
-      </Txt>
-      {/* target chip */}
-      <div
-        className="absolute flex items-center rounded-full border border-black/[0.05] bg-white"
-        style={{ left: tx + dx, top: p.cy + 6, width: 99, height: 40 }}
-      >
-        <div
-          className="ml-[6px] flex h-[28px] w-[28px] items-center justify-center rounded-full"
-          style={{ background: "#DAFDB0" }}
-        >
-          <span className="text-[9.3px] font-normal leading-none text-ink">45%</span>
-        </div>
-        <div className="ml-[7px]">
-          <div className="text-[8px] font-medium leading-[13px] text-ink">Target ₹5L</div>
-          <div className="text-[7.7px] font-medium leading-[13px] text-ink/70">(2.25L)</div>
-        </div>
-      </div>
+      {/* Unfilled slot (no member for this role yet) keeps the card but stays empty. */}
+      {u ? (
+        <>
+          <div
+            className="absolute flex items-center justify-center rounded-full"
+            style={{ left: p.cx + 5 + dx, top: p.cy + 5, width: 42, height: 42, background: p.abg }}
+          >
+            <span className="text-[14px] font-normal leading-none" style={{ color: p.lcolor }}>
+              {u.name.charAt(0).toUpperCase()}
+            </span>
+          </div>
+          <Txt l={p.cx + 50 + dx} t={p.cy + 7} s={14} lh={18} cls="font-normal text-ink/90">
+            {u.name}
+          </Txt>
+          <Txt l={p.cx + 50 + dx} t={p.cy + 29} s={10} lh={13} cls="font-light text-ink/70">
+            {u.email}
+          </Txt>
+          {/* target chip */}
+          <div
+            className="absolute flex items-center rounded-full border border-black/[0.05] bg-white"
+            style={{ left: tx + dx, top: p.cy + 6, width: 99, height: 40 }}
+          >
+            <div
+              className="ml-[6px] flex h-[28px] w-[28px] items-center justify-center rounded-full"
+              style={{ background: "#DAFDB0" }}
+            >
+              <span className="text-[9.3px] font-normal leading-none text-ink">{pct}%</span>
+            </div>
+            <div className="ml-[7px]">
+              <div className="text-[8px] font-medium leading-[13px] text-ink">
+                Target ₹{lakh(target)}
+              </div>
+              <div className="text-[7.7px] font-medium leading-[13px] text-ink/70">
+                ({lakh(achieved)})
+              </div>
+            </div>
+          </div>
+        </>
+      ) : null}
     </>
   );
 }
@@ -250,20 +279,34 @@ function TeamColumn({
   iconBg,
   teamName,
   membersIconColor,
-  greenCount,
-  percent,
-  persons,
+  members,
+  absentIds,
+  slots,
   onExpand,
 }: {
   dx: number;
   iconBg: string;
   teamName: string;
   membersIconColor: string;
-  greenCount: number;
-  percent: string;
-  persons: Person[];
+  members: UserRow[];
+  absentIds: Set<string>;
+  slots: PersonSlot[];
   onExpand?: () => void;
 }) {
+  const absent = members.filter((m) => absentIds.has(m.id)).length;
+  const active = members.length - absent;
+  const target = members.reduce((s, m) => s + (m.targetYearly ?? 0), 0);
+  const achieved = members.reduce((s, m) => s + (m.targetMonthly ?? 0), 0);
+  const pct = target ? Math.round((achieved / target) * 100) : 0;
+  const greenCount = Math.round((pct / 100) * 26);
+
+  // Role buckets straight off the Prisma Role enum (SALES_/OPS_ MANAGER|EMPLOYEE).
+  const managers = members.filter((m) => m.role.endsWith("MANAGER"));
+  const leads = members.filter((m) => m.role.includes("LEAD"));
+  const employees = members.filter((m) => m.role.endsWith("EMPLOYEE"));
+  const rowUsers: (UserRow | undefined)[] = [managers[0], leads[0], employees[0], employees[1]];
+  const persons: Person[] = slots.map((s, i) => ({ ...s, user: rowUsers[i] }));
+
   return (
     <>
       {/* card bg */}
@@ -286,7 +329,7 @@ function TeamColumn({
         <Users className="h-[10px] w-[11px]" strokeWidth={1.8} style={{ color: membersIconColor }} />
       </div>
       <Txt l={337 + dx} t={499} s={10} lh={16} cls="font-light text-ink/70">
-        12 Members
+        {members.length} Members
       </Txt>
       {/* expand arrow */}
       <div
@@ -302,14 +345,14 @@ function TeamColumn({
         style={{ left: 448 + dx, top: 477, height: 20 }}
       >
         <span className="h-[7px] w-[7px] rounded-full" style={{ background: "#4CCC16" }} />
-        <span className="text-[10px] font-light leading-none text-[#222]">10 Active</span>
+        <span className="text-[10px] font-light leading-none text-[#222]">{active} Active</span>
       </div>
       <div
         className="absolute flex items-center gap-[4px] rounded-[24px] bg-white pl-[6px] pr-[6px]"
         style={{ left: 510 + dx, top: 477, height: 20 }}
       >
         <span className="h-[7px] w-[7px] rounded-full" style={{ background: "#737572" }} />
-        <span className="text-[10px] font-light leading-none text-[#222]">2 Absent</span>
+        <span className="text-[10px] font-light leading-none text-[#222]">{absent} Absent</span>
       </div>
       {/* progress bar */}
       <div
@@ -317,7 +360,7 @@ function TeamColumn({
         style={{ left: 284 + dx, top: 526, width: 307, height: 36 }}
       />
       <Txt l={299 + dx} t={536} s={12.3} lh={16} cls="font-medium text-ink">
-        ₹15L
+        ₹{lakh(target)}
       </Txt>
       {Array.from({ length: 26 }).map((_, i) => (
         <div
@@ -333,25 +376,23 @@ function TeamColumn({
         />
       ))}
       <Txt l={552.7 + dx} t={536} s={10.3} lh={17} cls="font-inter font-normal text-[rgba(31,31,31,0.8)]">
-        {percent}
+        {pct}%
       </Txt>
       {/* sections */}
-      <SectionHeader dx={dx} labelX={284} y={586} badgeX={389} count="1" divX={421} divW={146} chevX={577} label="Manager" />
+      <SectionHeader dx={dx} labelX={284} y={586} badgeX={389} count={String(managers.length)} divX={421} divW={146} chevX={577} label="Manager" />
       <PersonRow dx={dx} p={persons[0]} />
-      <SectionHeader dx={dx} labelX={318} y={683} badgeX={423} count="1" divX={455} divW={114} chevX={578} label="Team Lead" />
+      <SectionHeader dx={dx} labelX={318} y={683} badgeX={423} count={String(leads.length)} divX={455} divW={114} chevX={578} label="Team Lead" />
       <PersonRow dx={dx} p={persons[1]} />
-      <SectionHeader dx={dx} labelX={317} y={781} badgeX={422} count="10" divX={454} divW={114} chevX={577} label="Employees" />
+      <SectionHeader dx={dx} labelX={317} y={781} badgeX={422} count={String(employees.length)} divX={454} divW={114} chevX={577} label="Employees" />
       <PersonRow dx={dx} p={persons[2]} />
       <PersonRow dx={dx} p={persons[3]} />
     </>
   );
 }
 
-type PersonSlot = Omit<Person, "letter" | "name" | "sub">;
-
 /* Fixed visual slots (positions + avatar colors) for each team column.
-   Live user name / email / initial are filled into these slots at render time,
-   so the layout, coordinates and colors stay pixel-identical to the design. */
+   Live user name / email / initial / target are filled into these slots at render
+   time, so the layout, coordinates and colors stay pixel-identical to the design. */
 const SALES_SLOTS: PersonSlot[] = [
   { cx: 283, cy: 620, cw: 318, abg: "#C6A6DF", lcolor: "#6000AA" },
   { cx: 288, cy: 717, cw: 310, abg: "#FFFEDF", lcolor: "#C4C11A" },
@@ -365,21 +406,6 @@ const OPS_SLOTS: PersonSlot[] = [
   { cx: 287, cy: 815, cw: 318, abg: "#CEEFFF", lcolor: "#0074AA" },
   { cx: 285, cy: 879, cw: 318, abg: "#D5FFE3", lcolor: "#006E25" },
 ];
-
-/** Fill the fixed visual slots with live users, keeping the design's exact
- *  card count. Empty slots (no user yet / still loading) render blank rather
- *  than crashing, since the slot supplies every positional/colour field. */
-function buildPersons(users: User[], slots: PersonSlot[]): Person[] {
-  return slots.map((slot, i) => {
-    const u = users[i];
-    return {
-      ...slot,
-      letter: u?.name.charAt(0).toUpperCase() ?? "",
-      name: u?.name ?? "",
-      sub: u?.email ?? "",
-    };
-  });
-}
 
 /* --------------------------- people highlights -------------------------- */
 function EventCard({
@@ -444,21 +470,53 @@ function EventCard({
   );
 }
 
+/** Fixed visual slots for the three upcoming-event cards. */
+const EVENT_SLOTS = [
+  { top: 321, avatarBg: "#C6A6DF", lcolor: "#6000AA" },
+  { top: 395, avatarBg: "#DDF7FF", lcolor: "#0F7D9E" },
+  { top: 469, avatarBg: "#C6A6DF", lcolor: "#6000AA" },
+];
+
+/** Next occurrence (today or later) of a joining-date anniversary. */
+function nextAnniversary(iso: string, today: Date): Date {
+  const joined = new Date(iso);
+  const midnight = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  const next = new Date(today.getFullYear(), joined.getMonth(), joined.getDate());
+  if (next < midnight) next.setFullYear(next.getFullYear() + 1);
+  return next;
+}
+
 /* -------------------------------- page --------------------------------- */
 export default function PeoplePage() {
   const navigate = useNavigate();
-  const { data } = useUsers();
-  const users = data ?? [];
-  const managerFirst = (a: User, b: User) =>
-    (a.role.includes("MANAGER") ? 0 : 1) - (b.role.includes("MANAGER") ? 0 : 1);
-  const SALES = buildPersons(
-    users.filter((u) => u.role.startsWith("SALES")).sort(managerFirst),
-    SALES_SLOTS,
+  const { data: userData, isLoading: usersLoading } = useUsers();
+  const { data: leaveData } = useLeaves();
+  const users: UserRow[] = userData ?? [];
+  const leaves = leaveData ?? [];
+  const today = new Date();
+
+  // Approved leaves spanning today drive every attendance figure on this screen.
+  const onLeaveToday = leaves.filter(
+    (l) => l.status === "APPROVED" && new Date(l.from) <= today && new Date(l.to) >= today,
   );
-  const OPS = buildPersons(
-    users.filter((u) => u.role.startsWith("OPS")).sort(managerFirst),
-    OPS_SLOTS,
+  const wfhCount = onLeaveToday.filter((l) => /wfh|home/i.test(l.type)).length;
+  const halfDayCount = onLeaveToday.filter((l) => /half/i.test(l.type)).length;
+  const absentIds = new Set(
+    onLeaveToday.filter((l) => !/wfh|home|half/i.test(l.type)).map((l) => l.userId),
   );
+  const presentCount = Math.max(0, users.length - absentIds.size);
+  const attendanceRate = users.length ? Math.round((presentCount / users.length) * 100) : 0;
+  const teamCount = new Set(users.map((u) => u.team?.id).filter(Boolean)).size;
+
+  const salesMembers = users.filter((u) => u.team?.kind === "SALES");
+  const opsMembers = users.filter((u) => u.team?.kind === "OPERATIONS");
+
+  // Upcoming work anniversaries, soonest first, into the three fixed card slots.
+  const events = users
+    .filter((u): u is UserRow & { createdAt: string } => !!u.createdAt)
+    .map((u) => ({ user: u, on: nextAnniversary(u.createdAt, today) }))
+    .sort((a, b) => a.on.getTime() - b.on.getTime())
+    .slice(0, EVENT_SLOTS.length);
 
   return (
     <>
@@ -480,10 +538,10 @@ export default function PeoplePage() {
       </Txt>
 
       {/* ===== top-right stat pills ===== */}
-      <StatPill numX={811} badgeX={872} labelX={856} num="18" badgeBg="#DCFF68" dir="up" icon={Users} label="Present" />
-      <StatPill numX={939} badgeX={1000} labelX={984} num="2" badgeBg="#FFB0B1" dir="down" icon={UserX} label="Absent" />
-      <StatPill numX={1067} badgeX={1128} labelX={1112} num="0" badgeBg="#DCFF68" dir="up" icon={House} label="WFH" />
-      <StatPill numX={1195} badgeX={1256} labelX={1240} num="1" badgeBg="#DCFF68" dir="up" badgeText="1" label="Half Day" />
+      <StatPill numX={811} badgeX={872} labelX={856} num={String(presentCount)} badgeBg="#DCFF68" dir="up" icon={Users} label="Present" />
+      <StatPill numX={939} badgeX={1000} labelX={984} num={String(absentIds.size)} badgeBg="#FFB0B1" dir="down" icon={UserX} label="Absent" />
+      <StatPill numX={1067} badgeX={1128} labelX={1112} num={String(wfhCount)} badgeBg="#DCFF68" dir="up" icon={House} label="WFH" />
+      <StatPill numX={1195} badgeX={1256} labelX={1240} num={String(halfDayCount)} badgeBg="#DCFF68" dir="up" badgeText={String(halfDayCount)} label="Half Day" />
 
       {/* ===== date pill ===== */}
       <div onClick={() => navigate("/calendar")} className="absolute rounded-[18px] bg-white cursor-pointer" style={{ left: 1300, top: 151, width: 90, height: 32 }}>
@@ -494,7 +552,7 @@ export default function PeoplePage() {
           <Calendar className="h-[14px] w-[14px] text-ink" strokeWidth={1.6} />
         </div>
         <span className="absolute text-[12px] font-light leading-none text-ink/90" style={{ left: 30, top: 10 }}>
-          30/09/25
+          {dmyShort(today)}
         </span>
       </div>
 
@@ -517,10 +575,15 @@ export default function PeoplePage() {
       <Tab x={482} w={156} icon={AlignJustify} label="Assign Creators" onClick={() => navigate("/people/assign-creators")} />
 
       {/* stat cards */}
-      <StatCard x={257} w={161} label="Total Employee" value="22" />
-      <StatCard x={436} w={161} label="Total Teams" value="2" />
-      <StatCard x={615} w={161} label="Attendance Rate" value="92%" />
-      <StatCard x={794} w={175} label="Avg. Login Time" value="10:15 am" />
+      <StatCard x={257} w={161} label="Total Employee" value={String(users.length)} />
+      <StatCard x={436} w={161} label="Total Teams" value={String(teamCount)} />
+      <StatCard x={615} w={161} label="Attendance Rate" value={`${attendanceRate}%`} />
+      {/* Avg. login time is the mean of Attendance.loginAt. That model exists in Prisma but
+          is not exposed by any endpoint (server/src/routes/index.ts has no "attendance"
+          resource, and /users does not select it), so there is nothing honest to average —
+          createdAt is account creation, not a login. Render the unknown state rather than a
+          frozen constant; wire this to the real average once /attendance ships. */}
+      <StatCard x={794} w={175} label="Avg. Login Time" value="—" />
 
       {/* ===== Teams & Roles ===== */}
       <div className="absolute rounded-[12px] bg-[#F5F5F5]" style={{ left: 257, top: 418, width: 723, height: 768 }} />
@@ -540,21 +603,21 @@ export default function PeoplePage() {
       <TeamColumn
         dx={0}
         iconBg="#FDFFBC"
-        teamName="Sales"
+        teamName={salesMembers[0]?.team?.name ?? "Sales"}
         membersIconColor="#D3D918"
-        greenCount={15}
-        percent="45%"
-        persons={SALES}
+        members={salesMembers}
+        absentIds={absentIds}
+        slots={SALES_SLOTS}
         onExpand={() => navigate("/set-target")}
       />
       <TeamColumn
         dx={344}
         iconBg="#ECC5F5"
-        teamName="Operations"
+        teamName={opsMembers[0]?.team?.name ?? "Operations"}
         membersIconColor="#B56CC5"
-        greenCount={16}
-        percent="55%"
-        persons={OPS}
+        members={opsMembers}
+        absentIds={absentIds}
+        slots={OPS_SLOTS}
         onExpand={() => navigate("/set-target")}
       />
 
@@ -579,9 +642,24 @@ export default function PeoplePage() {
       <Txt l={1033} t={286} s={14} lh={24} cls="font-light text-ink/70">
         Upcoming Events
       </Txt>
-      <EventCard top={321} kind="cake" title="Happy birthday" avatarBg="#C6A6DF" letter="T" lcolor="#6000AA" name="Tanvi Sharma" date="16/09/2025" />
-      <EventCard top={395} kind="cake" title="Happy birthday" avatarBg="#DDF7FF" letter="P" lcolor="#0F7D9E" name="Pooja Sharma" date="22/09/2025" />
-      <EventCard top={469} kind="anniv" title="Work Anniversary" avatarBg="#C6A6DF" letter="H" lcolor="#6000AA" name="Hardik Singh" date="28/09/2025" />
+      {events.map((e, i) => (
+        <EventCard
+          key={e.user.id}
+          top={EVENT_SLOTS[i].top}
+          kind="anniv"
+          title="Work Anniversary"
+          avatarBg={EVENT_SLOTS[i].avatarBg}
+          letter={e.user.name.charAt(0).toUpperCase()}
+          lcolor={EVENT_SLOTS[i].lcolor}
+          name={e.user.name}
+          date={dmy(e.on)}
+        />
+      ))}
+      {!usersLoading && events.length === 0 ? (
+        <Txt l={1033} t={321} s={12} lh={16} cls="font-light text-ink/50">
+          No upcoming events
+        </Txt>
+      ) : null}
     </>
   );
 }

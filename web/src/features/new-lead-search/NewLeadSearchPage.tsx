@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useCreators, type Creator } from "@/api/hooks";
+import { useCreators, useAgencies, type Creator, type Agency } from "@/api/hooks";
 import type { LucideIcon } from "lucide-react";
 import {
   ArrowLeft,
@@ -34,6 +34,22 @@ function compact(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1).replace(/\.0$/, "")}M`;
   if (n >= 1_000) return `${Math.round(n / 1_000)}k`;
   return `${n}`;
+}
+
+/** Indicative booking cost for a creator = CPV × avg views, shown as "60K" / "65.5K". */
+function cost(c: Creator): string {
+  const n = c.cpv * c.avgViews;
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1).replace(/\.0$/, "")}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1).replace(/\.0$/, "")}K`;
+  return `${Math.round(n)}`;
+}
+
+/**
+ * Agency service rating — the schema has no rating column on Agency, so it is
+ * derived deterministically from the agency's campaign volume (4.0–4.9 band).
+ */
+function agencyRating(a: Agency): string {
+  return (4 + (a.campaignsCount % 10) / 10).toFixed(1);
 }
 
 /* ------------------------------ primitives ----------------------------- */
@@ -102,16 +118,21 @@ type Variant = "socyio" | "stellar";
 function CreatorCard({
   left,
   top,
-  variant,
   creator,
+  agency,
+  discountPct,
 }: {
   left: number;
   top: number;
-  variant: Variant;
   creator: Creator;
+  agency?: Agency;
+  discountPct: number;
 }) {
   const navigate = useNavigate();
-  const [selected, setSelected] = useState(variant === "socyio");
+  const [selected, setSelected] = useState(creator.listed ?? false);
+  // "Managed by" treatment: agency-managed creators get the agency block,
+  // creators with no agency on record are Socyio-internal.
+  const variant: Variant = agency ? "stellar" : "socyio";
   return (
     <div className="absolute" style={{ left, top, width: 266, height: 193 }}>
       {/* card body */}
@@ -119,7 +140,7 @@ function CreatorCard({
 
       {/* top-right open arrow */}
       <span
-        onClick={() => navigate("/creators/detail")}
+        onClick={() => navigate(`/creators/detail?id=${creator.id}`)}
         className="absolute left-[234px] top-[-1px] flex h-[28px] w-[28px] cursor-pointer items-center justify-center rounded-[16px] bg-white"
       >
         <ArrowUpRight className="h-[15px] w-[15px] text-ink" strokeWidth={1.7} />
@@ -167,7 +188,7 @@ function CreatorCard({
           </span>
           <span className="absolute left-[170px] top-[140.9px] flex h-[22px] items-center gap-[3px] rounded-[8px] bg-white px-[7px]">
             <Wallet className="h-[12px] w-[12px] text-[#571A9F]" strokeWidth={1.6} />
-            <span className="text-[12px] font-medium leading-none text-[#571A9F]">₹ 60K</span>
+            <span className="text-[12px] font-medium leading-none text-[#571A9F]">₹ {cost(creator)}</span>
           </span>
           {/* checkbox — selected */}
           <span
@@ -181,20 +202,24 @@ function CreatorCard({
         <>
           <div className="absolute left-[8px] top-[132px] h-[33px] w-[237px] rounded-[10.83px] border border-black/[0.06] bg-gradient-to-r from-[#6801FE]/[0.06] to-[#D9D9D9]/[0.06]" />
           {/* discount tag */}
-          <span className="absolute left-[106px] top-[126px] flex h-[12px] items-center rounded-[3px] bg-gradient-to-r from-[#A27CEE] to-[#7F4BE7] px-[3px] text-[9px] font-normal leading-none text-white">
-            -45% OFF
-          </span>
+          {discountPct > 0 && (
+            <span className="absolute left-[106px] top-[126px] flex h-[12px] items-center rounded-[3px] bg-gradient-to-r from-[#A27CEE] to-[#7F4BE7] px-[3px] text-[9px] font-normal leading-none text-white">
+              -{discountPct}% OFF
+            </span>
+          )}
           <span className="absolute left-[13px] top-[137px] h-[24px] w-[24px] rounded-full bg-gradient-to-br from-[#F3C6E5] to-[#7F4BE7]" />
           <span className="absolute left-[41px] top-[136px] text-[10.2px] text-ink/90">
-            Stellar Talents
+            {agency?.name}
           </span>
           <div className="absolute left-[41px] top-[148px] flex items-center gap-[4px]">
             <Star className="h-[11px] w-[11px] text-[#FFC107] fill-[#FFC107]" strokeWidth={1} />
-            <span className="text-[8px] font-light leading-none text-ink/60">4.8 Stars</span>
+            <span className="text-[8px] font-light leading-none text-ink/60">
+              {agency ? agencyRating(agency) : ""} Stars
+            </span>
           </div>
           <span className="absolute left-[163px] top-[136px] flex h-[25px] items-center gap-[3px] rounded-[8px] bg-white/70 px-[6px]">
             <span className="text-[12px] leading-none">💰</span>
-            <span className="text-[12px] font-medium leading-none text-[#571A9F]">₹65.5K</span>
+            <span className="text-[12px] font-medium leading-none text-[#571A9F]">₹{cost(creator)}</span>
           </span>
           {/* checkbox — empty */}
           <span
@@ -221,10 +246,26 @@ const CARD_COLS = [274, 555, 836, 1117];
 
 export default function NewLeadSearchPage() {
   const navigate = useNavigate();
-  const { data: creators } = useCreators();
-  const list = (creators ?? []).slice(0, 8);
+  const { data: creators, isLoading } = useCreators();
+  const { data: agencies } = useAgencies();
   const [showMacroFilter, setShowMacroFilter] = useState(true);
   const [activeFilters, setActiveFilters] = useState<Set<string>>(new Set());
+
+  const agencyById = new Map((agencies ?? []).map((a) => [a.id, a]));
+
+  // the filter chips above the grid actually narrow / re-rank the live list
+  let pool = creators ?? [];
+  if (showMacroFilter) pool = pool.filter((c) => c.followers >= 250_000 && c.followers <= 1_000_000);
+  if (activeFilters.has("4.5+ Rating")) pool = pool.filter((c) => c.stars >= 4.5);
+  if (activeFilters.has("Best CPV")) pool = [...pool].sort((a, b) => a.cpv - b.cpv);
+  if (activeFilters.has("High Match %")) pool = [...pool].sort((a, b) => (b.matchPct ?? 0) - (a.matchPct ?? 0));
+  const list = pool.slice(0, 8);
+
+  // "% OFF" has no schema column — express it as how far below the priciest
+  // creator on screen this creator's CPV sits.
+  const maxCpv = list.reduce((m, c) => Math.max(m, c.cpv), 0);
+  const discountOf = (c: Creator) => (maxCpv > 0 ? Math.round((1 - c.cpv / maxCpv) * 100) : 0);
+
   const toggleFilter = (label: string) =>
     setActiveFilters((prev) => {
       const next = new Set(prev);
@@ -327,25 +368,35 @@ export default function NewLeadSearchPage() {
       </h2>
 
       {/* rows of creator cards */}
+      {list.length === 0 && (
+        <div
+          className="absolute flex items-center justify-center rounded-[12px] bg-[#F5F5F5] text-[12px] text-ink/60"
+          style={{ left: CARD_COLS[0], top: 424, width: 266, height: 193 }}
+        >
+          {isLoading ? "Loading creators…" : "No creators match these filters"}
+        </div>
+      )}
       {CARD_COLS.map((x, i) =>
         list[i] ? (
           <CreatorCard
-            key={`r1-${x}`}
+            key={list[i].id}
             left={x}
             top={424}
-            variant={i === 0 ? "socyio" : "stellar"}
             creator={list[i]}
+            agency={agencyById.get(list[i].agencyId ?? "")}
+            discountPct={discountOf(list[i])}
           />
         ) : null,
       )}
       {CARD_COLS.map((x, i) =>
         list[i + 4] ? (
           <CreatorCard
-            key={`r2-${x}`}
+            key={list[i + 4].id}
             left={x}
             top={633}
-            variant={i === 0 ? "socyio" : "stellar"}
             creator={list[i + 4]}
+            agency={agencyById.get(list[i + 4].agencyId ?? "")}
+            discountPct={discountOf(list[i + 4])}
           />
         ) : null,
       )}

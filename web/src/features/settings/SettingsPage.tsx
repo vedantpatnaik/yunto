@@ -1,7 +1,15 @@
 import type { ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { useUsers, useLeads, useCampaigns, type User as TeamUser } from "@/api/hooks";
+import {
+  useUsers,
+  useLeads,
+  useCampaigns,
+  useLeaves,
+  useAgencies,
+  useMe,
+  type User as TeamUser,
+} from "@/api/hooks";
 import {
   Sparkles,
   AlignJustify,
@@ -38,6 +46,18 @@ import {
 /* ------------------------------ helpers -------------------------------- */
 /** First initial of a user's name (empty while data is loading). */
 const initial = (u?: TeamUser) => (u?.name ?? "").trim().charAt(0).toUpperCase();
+
+/** SUPER_ADMIN -> "Super Admin". */
+const titleCase = (s: string) =>
+  s
+    .toLowerCase()
+    .split("_")
+    .filter(Boolean)
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(" ");
+
+/** /auth/me returns the whole sanitized User row, which carries agencyCode. */
+type MeUser = TeamUser & { agencyCode?: string | null };
 
 /* ------------------------------ primitives ----------------------------- */
 function TabPill({
@@ -131,6 +151,8 @@ function GlanceCard({
   membersIconColor,
   title,
   members,
+  active,
+  absent,
   onClick,
 }: {
   left: number;
@@ -138,6 +160,8 @@ function GlanceCard({
   membersIconColor: string;
   title: string;
   members: string;
+  active: string;
+  absent: string;
   onClick?: () => void;
 }) {
   return (
@@ -153,8 +177,8 @@ function GlanceCard({
         <Users className="h-[10px] w-[10px]" style={{ color: membersIconColor }} strokeWidth={2.5} />
         <span className="text-[10px] font-light text-black/70">{members}</span>
       </div>
-      <DotPill left={159} active label="10 Active" width={68} />
-      <DotPill left={221} active={false} label="2 Absent" width={66} />
+      <DotPill left={159} active label={active} width={68} />
+      <DotPill left={221} active={false} label={absent} width={66} />
       <span className="absolute left-[301px] top-0 flex h-[23px] w-[23px] items-center justify-center rounded-[11.5px] bg-white">
         <ArrowUpRight className="h-[13px] w-[13px] text-black" strokeWidth={1.8} />
       </span>
@@ -173,7 +197,7 @@ function Avatar({ left, bg, fg, label }: { left: number; bg: string; fg: string;
   );
 }
 
-function AssignButton({ left, onClick }: { left: number; onClick?: () => void }) {
+function AssignButton({ left, count, onClick }: { left: number; count: number; onClick?: () => void }) {
   return (
     <div
       onClick={onClick}
@@ -181,7 +205,7 @@ function AssignButton({ left, onClick }: { left: number; onClick?: () => void })
       style={{ left }}
     >
       <span className="flex h-[20px] w-[20px] items-center justify-center rounded-full bg-[#FF2B2B] text-[10.3px] font-normal text-white">
-        1
+        {count}
       </span>
       <span className="text-[14px] font-light text-black">Assign</span>
     </div>
@@ -340,9 +364,40 @@ export default function SettingsPage() {
   const { data: users = [] } = useUsers();
   const { data: leads = [] } = useLeads();
   const { data: campaigns = [] } = useCampaigns();
+  const { data: leaves = [] } = useLeaves();
+  const { data: agencies = [] } = useAgencies();
+  const { data: meRaw } = useMe();
+
   const salesMembers = users.filter((u) => u.team?.name === "Sales");
   const opsMembers = users.filter((u) => u.team?.name === "Operations");
   const bothMembers = [...salesMembers, ...opsMembers];
+
+  /* attendance — a member is "absent" while an approved leave spans today */
+  const now = Date.now();
+  const onLeave = new Set(
+    leaves
+      .filter(
+        (l) =>
+          l.status === "APPROVED" &&
+          new Date(l.from).getTime() <= now &&
+          new Date(l.to).getTime() >= now
+      )
+      .map((l) => l.userId)
+  );
+  const absentIn = (m: TeamUser[]) => m.filter((u) => onLeave.has(u.id)).length;
+  const activeIn = (m: TeamUser[]) => m.length - absentIn(m);
+
+  /* pipeline breakdowns */
+  const leadsBy = (status: string) => leads.filter((l) => l.status === status).length;
+  const campaignsBy = (status: string) => campaigns.filter((c) => c.status === status).length;
+  const unassignedLeads = leadsBy("NEW");
+  const draftCampaigns = campaignsBy("DRAFT");
+
+  /* signed-in super admin + their agency */
+  const me = meRaw as MeUser | undefined;
+  const myTeam = users.find((u) => u.id === me?.id)?.team?.name;
+  const agency = agencies[0];
+
   return (
     <>
       {/* SETTINGS title — 260,153 · Outfit 400 40px */}
@@ -374,8 +429,8 @@ export default function SettingsPage() {
         <span className="text-[11.6px] font-light text-white">Member</span>
         <UserPlus className="h-[15px] w-[15px] text-white" strokeWidth={1.4} />
       </div>
-      <SmilePill left={664} top={306} width={91.5} active label="18 Active" />
-      <SmilePill left={764.5} top={306} width={93} active={false} label="4 Absent" />
+      <SmilePill left={664} top={306} width={91.5} active label={`${activeIn(users)} Active`} />
+      <SmilePill left={764.5} top={306} width={93} active={false} label={`${absentIn(users)} Absent`} />
 
       {/* Team Glance */}
       <span className="absolute left-[292px] top-[380px] flex h-[42px] w-[42px] items-center justify-center rounded-full bg-white">
@@ -388,8 +443,8 @@ export default function SettingsPage() {
       </div>
 
       {/* Team Glance cards */}
-      <GlanceCard left={292} iconBg="#FDFFBC" membersIconColor="#D3D918" title="Sales" members={`${salesMembers.length} Members`} onClick={() => navigate("/people")} />
-      <GlanceCard left={641} iconBg="#ECC5F5" membersIconColor="#B56CC5" title="Operation" members={`${opsMembers.length} Members`} onClick={() => navigate("/people")} />
+      <GlanceCard left={292} iconBg="#FDFFBC" membersIconColor="#D3D918" title="Sales" members={`${salesMembers.length} Members`} active={`${activeIn(salesMembers)} Active`} absent={`${absentIn(salesMembers)} Absent`} onClick={() => navigate("/people")} />
+      <GlanceCard left={641} iconBg="#ECC5F5" membersIconColor="#B56CC5" title="Operation" members={`${opsMembers.length} Members`} active={`${activeIn(opsMembers)} Active`} absent={`${absentIn(opsMembers)} Absent`} onClick={() => navigate("/people")} />
 
       {/* ==================== Manage Teams ==================== */}
       <span className="absolute left-[279px] top-[580px] text-[20px] leading-[24px] text-black">Manage Teams</span>
@@ -403,15 +458,15 @@ export default function SettingsPage() {
         membersIconColor="#D3D918"
         title="Sales"
         members={salesMembers}
-        active="10 Active"
-        absent="2 Absent"
+        active={`${activeIn(salesMembers)} Active`}
+        absent={`${absentIn(salesMembers)} Absent`}
         onArrowClick={() => navigate("/people")}
         leadsBar={
           <>
             <CountChip left={6} width={155} label="Leads" count={`${leads.length}  All`} onClick={() => navigate("/leads")} />
-            <StatItem left={208} icon={Mail} iconColor="#6E8FBF" text="28 Leads" />
-            <StatItem left={328} icon={MailCheck} iconColor="#5FA06E" text="7 Leads" />
-            <AssignButton left={492} onClick={() => navigate("/campaigns/assign")} />
+            <StatItem left={208} icon={Mail} iconColor="#6E8FBF" text={`${leadsBy("NEW")} Leads`} />
+            <StatItem left={328} icon={MailCheck} iconColor="#5FA06E" text={`${leadsBy("CONVERTED")} Leads`} />
+            <AssignButton left={492} count={unassignedLeads} onClick={() => navigate("/campaigns/assign")} />
           </>
         }
       />
@@ -423,16 +478,16 @@ export default function SettingsPage() {
         membersIconColor="#B56CC5"
         title="Operations"
         members={opsMembers}
-        active="10 Active"
-        absent="2 Absent"
+        active={`${activeIn(opsMembers)} Active`}
+        absent={`${absentIn(opsMembers)} Absent`}
         onArrowClick={() => navigate("/people")}
         leadsBar={
           <>
             <CountChip left={6} width={162} label="Campaign" count={`${campaigns.length}  All`} onClick={() => navigate("/campaigns")} />
-            <StatItem left={188} icon={PieChart} iconColor="#75A7C7" text="10 Camp" />
-            <StatItem left={285} icon={PieChart} iconColor="#79B282" text="5 Camp" />
-            <StatItem left={372} icon={PieChart} iconColor="#EBB363" text="5 Camp" />
-            <AssignButton left={492} onClick={() => navigate("/campaigns/assign")} />
+            <StatItem left={188} icon={PieChart} iconColor="#75A7C7" text={`${campaignsBy("ACTIVE")} Camp`} />
+            <StatItem left={285} icon={PieChart} iconColor="#79B282" text={`${campaignsBy("DONE")} Camp`} />
+            <StatItem left={372} icon={PieChart} iconColor="#EBB363" text={`${draftCampaigns} Camp`} />
+            <AssignButton left={492} count={draftCampaigns} onClick={() => navigate("/campaigns/assign")} />
           </>
         }
       />
@@ -444,16 +499,16 @@ export default function SettingsPage() {
         membersIconColor="#5378D4"
         title="Sales + Operations"
         members={bothMembers}
-        active="5 Active"
-        absent="0 Absent"
+        active={`${activeIn(bothMembers)} Active`}
+        absent={`${absentIn(bothMembers)} Absent`}
         onArrowClick={() => navigate("/people")}
         leadsBar={
           <>
             <CountChip left={6} width={171} label="Campaign" count={`${campaigns.length}  All`} onClick={() => navigate("/campaigns")} />
-            <StatItem left={189} icon={MailWarning} iconColor="#C98A8A" text="14 Leads" />
-            <StatItem left={290.6} icon={MailCheck} iconColor="#5FA06E" text="7 Leads" />
+            <StatItem left={189} icon={MailWarning} iconColor="#C98A8A" text={`${leadsBy("CONTACTED")} Leads`} />
+            <StatItem left={290.6} icon={MailCheck} iconColor="#5FA06E" text={`${leadsBy("CONVERTED")} Leads`} />
             <span className="absolute left-[392px] top-[16px] text-[15px] text-black">{leads.length}  All Leads</span>
-            <AssignButton left={492} onClick={() => navigate("/campaigns/assign")} />
+            <AssignButton left={492} count={unassignedLeads} onClick={() => navigate("/campaigns/assign")} />
           </>
         }
       />
@@ -470,18 +525,20 @@ export default function SettingsPage() {
       </span>
 
       <span className="absolute left-[1171px] top-[338px] w-[125px] text-center text-[20px] font-semibold leading-[24px] text-[#111827]">
-        Rohit Kumar
+        {me?.name ?? ""}
       </span>
       <span className="absolute left-[1171px] top-[361px] w-[125px] text-center text-[12px] font-normal leading-[16px] text-[#6B7280]">
-        Super Admin
+        {me ? titleCase(me.role) : ""}
       </span>
 
       {/* agency code pill */}
       <div
-        onClick={() => navigator.clipboard?.writeText("55678")}
+        onClick={() => me?.agencyCode && navigator.clipboard?.writeText(me.agencyCode)}
         className="absolute left-[1162px] top-[386px] flex h-[28px] w-[144px] cursor-pointer items-center justify-center gap-[4px] rounded-[24px] bg-white/50"
       >
-        <span className="text-[10px] font-normal text-black/80">Agency Code&nbsp;&nbsp;55678</span>
+        <span className="text-[10px] font-normal text-black/80">
+          Agency Code&nbsp;&nbsp;{me?.agencyCode ?? "—"}
+        </span>
         <Copy className="h-[12px] w-[12px] text-black" strokeWidth={1.4} />
       </div>
 
@@ -489,10 +546,16 @@ export default function SettingsPage() {
       <span className="absolute left-[1062px] top-[433px] text-[14px] font-medium leading-[24px] text-black">
         Detailed Information
       </span>
-      <InfoRow top={469} icon={User} label="Full Name" value="Rohit Kumar" />
-      <InfoRow top={515} icon={Mail} label="Email Address" value="rohitkumar@gmail.com" />
-      <InfoRow top={561} icon={ClipboardList} label="Assign as" value="Manager" />
-      <InfoRow top={607} icon={Cake} label="Birth Date" value="01/01/2001" />
+      <InfoRow top={469} icon={User} label="Full Name" value={me?.name ?? "—"} />
+      <InfoRow top={515} icon={Mail} label="Email Address" value={me?.email ?? "—"} />
+      <InfoRow
+        top={561}
+        icon={ClipboardList}
+        label="Assign as"
+        value={myTeam ?? (me ? titleCase(me.role) : "—")}
+      />
+      {/* Birth Date has no column on the Prisma User model and cannot be derived — falls back to the em-dash. */}
+      <InfoRow top={607} icon={Cake} label="Birth Date" value="—" />
 
       {/* Agency Information */}
       <span className="absolute left-[1062px] top-[677px] text-[14px] font-medium leading-[24px] text-black">
@@ -502,10 +565,11 @@ export default function SettingsPage() {
       <span className="absolute left-[1255px] top-[775px] flex h-[20px] w-[20px] items-center justify-center rounded-[12px] bg-white">
         <Pencil className="h-[9px] w-[9px] text-black" strokeWidth={1.6} />
       </span>
-      <InfoRow top={810} icon={User} label="Agency Name" value="Stellar Talents" />
-      <InfoRow top={856} icon={Mail} label="Email Address" value="rohitkumar@gmail.com" />
-      <InfoRow top={902} icon={Phone} label="Contact Number" value="98888453309" />
-      <InfoRow top={948} icon={Globe} label="Agency Website" value="www.stellartalent.com" />
+      <InfoRow top={810} icon={User} label="Agency Name" value={agency?.name ?? "—"} />
+      <InfoRow top={856} icon={Mail} label="Email Address" value={me?.email ?? "—"} />
+      <InfoRow top={902} icon={Phone} label="Contact Number" value={me?.phone ?? "—"} />
+      {/* Agency has no website column on the Prisma model and cannot be derived — falls back to the em-dash. */}
+      <InfoRow top={948} icon={Globe} label="Agency Website" value="—" />
     </>
   );
 }

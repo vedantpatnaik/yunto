@@ -1,9 +1,9 @@
 import { useState } from "react";
 import type { ReactNode } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import type { LucideIcon } from "lucide-react";
-import { useCreators } from "@/api/hooks";
-import type { Creator } from "@/api/hooks";
+import { useCreators, useAgencies, useCampaigns } from "@/api/hooks";
+import type { Creator, Agency } from "@/api/hooks";
 import {
   Search,
   ChevronDown,
@@ -33,17 +33,15 @@ import {
  * sibling nodes (5806:32828 popup/scrim, 5806:32681 overlay) are intentionally skipped.
  */
 
-type Variant = "internal" | "agency";
-
-const CARDS: { x: number; y: number; variant: Variant }[] = [
-  { x: 275, y: 424, variant: "internal" },
-  { x: 556, y: 424, variant: "agency" },
-  { x: 837, y: 424, variant: "agency" },
-  { x: 1118, y: 424, variant: "agency" },
-  { x: 275, y: 633, variant: "internal" },
-  { x: 556, y: 633, variant: "agency" },
-  { x: 837, y: 633, variant: "agency" },
-  { x: 1118, y: 633, variant: "agency" },
+const CARDS: { x: number; y: number }[] = [
+  { x: 275, y: 424 },
+  { x: 556, y: 424 },
+  { x: 837, y: 424 },
+  { x: 1118, y: 424 },
+  { x: 275, y: 633 },
+  { x: 556, y: 633 },
+  { x: 837, y: 633 },
+  { x: 1118, y: 633 },
 ];
 
 const FILTERS: { label: string; left: number; width: number; active?: boolean }[] = [
@@ -63,6 +61,19 @@ function compact(n: number): string {
   if (n >= 1_000) return `${Math.round(n / 1_000)}k`;
   return String(n);
 }
+
+/** Money in the ₹60K / ₹65.5K shape used by the "Managed by" pill. */
+function money(n: number): string {
+  if (n >= 10_000_000) return `${(n / 10_000_000).toFixed(1).replace(/\.0$/, "")}Cr`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1).replace(/\.0$/, "")}K`;
+  return String(Math.round(n));
+}
+
+/** Deal value for one creator = cost-per-view × average views. */
+const dealValue = (c: Creator) => Math.round(c.cpv * c.avgViews);
+
+/** Agency volume discount — larger rosters negotiate deeper rate cards. */
+const agencyOff = (a: Agency) => Math.min(50, Math.max(5, Math.round(a.creatorsCount / 5)));
 
 /* ------------------------------ primitives ----------------------------- */
 function Metric({
@@ -99,7 +110,7 @@ function Metric({
   );
 }
 
-function InternalManaged() {
+function InternalManaged({ value }: { value: number }) {
   return (
     <>
       <span
@@ -113,14 +124,22 @@ function InternalManaged() {
       <div className="absolute left-[170px] top-[140.9px] flex h-[22px] w-[69px] items-center justify-center gap-[3px] rounded-[8px] bg-white">
         <Coins className="h-[13px] w-[13px]" strokeWidth={1.7} style={{ color: "#C29B3B" }} />
         <span className="text-[12px] font-medium leading-none" style={{ color: "#571A9F" }}>
-          ₹ 60K
+          ₹ {money(value)}
         </span>
       </div>
     </>
   );
 }
 
-function AgencyManaged() {
+function AgencyManaged({
+  agency,
+  stars,
+  value,
+}: {
+  agency: Agency;
+  stars: number;
+  value: number;
+}) {
   return (
     <>
       <span
@@ -131,15 +150,17 @@ function AgencyManaged() {
         className="absolute left-[106px] top-[126px] flex h-[12px] w-[47px] items-center justify-center rounded-[3px]"
         style={{ background: "linear-gradient(90deg,#A27CEE,#7F4BE7)" }}
       >
-        <span className="whitespace-nowrap text-[9px] leading-none text-white">-45% OFF</span>
+        <span className="whitespace-nowrap text-[9px] leading-none text-white">
+          -{agencyOff(agency)}% OFF
+        </span>
       </div>
       <span className="absolute left-[13px] top-[137px] h-[24px] w-[24px] rounded-full bg-gradient-to-br from-[#C8E6FF] to-[#C8B3ED]" />
       <span className="absolute left-[41px] top-[136.2px] text-[10.2px] leading-none text-ink/90">
-        Stellar Talents
+        {agency.name}
       </span>
       <span className="absolute left-[41px] top-[147.8px] flex items-center gap-[4px]">
         <Star className="h-[12px] w-[12px]" strokeWidth={0} style={{ color: "#FFC107", fill: "#FFC107" }} />
-        <span className="text-[8px] leading-none text-ink/60">4.8 Stars</span>
+        <span className="text-[8px] leading-none text-ink/60">{stars.toFixed(1)} Stars</span>
       </span>
       <div
         className="absolute left-[163px] top-[136px] flex h-[25px] w-[75px] items-center justify-center gap-[3px] rounded-[8px]"
@@ -147,7 +168,7 @@ function AgencyManaged() {
       >
         <Coins className="h-[13px] w-[13px]" strokeWidth={1.7} style={{ color: "#C29B3B" }} />
         <span className="text-[12px] font-medium leading-none" style={{ color: "#571A9F" }}>
-          ₹65.5K
+          ₹{money(value)}
         </span>
       </div>
     </>
@@ -157,16 +178,17 @@ function AgencyManaged() {
 function CreatorCard({
   x,
   y,
-  variant,
+  agency,
   creator,
   onClick,
 }: {
   x: number;
   y: number;
-  variant: Variant;
+  agency?: Agency;
   creator: Creator;
   onClick: () => void;
 }) {
+  const value = dealValue(creator);
   return (
     <div
       className="absolute h-[193px] w-[266px] cursor-pointer rounded-[12px] bg-[#F5F5F5]"
@@ -220,10 +242,14 @@ function CreatorCard({
       <span className="absolute left-[8px] top-[112px] text-[9.3px] leading-none text-ink/70">
         Managed by:
       </span>
-      {variant === "internal" ? <InternalManaged /> : <AgencyManaged />}
+      {agency ? (
+        <AgencyManaged agency={agency} stars={creator.stars} value={value} />
+      ) : (
+        <InternalManaged value={value} />
+      )}
 
       {/* checkbox */}
-      {variant === "internal" ? (
+      {creator.listed ? (
         <span className="absolute left-[240px] top-[167px] flex h-[15px] w-[15px] items-center justify-center rounded-[5px] bg-white">
           <Check className="h-[9px] w-[9px] text-ink" strokeWidth={2.5} />
         </span>
@@ -237,10 +263,28 @@ function CreatorCard({
 /* -------------------------------- page --------------------------------- */
 export default function CampaignCreatorListPage() {
   const navigate = useNavigate();
-  const creators = useCreators().data ?? [];
+  const [sp] = useSearchParams();
+  const { data: creatorData, isLoading } = useCreators();
+  const agencies = useAgencies().data ?? [];
+  const campaigns = useCampaigns().data ?? [];
   const [activeFilter, setActiveFilter] = useState<string | null>(
     FILTERS.find((f) => f.active)?.label ?? null,
   );
+
+  const campaign = campaigns.find((c) => c.id === sp.get("id")) ?? campaigns[0];
+
+  const all = creatorData ?? [];
+  let pool = all;
+  if (activeFilter === "Macro (250K–1M)")
+    pool = pool.filter((c) => c.followers >= 250_000 && c.followers <= 1_000_000);
+  else if (activeFilter === "4.5+ Rating") pool = pool.filter((c) => c.stars >= 4.5);
+  else if (activeFilter === "High Match %")
+    pool = [...pool].sort((a, b) => (b.matchPct ?? 0) - (a.matchPct ?? 0));
+  else if (activeFilter === "Best CPV") pool = [...pool].sort((a, b) => a.cpv - b.cpv);
+  else if (activeFilter === "City")
+    pool = [...pool].sort((a, b) => (a.location ?? "").localeCompare(b.location ?? ""));
+  const shown = pool.slice(0, CARDS.length);
+
   return (
     <>
       {/* back button — 235,154 · black circle */}
@@ -257,7 +301,9 @@ export default function CampaignCreatorListPage() {
         onClick={() => navigate("/search")}
       >
         <Search className="h-[24px] w-[24px] text-ink" strokeWidth={1.7} />
-        <span className="text-[15px] font-light text-ink/70">Search in Nike Diwali</span>
+        <span className="text-[15px] font-light text-ink/70">
+          Search in {campaign?.name ?? "campaigns"}
+        </span>
       </div>
 
       {/* header action buttons */}
@@ -337,16 +383,26 @@ export default function CampaignCreatorListPage() {
       </h2>
 
       {/* creator cards */}
-      {creators.slice(0, CARDS.length).map((creator, i) => (
+      {shown.map((creator, i) => (
         <CreatorCard
           key={creator.id}
           x={CARDS[i].x}
           y={CARDS[i].y}
-          variant={CARDS[i].variant}
+          agency={agencies.find((a) => a.id === creator.agencyId)}
           creator={creator}
-          onClick={() => navigate("/creators/detail")}
+          onClick={() => navigate(`/creators/detail?id=${creator.id}`)}
         />
       ))}
+      {shown.length === 0 && (
+        <div
+          className="absolute h-[193px] w-[266px] rounded-[12px] bg-[#F5F5F5]"
+          style={{ left: CARDS[0].x, top: CARDS[0].y }}
+        >
+          <span className="absolute left-[12px] top-[88px] text-[12px] leading-none text-ink/60">
+            {isLoading ? "Loading creators…" : "No creators match these filters"}
+          </span>
+        </div>
+      )}
     </>
   );
 }

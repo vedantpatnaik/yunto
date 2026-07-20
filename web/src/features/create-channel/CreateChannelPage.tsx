@@ -1,7 +1,16 @@
 import type { CSSProperties, ReactNode } from "react";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useCreate } from "@/api/hooks";
+import {
+  useAgencies,
+  useCalendar,
+  useCampaigns,
+  useChannels,
+  useCreate,
+  useMe,
+  useMessages,
+  useUsers,
+} from "@/api/hooks";
 import {
   Hash,
   ChevronDown,
@@ -9,7 +18,6 @@ import {
   Plus,
   Video,
   CheckSquare,
-  FileText,
   Link2,
   AtSign,
   Smile,
@@ -104,30 +112,76 @@ function StatusDot({ l, t }: { l: number; t: number }) {
   );
 }
 
-/* ---------------------------- sidebar data ----------------------------- */
-type Sec = { top: number; label: string; dir: "down" | "right"; caretL?: number; textL?: number };
+/* ------------------------- sidebar row geometry ------------------------- */
+/** Row slots are pure Figma geometry; the labels come from live data (see sectionLabels). */
+type SecKey =
+  | "notifications"
+  | "groups"
+  | "campaigns"
+  | "campaignContact"
+  | "campaignName"
+  | "person0"
+  | "person1"
+  | "person2";
+type Sec = { top: number; key: SecKey; dir: "down" | "right"; caretL?: number; textL?: number };
 const SECTIONS: Sec[] = [
-  { top: 176, label: "Notifications", dir: "down" },
-  { top: 260, label: "Groups", dir: "down" },
-  { top: 600, label: "Campaigns", dir: "down" },
-  { top: 628, label: "Vishal Sharma", dir: "down" },
-  { top: 656, label: "Nike Diwali", dir: "down", caretL: 275, textL: 302 },
-  { top: 768, label: "Ritika Verma", dir: "right" },
-  { top: 796, label: "Neha", dir: "right" },
-  { top: 824, label: "Ajay", dir: "right" },
+  { top: 176, key: "notifications", dir: "down" },
+  { top: 260, key: "groups", dir: "down" },
+  { top: 600, key: "campaigns", dir: "down" },
+  { top: 628, key: "campaignContact", dir: "down" },
+  { top: 656, key: "campaignName", dir: "down", caretL: 275, textL: 302 },
+  { top: 768, key: "person0", dir: "right" },
+  { top: 796, key: "person1", dir: "right" },
+  { top: 824, key: "person2", dir: "right" },
 ];
 
-type Ch = { top: number; label: string; active?: boolean; hashL?: number; textL?: number };
+type Ch = { top: number; active?: boolean; hashL?: number; textL?: number };
 const CHANNELS: Ch[] = [
-  { top: 204, label: "Agency announcements" },
-  { top: 288, label: "Welcome" },
-  { top: 316, label: "General", active: true },
-  { top: 344, label: "marketing" },
-  { top: 372, label: "operations" },
-  { top: 400, label: "sales" },
-  { top: 684, label: "Brand + Agencies", hashL: 275, textL: 301 },
-  { top: 712, label: "Only Agencies", hashL: 274, textL: 300 },
+  { top: 204 },
+  { top: 288 },
+  { top: 316, active: true },
+  { top: 344 },
+  { top: 372 },
+  { top: 400 },
+  { top: 684, hashL: 275, textL: 301 },
+  { top: 712, hashL: 274, textL: 300 },
 ];
+/** The slot the Figma frame paints as selected — its channel is the one the chat pane shows. */
+const ACTIVE_SLOT = CHANNELS.findIndex((c) => c.active);
+
+/** Chip slots for the "Add Agencies" row (x offset + Figma glyph palette, by position). */
+const CHIP_SLOTS = [
+  { l: 379, bg: "#1BA672", glyphColor: "#FFFFFF" },
+  { l: 569, bg: "#111111", glyphColor: "#FFC94D" },
+];
+
+const hhmm = (iso: string) =>
+  new Date(iso).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+
+/** "Today at 13:00" / "24 Jul at 13:00" — the schema stores a start instant, no duration. */
+const eventWhen = (iso: string) => {
+  const d = new Date(iso);
+  const day =
+    d.toDateString() === new Date().toDateString()
+      ? "Today"
+      : d.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+  return `${day} at ${hhmm(iso)}`;
+};
+
+/** Render a message body, keeping @mentions in the Figma mention colour. */
+function withMentions(body: string): ReactNode[] {
+  return body
+    .split(/(@\w+)/g)
+    .map((part, i) =>
+      part.startsWith("@") ? (
+        <span key={i} className="text-[#1264A3]">
+          {part}
+        </span>
+      ) : (
+        <span key={i}>{part}</span>
+      )
+    );
+}
 
 type Add = { top: number; label: string; boxL?: number; textL?: number };
 const ADDS: Add[] = [
@@ -191,16 +245,56 @@ function AgencyChip({
 export default function CreateChannelPage() {
   const navigate = useNavigate();
   const createChannel = useCreate("channels");
+
+  /* ---- live data behind the modal (chat page chrome) ---- */
+  const { data: channels = [] } = useChannels();
+  const { data: users = [] } = useUsers();
+  const { data: campaigns = [] } = useCampaigns();
+  const { data: me } = useMe();
+  const { data: calendar = [] } = useCalendar();
+  const currentChannel = channels[ACTIVE_SLOT] ?? channels[0];
+  const { data: messages = [] } = useMessages(currentChannel?.id ?? null);
+
+  /* people: the bottom-left profile is "me", DM rows + sidebar people are everyone else */
+  const others = users.filter((u) => u.id !== me?.id);
+  const meFirstName = me?.name.split(" ")[0] ?? "";
+
+  const sectionLabels: Record<SecKey, string> = {
+    notifications: "Notifications",
+    groups: "Groups",
+    campaigns: "Campaigns",
+    campaignContact: campaigns[0]?.contactPerson ?? "",
+    campaignName: campaigns[0]?.name ?? "",
+    person0: others[2]?.name ?? "",
+    person1: others[3]?.name ?? "",
+    person2: others[4]?.name ?? "",
+  };
+
+  const msg1 = messages[0];
+  const msg1Head = msg1?.body.split("\n")[0] ?? "";
+  const msg1Rest = msg1?.body.split("\n").slice(1).join("\n") ?? "";
+  const msg2 = messages[1];
+  const msg3 = messages[2];
+  /* the quoted event card inside message 2 — the next scheduled calendar entry */
+  const nextEvent = [...calendar]
+    .sort((a, b) => +new Date(a.scheduledAt) - +new Date(b.scheduledAt))
+    .find((c) => +new Date(c.scheduledAt) >= Date.now()) ?? calendar[0];
+
+  /* ---- modal form state ---- */
   const [name, setName] = useState("");
   const [globalChannel, setGlobalChannel] = useState(true);
+  const { data: allAgencies = [] } = useAgencies();
+  const [removedAgencies, setRemovedAgencies] = useState<string[]>([]);
+  const agencies = allAgencies
+    .filter((a) => !removedAgencies.includes(a.id))
+    .slice(0, CHIP_SLOTS.length);
+  const estimatedReach = agencies.reduce((sum, a) => sum + a.creatorsCount, 0);
+
   const handleCreate = async () => {
-    await createChannel.mutateAsync({ name, kind: "TEAM" });
+    await createChannel.mutateAsync({ name, kind: globalChannel ? "INFLUENCER" : "TEAM" });
     navigate("/chat");
   };
-  const [agencies, setAgencies] = useState([
-    { id: "stellar", l: 379, label: "Stellar Talents", bg: "#1BA672", glyphColor: "#FFFFFF" },
-    { id: "firefly", l: 569, label: "Firefly Creators", bg: "#111111", glyphColor: "#FFC94D" },
-  ]);
+
   return (
     <>
       {/* ================= page background (frame 4744:8151 fill) ================= */}
@@ -238,6 +332,8 @@ export default function CreateChannelPage() {
 
       {/* section header rows */}
       {SECTIONS.map((s) => {
+        const label = sectionLabels[s.key];
+        if (!label) return null;
         const Caret = s.dir === "down" ? ChevronDown : ChevronRight;
         return (
           <div key={`sec-${s.top}`}>
@@ -245,17 +341,18 @@ export default function CreateChannelPage() {
               <Caret className="h-[14px] w-[14px]" style={{ color: WHITE70 }} strokeWidth={2.2} />
             </Abs>
             <Abs l={s.textL ?? 281} t={s.top + 6.5} className="text-[15px] font-medium leading-[15px]" style={{ color: WHITE70 }}>
-              {s.label}
+              {label}
             </Abs>
           </div>
         );
       })}
 
       {/* channel rows */}
-      {CHANNELS.map((c) => {
+      {channels.slice(0, CHANNELS.length).map((ch, i) => {
+        const c = CHANNELS[i];
         const color = c.active ? "#FFFFFF" : WHITE70;
         return (
-          <div key={`ch-${c.top}`}>
+          <div key={ch.id}>
             {c.active && (
               <Abs l={242} t={c.top} w={247} h={28} className="rounded-[6px]" style={{ background: "#656565" }} />
             )}
@@ -263,7 +360,7 @@ export default function CreateChannelPage() {
               <Hash className="h-[16px] w-[16px]" style={{ color }} strokeWidth={1.7} />
             </Abs>
             <Abs l={c.textL ?? 280} t={c.top + 6.5} className="text-[15px] leading-[15px]" style={{ color }}>
-              {c.label}
+              {ch.name}
             </Abs>
           </div>
         );
@@ -295,52 +392,66 @@ export default function CreateChannelPage() {
       <Abs l={281} t={466.5} className="text-[15px] font-medium leading-[15px]" style={{ color: WHITE70 }}>
         Direct messages
       </Abs>
-      <Abs l={457} t={462} w={24} h={24} className="flex items-center justify-center rounded-full" style={{ background: "#E64E4E" }}>
-        <span className="text-[10.3px] font-medium text-white">120</span>
-      </Abs>
+      {others.length > 0 && (
+        <Abs l={457} t={462} w={24} h={24} className="flex items-center justify-center rounded-full" style={{ background: "#E64E4E" }}>
+          <span className="text-[10.3px] font-medium text-white">{others.length}</span>
+        </Abs>
+      )}
 
       {/* ---- DM rows ---- */}
-      {/* Dev Singh (you) */}
-      <Abs l={254} t={491} w={20} h={20} className="rounded-full" style={{ background: "linear-gradient(135deg,#F4B0C4,#B58BE0)" }} />
-      <StatusDot l={268} t={505.5} />
-      <Abs l={283} t={494.5} className="text-[15px] leading-[15px]" style={{ color: WHITE70 }}>
-        Dev Singh
-      </Abs>
-      <Abs l={358} t={494.5} className="text-[15px] leading-[15px]" style={{ color: WHITE50 }}>
-        you
-      </Abs>
-      {/* Sanjay Sharma */}
-      <LetterAvatar l={254} t={519.5} size={20} letter="S" bg="#FFF4AD" color="#B49C01" font={12} />
-      <StatusDot l={268} t={533.5} />
-      <Abs l={283} t={522.5} className="text-[15px] leading-[15px]" style={{ color: WHITE70 }}>
-        Sanjay Sharma
-      </Abs>
-      {/* Pooja Singh */}
-      <LetterAvatar l={254} t={547.5} size={20} letter="P" bg="#BCD4FD" color="#1155C8" font={12} />
-      <StatusDot l={268} t={561.5} />
-      <Abs l={283} t={550.5} className="text-[15px] leading-[15px]" style={{ color: WHITE70 }}>
-        Pooja Singh
-      </Abs>
+      {/* me (you) */}
+      {me && (
+        <>
+          <Abs l={254} t={491} w={20} h={20} className="rounded-full" style={{ background: "linear-gradient(135deg,#F4B0C4,#B58BE0)" }} />
+          <StatusDot l={268} t={505.5} />
+          <Abs l={283} t={494.5} className="text-[15px] leading-[15px]" style={{ color: WHITE70 }}>
+            {me.name}
+          </Abs>
+          <Abs l={358} t={494.5} className="text-[15px] leading-[15px]" style={{ color: WHITE50 }}>
+            you
+          </Abs>
+        </>
+      )}
+      {others[0] && (
+        <>
+          <LetterAvatar l={254} t={519.5} size={20} letter={others[0].name[0]} bg="#FFF4AD" color="#B49C01" font={12} />
+          <StatusDot l={268} t={533.5} />
+          <Abs l={283} t={522.5} className="text-[15px] leading-[15px]" style={{ color: WHITE70 }}>
+            {others[0].name}
+          </Abs>
+        </>
+      )}
+      {others[1] && (
+        <>
+          <LetterAvatar l={254} t={547.5} size={20} letter={others[1].name[0]} bg="#BCD4FD" color="#1155C8" font={12} />
+          <StatusDot l={268} t={561.5} />
+          <Abs l={283} t={550.5} className="text-[15px] leading-[15px]" style={{ color: WHITE70 }}>
+            {others[1].name}
+          </Abs>
+        </>
+      )}
 
       {/* ---- bottom user profile ---- */}
       <Abs l={254} t={948} w={38} h={38} className="rounded-full" style={{ background: "linear-gradient(135deg,#C8E6FF,#C8B3ED)" }} />
       <Abs l={297} t={952.5} className="text-[12px] leading-[15px] text-white">
-        Dev
+        {meFirstName}
       </Abs>
       <Abs l={297} t={968.5} className="text-[8px] leading-[13px]" style={{ color: WHITE70 }}>
-        @dev
+        {meFirstName && `@${meFirstName.toLowerCase()}`}
       </Abs>
 
       {/* ================= message header ================= */}
       <Abs l={511} t={134.5} className="text-[16px] font-medium leading-[20px] text-[#1B1B1B]">
-        #General
+        #{currentChannel?.name ?? ""}
       </Abs>
       {/* member avatar stack (top-right of chat card) */}
       <Abs l={1254} t={132} w={25} h={25} className="rounded-full" style={{ background: "linear-gradient(135deg,#FFE1B0,#E58BB0)", boxShadow: "0 0 0 2px #fff" }} />
-      <LetterAvatar l={1270.9} t={132} size={25} letter="S" bg="#FFF4AD" color="#B49C01" font={15} ring />
-      <LetterAvatar l={1287.9} t={132} size={25} letter="P" bg="#BCD4FD" color="#1155C8" font={15} ring />
-      <LetterAvatar l={1300.3} t={132} size={25} letter="R" bg="#EFBEFF" color="#8701B4" font={15} ring />
-      <LetterAvatar l={1317} t={132} size={25} letter="+15" bg="#E5E5E5" color="#000000" font={8.3} ring />
+      {users[1] && <LetterAvatar l={1270.9} t={132} size={25} letter={users[1].name[0]} bg="#FFF4AD" color="#B49C01" font={15} ring />}
+      {users[2] && <LetterAvatar l={1287.9} t={132} size={25} letter={users[2].name[0]} bg="#BCD4FD" color="#1155C8" font={15} ring />}
+      {users[3] && <LetterAvatar l={1300.3} t={132} size={25} letter={users[3].name[0]} bg="#EFBEFF" color="#8701B4" font={15} ring />}
+      {users.length > 4 && (
+        <LetterAvatar l={1317} t={132} size={25} letter={`+${users.length - 4}`} bg="#E5E5E5" color="#000000" font={8.3} ring />
+      )}
 
       {/* dividers */}
       <Abs l={497} t={169} w={863} h={1} style={{ background: "#EDEDED" }} />
@@ -363,80 +474,90 @@ export default function CreateChannelPage() {
         <Plus className="h-[18px] w-[18px] text-[#8A8A8A]" strokeWidth={1.8} />
       </Abs>
 
-      {/* ================= message 1 — Dev / 11:55 ================= */}
-      <Abs l={511} t={238} w={32} h={32} className="rounded-full" style={{ background: "linear-gradient(135deg,#C8E6FF,#C8B3ED)" }} />
-      <Abs l={551} t={238} className="text-[13px] font-extrabold leading-[16px] text-[#1B1B1B]">
-        Dev
-      </Abs>
-      <Abs l={579} t={239.5} className="text-[11px] font-medium leading-[13px] text-[#2E2E2E]">
-        11:55
-      </Abs>
-      <Abs l={551} t={257} w={720} className="font-inter text-[13px] leading-[16px] text-[#131313]" style={{ whiteSpace: "pre-line" }}>
-        <span className="font-semibold">{"🎯 New Campaign Live: Nike’s Diwali 2025"}</span>
-        {"\n\nGreat news, team — the Nike’s Diwali campaign has officially launched today!\nAssigned teams, please check your dashboards for creator lists, deliverables, and reporting schedules.\nLet’s deliver a stellar execution as always. ⚡"}
-      </Abs>
+      {/* ================= message 1 — first message in the channel ================= */}
+      {msg1 && (
+        <>
+          <Abs l={511} t={238} w={32} h={32} className="rounded-full" style={{ background: "linear-gradient(135deg,#C8E6FF,#C8B3ED)" }} />
+          <Abs l={551} t={238} className="text-[13px] font-extrabold leading-[16px] text-[#1B1B1B]">
+            {msg1.authorName ?? ""}
+          </Abs>
+          <Abs l={579} t={239.5} className="text-[11px] font-medium leading-[13px] text-[#2E2E2E]">
+            {hhmm(msg1.createdAt)}
+          </Abs>
+          <Abs l={551} t={257} w={720} className="font-inter text-[13px] leading-[16px] text-[#131313]" style={{ whiteSpace: "pre-line" }}>
+            <span className="font-semibold">{msg1Head}</span>
+            {msg1Rest && `\n${msg1Rest}`}
+          </Abs>
+        </>
+      )}
 
-      {/* ================= message 2 — Google Calendar / 12:45 ================= */}
-      <Abs l={513} t={358} w={32} h={32} className="overflow-hidden rounded-[5px] bg-white" style={{ outline: "1px solid #E3E3E3" }}>
-        <div className="h-[9px] w-full" style={{ background: "#E8483C" }} />
-        <div className="flex h-[23px] items-center justify-center text-[13px] font-bold text-[#4285F4]">31</div>
-      </Abs>
-      <Abs l={553} t={358} className="text-[13px] font-extrabold leading-[16px] text-[#1B1B1B]">
-        Google Calendar
-      </Abs>
-      <Abs l={654} t={359.5} w={26} h={13} className="flex items-center justify-center rounded-[3px]" style={{ background: "#DFDFDF" }}>
-        <span className="text-[9px] font-medium text-[#2E2E2E]">APP</span>
-      </Abs>
-      <Abs l={684} t={359.5} className="text-[11px] font-medium leading-[13px] text-[#2E2E2E]">
-        12:45
-      </Abs>
-      <Abs l={553} t={377} className="font-inter text-[13px] font-medium leading-[16px] text-[#131313]">
-        Event starting in 15 minutes:
-      </Abs>
-      <Abs l={553} t={402} w={3} h={35} className="rounded-[10px]" style={{ background: "#209DD4" }} />
-      <Abs l={568} t={402} className="text-[13px] font-bold leading-[16px] text-[#146199]">
-        Team status meeting
-      </Abs>
-      <Abs l={700} t={403.5} className="text-[13px] leading-[16px]">
-        📝
-      </Abs>
-      <Abs l={568} t={421} className="font-inter text-[13px] font-medium leading-[16px] text-[#131313]">
-        Today from 13:00 to 13:30
-      </Abs>
+      {/* ================= message 2 — second message in the channel ================= */}
+      {msg2 && (
+        <>
+          <Abs l={513} t={358} w={32} h={32} className="overflow-hidden rounded-[5px] bg-white" style={{ outline: "1px solid #E3E3E3" }}>
+            <div className="h-[9px] w-full" style={{ background: "#E8483C" }} />
+            <div className="flex h-[23px] items-center justify-center text-[13px] font-bold text-[#4285F4]">31</div>
+          </Abs>
+          <Abs l={553} t={358} className="text-[13px] font-extrabold leading-[16px] text-[#1B1B1B]">
+            {msg2.authorName ?? ""}
+          </Abs>
+          <Abs l={654} t={359.5} w={26} h={13} className="flex items-center justify-center rounded-[3px]" style={{ background: "#DFDFDF" }}>
+            <span className="text-[9px] font-medium text-[#2E2E2E]">APP</span>
+          </Abs>
+          <Abs l={684} t={359.5} className="text-[11px] font-medium leading-[13px] text-[#2E2E2E]">
+            {hhmm(msg2.createdAt)}
+          </Abs>
+          <Abs l={553} t={377} className="font-inter text-[13px] font-medium leading-[16px] text-[#131313]">
+            {withMentions(msg2.body)}
+          </Abs>
+          {/* quoted event card — the next scheduled calendar entry */}
+          {nextEvent && (
+            <>
+              <Abs l={553} t={402} w={3} h={35} className="rounded-[10px]" style={{ background: "#209DD4" }} />
+              <Abs l={568} t={402} className="text-[13px] font-bold leading-[16px] text-[#146199]">
+                {nextEvent.title}
+              </Abs>
+              <Abs l={700} t={403.5} className="text-[13px] leading-[16px]">
+                📝
+              </Abs>
+              <Abs l={568} t={421} className="font-inter text-[13px] font-medium leading-[16px] text-[#131313]">
+                {eventWhen(nextEvent.scheduledAt)}
+              </Abs>
+            </>
+          )}
+        </>
+      )}
 
-      {/* ================= message 3 — Dev / 12:58 ================= */}
-      <Abs l={513} t={447} w={32} h={32} className="rounded-full" style={{ background: "linear-gradient(135deg,#C8E6FF,#C8B3ED)" }} />
-      <Abs l={553} t={447} className="text-[13px] font-extrabold leading-[16px] text-[#1B1B1B]">
-        Dev
-      </Abs>
-      <Abs l={581} t={448.5} className="text-[11px] font-medium leading-[13px] text-[#2E2E2E]">
-        12:58
-      </Abs>
-      <Abs l={553} t={466} className="text-[13px] font-medium leading-[16px] text-[#131313]">
-        Meeting notes from our sync with <span className="text-[#1264A3]">@PoojaSingh</span>
-      </Abs>
-      <Abs l={553} t={485} className="text-[11px] font-medium leading-[13px] text-[#2E2E2E]">
-        Post
-      </Abs>
-      <Abs l={576} t={489} w={10} h={10}>
-        <ChevronDown className="h-[10px] w-[10px] text-[#2E2E2E]" strokeWidth={2} />
-      </Abs>
-      <Abs l={553} t={501} w={640} h={54} className="rounded-[6px]" style={{ background: "#FBFBFB", outline: "1px solid #E8E8E8" }} />
-      <Abs l={563} t={512} w={32} h={32} className="flex items-center justify-center">
-        <FileText className="h-[26px] w-[26px] text-[#37A15E]" strokeWidth={1.5} />
-      </Abs>
-      <Abs l={604} t={511} className="text-[13px] font-extrabold leading-[16px] text-[#1B1B1B]">
-        1/9 meeting notes
-      </Abs>
-      <Abs l={604} t={529} className="text-[13px] font-medium leading-[16px] text-[#2E2E2E]">
-        Last edited just now
-      </Abs>
+      {/* ================= message 3 — third message in the channel ================= */}
+      {/* NOTE: the Figma frame shows a file-attachment card under this message. There is no
+          attachment/document model on Message in the schema, so the card is omitted rather
+          than rendered with an invented filename + "last edited" stamp. */}
+      {msg3 && (
+        <>
+          <Abs l={513} t={447} w={32} h={32} className="rounded-full" style={{ background: "linear-gradient(135deg,#C8E6FF,#C8B3ED)" }} />
+          <Abs l={553} t={447} className="text-[13px] font-extrabold leading-[16px] text-[#1B1B1B]">
+            {msg3.authorName ?? ""}
+          </Abs>
+          <Abs l={581} t={448.5} className="text-[11px] font-medium leading-[13px] text-[#2E2E2E]">
+            {hhmm(msg3.createdAt)}
+          </Abs>
+          <Abs l={553} t={466} className="text-[13px] font-medium leading-[16px] text-[#131313]">
+            {withMentions(msg3.body)}
+          </Abs>
+          <Abs l={553} t={485} className="text-[11px] font-medium leading-[13px] text-[#2E2E2E]">
+            Post
+          </Abs>
+          <Abs l={576} t={489} w={10} h={10}>
+            <ChevronDown className="h-[10px] w-[10px] text-[#2E2E2E]" strokeWidth={2} />
+          </Abs>
+        </>
+      )}
 
       {/* ================= message input ================= */}
       <Abs l={515} t={952} w={783} h={38} className="rounded-[4px] bg-white" style={{ outline: "1px solid #E3E3E3" }} />
       <Abs l={525} t={961} w={1} h={20} style={{ background: "#4C4C4C" }} />
       <Abs l={533} t={963} className="text-[13px] font-medium leading-[16px] text-[#2E2E2E]">
-        Message #skincare-campaign-poll
+        Message #{currentChannel?.name ?? ""}
       </Abs>
       <Abs l={1159} t={964} w={14} h={14}>
         <Link2 className="h-[14px] w-[14px] text-[#5F5F5F]" strokeWidth={1.8} />
@@ -550,7 +671,9 @@ export default function CreateChannelPage() {
         <span className="text-[12px] font-normal leading-none" style={{ color: "rgba(0,0,0,0.6)" }}>
           ESTIMATED REACH
         </span>
-        <span className="text-[12px] font-medium leading-none text-[#4CCC16]">1,350</span>
+        <span className="text-[12px] font-medium leading-none text-[#4CCC16]">
+          {estimatedReach.toLocaleString()}
+        </span>
       </Abs>
       {/* search input */}
       <Abs l={379} t={391.4} w={682} h={45.6} className="flex items-center rounded-[12px] bg-[#FAFAFA] pl-[9px]">
@@ -560,14 +683,14 @@ export default function CreateChannelPage() {
         </span>
       </Abs>
       {/* agency chips */}
-      {agencies.map((a) => (
+      {agencies.map((a, i) => (
         <AgencyChip
           key={a.id}
-          l={a.l}
-          label={a.label}
-          bg={a.bg}
-          glyphColor={a.glyphColor}
-          onRemove={() => setAgencies((prev) => prev.filter((x) => x.id !== a.id))}
+          l={CHIP_SLOTS[i].l}
+          label={a.name}
+          bg={CHIP_SLOTS[i].bg}
+          glyphColor={CHIP_SLOTS[i].glyphColor}
+          onRemove={() => setRemovedAgencies((prev) => [...prev, a.id])}
         />
       ))}
 

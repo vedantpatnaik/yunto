@@ -19,7 +19,7 @@ import {
   Wallet,
 } from "lucide-react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { useLeads, type Lead } from "@/api/hooks";
+import { useLeads, useCreators, useAgencies, type Creator } from "@/api/hooks";
 
 /**
  * Super Admin — Lead Connected (Leads sub-flow).
@@ -68,29 +68,54 @@ function StatChip({ chip, top }: { chip: ChipDef; top: number }) {
   );
 }
 
-const ROW_2: ChipDef[] = [
-  { icon: Star, color: "#FFC107", fill: true, label: "4.8 Stars", left: 10, width: 87 },
-  { icon: Eye, color: "#2CC37F", sw: 2.2, label: "0.23p CPV", left: 87, width: 91 },
-  { icon: Sparkles, color: "#603CFF", fill: true, label: "80% Match", left: 173, width: 79 },
-];
-
 /* --------------------------------- card --------------------------------- */
 function CreatorCard({
   left,
   top,
-  variant,
-  lead,
+  creator,
+  agencyName,
 }: {
   left: number;
   top: number;
-  variant: "socyio" | "stellar";
-  lead?: Lead;
+  creator: Creator;
+  agencyName?: string;
 }) {
   const navigate = useNavigate();
+  /** the design's per-creator price tag — schema has no rate field, so derive spend = CPV × avg views. */
+  const money = compact(Math.round(creator.cpv * creator.avgViews));
+  /** no discount column exists; scale the agency offer off match strength (60–99% match -> 30–49% off). */
+  const discountPct = Math.round((creator.matchPct ?? 0) / 2);
+  const variant: "socyio" | "stellar" = agencyName ? "stellar" : "socyio";
   const row1: ChipDef[] = [
-    { icon: Users, color: "#000000", label: compact(lead?.peopleCount ?? 0), left: 10, width: 68 },
-    { icon: Eye, color: "#2CC37F", sw: 2.2, label: "900k Avg. views", left: 69, width: 110 },
-    { icon: Heart, color: "#F8348C", label: lead?.engagementRate ?? "", left: 173, width: 77 },
+    { icon: Users, color: "#000000", label: compact(creator.followers), left: 10, width: 68 },
+    {
+      icon: Eye,
+      color: "#2CC37F",
+      sw: 2.2,
+      label: `${compact(creator.avgViews)} Avg. views`,
+      left: 69,
+      width: 110,
+    },
+    { icon: Heart, color: "#F8348C", label: `${creator.engagementRate}%`, left: 173, width: 77 },
+  ];
+  const row2: ChipDef[] = [
+    {
+      icon: Star,
+      color: "#FFC107",
+      fill: true,
+      label: `${creator.stars} Stars`,
+      left: 10,
+      width: 87,
+    },
+    { icon: Eye, color: "#2CC37F", sw: 2.2, label: `${creator.cpv}p CPV`, left: 87, width: 91 },
+    {
+      icon: Sparkles,
+      color: "#603CFF",
+      fill: true,
+      label: `${creator.matchPct ?? 0}% Match`,
+      left: 173,
+      width: 79,
+    },
   ];
   return (
     <div className="absolute h-[193px] w-[266px]" style={{ left, top }}>
@@ -100,7 +125,7 @@ function CreatorCard({
       {/* open arrow */}
       <span
         className="absolute left-[234px] top-[-1px] flex h-[28px] w-[28px] cursor-pointer items-center justify-center rounded-[16px] bg-white"
-        onClick={() => navigate("/creators/detail")}
+        onClick={() => navigate(`/creators/detail?id=${creator.id}`)}
       >
         <ArrowUpRight className="h-[15px] w-[15px] text-black" strokeWidth={1.7} />
       </span>
@@ -108,10 +133,10 @@ function CreatorCard({
       {/* creator avatar + name */}
       <span className="absolute left-[8px] top-[6px] h-[38px] w-[38px] rounded-full bg-gradient-to-br from-[#C8E6FF] to-[#C8B3ED]" />
       <div className="absolute left-[51px] top-[10.5px] text-[12px] leading-[15px] text-ink/90">
-        {lead?.contactPerson ?? ""}
+        {creator.name}
       </div>
       <div className="absolute left-[51px] top-[26.5px] text-[8px] leading-[13px] text-ink/70">
-        @leenabliss
+        {creator.handle}
       </div>
 
       {/* progress + location */}
@@ -120,15 +145,15 @@ function CreatorCard({
       </span>
       <span className="absolute left-[179px] top-[8px] flex h-[18px] w-[40px] items-center justify-center gap-[2px] rounded-[9px] bg-white">
         <MapPin className="h-[9px] w-[9px] text-[#E53935]" fill="#E53935" strokeWidth={1.5} />
-        <span className="text-[7.6px] leading-none text-black">Delhi</span>
+        <span className="text-[7.6px] leading-none text-black">{creator.location ?? "—"}</span>
       </span>
 
       {/* stat chips */}
-      {row1.map((c) => (
-        <StatChip key={c.label} chip={c} top={51} />
+      {row1.map((c, i) => (
+        <StatChip key={i} chip={c} top={51} />
       ))}
-      {ROW_2.map((c) => (
-        <StatChip key={c.label} chip={c} top={82} />
+      {row2.map((c, i) => (
+        <StatChip key={i} chip={c} top={82} />
       ))}
 
       {/* managed by */}
@@ -148,7 +173,7 @@ function CreatorCard({
           </span>
           <span className="absolute left-[170px] top-[140.9px] flex h-[22px] w-[69px] items-center justify-center gap-[3px] rounded-[8px] bg-white">
             <Wallet className="h-[12px] w-[12px] text-black" strokeWidth={1.6} />
-            <span className="text-[12px] font-medium leading-none text-[#571A9F]">₹ {lead?.money ?? ""}</span>
+            <span className="text-[12px] font-medium leading-none text-[#571A9F]">₹ {money}</span>
           </span>
         </>
       ) : (
@@ -161,19 +186,21 @@ function CreatorCard({
             className="absolute left-[106px] top-[126px] flex h-[12px] w-[47px] items-center justify-center rounded-[3px] text-[9px] leading-none text-white"
             style={{ background: DISCOUNT_GRADIENT }}
           >
-            -45% OFF
+            -{discountPct}% OFF
           </span>
           <span className="absolute left-[13px] top-[137px] h-[24px] w-[24px] rounded-full bg-gradient-to-br from-[#FFD6E7] to-[#C8B3ED]" />
-          <span className="absolute left-[41px] top-[136.2px] text-[10.2px] leading-none text-ink/90">
-            Stellar Talents
+          <span className="absolute left-[41px] top-[136.2px] max-w-[115px] truncate text-[10.2px] leading-none text-ink/90">
+            {agencyName}
           </span>
           <span className="absolute left-[41px] top-[147.8px] flex items-center gap-[4px]">
             <Star className="h-[12px] w-[12px] text-[#FFC107]" fill="#FFC107" strokeWidth={1.5} />
-            <span className="text-[8px] font-light leading-none text-ink/60">4.8 Stars</span>
+            <span className="text-[8px] font-light leading-none text-ink/60">
+              {creator.stars} Stars
+            </span>
           </span>
           <span className="absolute left-[163px] top-[136px] flex h-[25px] w-[75px] items-center justify-center gap-[3px] rounded-[8px] bg-white/70">
             <Wallet className="h-[12px] w-[12px] text-[#C9A227]" strokeWidth={1.6} />
-            <span className="text-[12px] font-medium leading-none text-[#571A9F]">₹{lead?.money ?? ""}</span>
+            <span className="text-[12px] font-medium leading-none text-[#571A9F]">₹{money}</span>
           </span>
         </>
       )}
@@ -186,12 +213,27 @@ function CreatorCard({
   );
 }
 
-function CardRow({ top, baseLeft, lead }: { top: number; baseLeft: number; lead?: Lead }) {
-  const variants: Array<"socyio" | "stellar"> = ["socyio", "stellar", "stellar", "stellar"];
+function CardRow({
+  top,
+  baseLeft,
+  creators,
+  agencyNames,
+}: {
+  top: number;
+  baseLeft: number;
+  creators: Creator[];
+  agencyNames: Map<string, string>;
+}) {
   return (
     <>
-      {variants.map((v, i) => (
-        <CreatorCard key={i} left={baseLeft + i * 281} top={top} variant={v} lead={lead} />
+      {creators.map((c, i) => (
+        <CreatorCard
+          key={c.id}
+          left={baseLeft + i * 281}
+          top={top}
+          creator={c}
+          agencyName={c.agencyId ? agencyNames.get(c.agencyId) : undefined}
+        />
       ))}
     </>
   );
@@ -232,6 +274,22 @@ export default function LeadConnectedPage() {
   const item =
     leads.find((l) => l.id === id) ??
     leads.find((l) => l.status === "CONNECTED" || l.status === "CONVERTED");
+
+  const { data: creatorData, isLoading } = useCreators();
+  const { data: agencyData } = useAgencies();
+  const creators = creatorData ?? [];
+  const agencyNames = new Map((agencyData ?? []).map((a) => [a.id, a.name]));
+
+  // Section buckets mirror the headings: celebrity/mega (1M+) then macro (250K – 1M).
+  const mega = creators.filter((c) => c.followers >= 1_000_000);
+  const macro = creators.filter((c) => c.followers >= 250_000 && c.followers < 1_000_000);
+  const rows: Array<{ top: number; baseLeft: number; items: Creator[] }> = [
+    { top: 16.5, baseLeft: 36.5, items: mega.slice(0, 4) },
+    { top: 270.5, baseLeft: 36, items: macro.slice(0, 4) },
+    { top: 479.5, baseLeft: 36, items: macro.slice(4, 8) },
+  ];
+  const shownCount = rows.reduce((n, r) => n + r.items.length, 0);
+
   return (
     <>
       {/* back button */}
@@ -278,7 +336,7 @@ export default function LeadConnectedPage() {
         <Check className="h-[10px] w-[10px] text-black" strokeWidth={2} />
       </span>
       <span className="absolute left-[1029px] top-[262px] text-[12px] font-light leading-[15px] text-black">
-        1 selected
+        {shownCount} selected
       </span>
 
       {/* share link / download */}
@@ -300,14 +358,20 @@ export default function LeadConnectedPage() {
       {/* scrollable creator sections (clipped like the source scroll frame) */}
       <div className="absolute left-[245px] top-[308px] h-[665px] w-[1182px] overflow-hidden">
         {/* Mega / Celebrity row (second row of the section is the first visible) */}
-        <CardRow top={16.5} baseLeft={36.5} lead={item} />
+        <CardRow top={16.5} baseLeft={36.5} creators={rows[0].items} agencyNames={agencyNames} />
 
         {/* Macro Creators */}
         <h2 className="absolute left-[36px] top-[225.5px] text-[24px] font-normal leading-none text-black">
           Macro Creators (250K – 1M)
         </h2>
-        <CardRow top={270.5} baseLeft={36} lead={item} />
-        <CardRow top={479.5} baseLeft={36} lead={item} />
+        <CardRow top={270.5} baseLeft={36} creators={rows[1].items} agencyNames={agencyNames} />
+        <CardRow top={479.5} baseLeft={36} creators={rows[2].items} agencyNames={agencyNames} />
+
+        {shownCount === 0 && (
+          <span className="absolute left-[36.5px] top-[16.5px] text-[12px] leading-[15px] text-ink/50">
+            {isLoading ? "Loading creators…" : "No creators connected yet"}
+          </span>
+        )}
       </div>
     </>
   );

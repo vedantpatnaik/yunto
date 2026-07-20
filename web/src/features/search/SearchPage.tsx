@@ -2,7 +2,7 @@ import { useMemo, useState, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import { User, Box, Filter, X, Plus, ArrowUpRight, Phone } from "lucide-react";
 import whatsapp from "@/assets/icons/whatsapp.svg";
-import { useCreators, useLeads, useCampaigns } from "@/api/hooks";
+import { useList, type Creator, type Lead, type Campaign } from "@/api/hooks";
 
 /**
  * Super Admin — Global Search.
@@ -11,7 +11,26 @@ import { useCreators, useLeads, useCampaigns } from "@/api/hooks";
  * TopBar + Sidebar are provided by AppShell and are NOT rendered here.
  */
 
-type CardData = { name: string; role: string; leadName: string; source: string; intent: string };
+/**
+ * The generic /leads|/creators|/campaigns endpoints return whole Prisma rows, so
+ * they carry a few columns beyond the shared interfaces in @/api/hooks. Every key
+ * below exists on the corresponding model in server/prisma/schema.prisma.
+ */
+type LeadRow = Lead & { dealType?: string; channel?: string | null; source?: string | null; createdAt?: string };
+type CreatorRow = Creator & { platform?: string; createdAt?: string };
+type CampaignRow = Campaign & { createdAt?: string };
+
+type CardData = {
+  id: string;
+  to: string;
+  name: string;
+  role: string;
+  leadName: string;
+  source: string;
+  intent: string;
+  tags: string[];
+  date: string;
+};
 
 /** Fixed layout coordinates for the three visible result cards (Figma). */
 const SLOTS = [
@@ -22,6 +41,21 @@ const SLOTS = [
 
 /** "HIGH" -> "High", "CONTACTED" -> "Contacted". */
 const titleCase = (s: string) => (s ? s.charAt(0) + s.slice(1).toLowerCase() : s);
+
+/** "12 July" — the Figma date stamp, from a record's createdAt. */
+const fmtDate = (iso?: string) => {
+  if (!iso) return "";
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? "" : `${d.getDate()} ${d.toLocaleString("en-US", { month: "long" })}`;
+};
+
+/** Indian money shorthand for the budget chip: 1_200_000 -> "12L". */
+const inr = (n: number) =>
+  n >= 1e7 ? `${+(n / 1e7).toFixed(1)}Cr` : n >= 1e5 ? `${+(n / 1e5).toFixed(1)}L` : `${Math.round(n / 1e3)}k`;
+
+/** Follower shorthand: 1_200_000 -> "1.2M". */
+const compact = (n: number) =>
+  n >= 1e6 ? `${+(n / 1e6).toFixed(1)}M` : n >= 1e3 ? `${Math.round(n / 1e3)}K` : `${n}`;
 
 /* ------------------------------ primitives ----------------------------- */
 /** Phosphor "FunnelSimple" — three horizontal lines decreasing in width. */
@@ -49,14 +83,14 @@ function LeadCard({ data, left, top }: { data: CardData; left: number; top: numb
     <div
       className="absolute h-[193px] w-[266px] cursor-pointer rounded-[12px] bg-[#F5F5F5]"
       style={{ left, top }}
-      onClick={() => navigate("/leads/detail")}
+      onClick={() => navigate(data.to)}
     >
       {/* open-in arrow (sits in top-right notch) */}
       <span className="absolute right-[4px] top-[-1px] flex h-[28px] w-[28px] items-center justify-center rounded-[16px] bg-white">
         <ArrowUpRight className="h-[15px] w-[15px] text-ink" strokeWidth={1.8} />
       </span>
       {/* date */}
-      <span className="absolute left-[193px] top-[13px] text-[8px] leading-none text-ink/[0.47]">12 July</span>
+      <span className="absolute left-[193px] top-[13px] text-[8px] leading-none text-ink/[0.47]">{data.date}</span>
 
       {/* assignee header */}
       <div className="absolute left-[8px] top-[6px] flex items-center gap-[5px]">
@@ -80,9 +114,9 @@ function LeadCard({ data, left, top }: { data: CardData; left: number; top: numb
 
       {/* tags */}
       <div className="absolute left-[11px] top-[95px] flex items-center gap-[8px]">
-        <TagChip>Zostel Trip</TagChip>
-        <TagChip>Budget ₹1.2L</TagChip>
-        <TagChip>Paid</TagChip>
+        {data.tags.map((t, i) => (
+          <TagChip key={`${t}-${i}`}>{t}</TagChip>
+        ))}
       </div>
 
       {/* source */}
@@ -111,36 +145,83 @@ export default function SearchPage() {
   const [activeCategory, setActiveCategory] = useState("Leads");
   const [hiddenFilters, setHiddenFilters] = useState<string[]>([]);
 
-  const { data: creators = [] } = useCreators();
-  const { data: leads = [] } = useLeads();
-  const { data: campaigns = [] } = useCampaigns();
+  const { data: creators = [], isLoading: creatorsLoading } = useList<CreatorRow>("creators");
+  const { data: leads = [], isLoading: leadsLoading } = useList<LeadRow>("leads");
+  const { data: campaigns = [], isLoading: campaignsLoading } = useList<CampaignRow>("campaigns");
 
-  // Real, per-category results — a few rows each, mapped so every card varies.
-  const results = useMemo<CardData[]>(() => {
-    if (activeCategory === "Creators")
-      return creators.slice(0, 3).map((c) => ({
-        name: c.handle,
-        role: c.niche ?? "Creator",
-        leadName: c.name,
-        source: c.location ?? "",
-        intent: `${c.matchPct ?? Math.round(c.stars * 20)}% Match`,
-      }));
-    if (activeCategory === "Campaigns")
-      return campaigns.slice(0, 3).map((c) => ({
-        name: c.contactPerson ?? "",
-        role: titleCase(c.status),
-        leadName: c.brandName,
-        source: c.name,
-        intent: titleCase(c.status),
-      }));
-    return leads.slice(0, 3).map((l) => ({
+  // Real, per-category results — every field on a card comes from that card's own record.
+  const { creatorCards, campaignCards, leadCards } = useMemo(() => {
+    const creatorCards: CardData[] = creators.map((c) => ({
+      id: c.id,
+      to: `/creators/detail?id=${c.id}`,
+      name: c.handle,
+      role: c.niche ?? "Creator",
+      leadName: c.name,
+      source: c.location ?? "",
+      intent: `${c.matchPct || Math.round(c.stars * 20)}% Match`,
+      tags: [
+        titleCase(c.platform ?? "") || "Creator",
+        `${compact(c.followers)} Followers`,
+        `${c.engagementRate}% ER`,
+      ],
+      date: fmtDate(c.createdAt),
+    }));
+
+    const campaignCards: CardData[] = campaigns.map((c) => ({
+      id: c.id,
+      to: `/campaigns/detail?id=${c.id}`,
+      name: c.contactPerson ?? "",
+      role: titleCase(c.status),
+      leadName: c.brandName,
+      source: c.name,
+      intent: `${c.progress}% Done`,
+      tags: [
+        `${c.peopleCount ?? 0} People`,
+        `Budget ₹${inr(c.budget)}`,
+        c.engagementRate ? `${c.engagementRate} ER` : titleCase(c.status),
+      ],
+      date: fmtDate(c.createdAt),
+    }));
+
+    const leadCards: CardData[] = leads.map((l) => ({
+      id: l.id,
+      to: `/leads/detail?id=${l.id}`,
       name: l.contactPerson ?? "",
       role: l.personRole ?? "sales",
       leadName: l.brandName,
-      source: titleCase(l.status),
+      source: l.source ?? l.channel ?? titleCase(l.status),
       intent: `${titleCase(l.intent)} Intent`,
+      tags: [
+        `${l.peopleCount} People`,
+        l.money ? `Budget ₹${l.money}` : `${titleCase(l.status)} Lead`,
+        titleCase(l.dealType ?? "") || `${titleCase(l.intent)} Intent`,
+      ],
+      date: fmtDate(l.createdAt),
     }));
-  }, [activeCategory, creators, campaigns, leads]);
+
+    return { creatorCards, campaignCards, leadCards };
+  }, [creators, campaigns, leads]);
+
+  /** Three slots: one card per category on "All Results", otherwise the top 3 of one category. */
+  const results = useMemo<CardData[]>(() => {
+    if (activeCategory === "Creators") return creatorCards.slice(0, 3);
+    if (activeCategory === "Campaigns") return campaignCards.slice(0, 3);
+    if (activeCategory === "Leads") return leadCards.slice(0, 3);
+    const mixed = [creatorCards[0], campaignCards[0], leadCards[0]].filter((c): c is CardData => !!c);
+    return mixed.length === 3 ? mixed : [...mixed, ...leadCards, ...creatorCards].slice(0, 3);
+  }, [activeCategory, creatorCards, campaignCards, leadCards]);
+
+  const isLoading =
+    activeCategory === "Creators"
+      ? creatorsLoading
+      : activeCategory === "Campaigns"
+        ? campaignsLoading
+        : activeCategory === "Leads"
+          ? leadsLoading
+          : creatorsLoading || campaignsLoading || leadsLoading;
+
+  /** Figma reads "New Leads"; on the other tabs the heading follows the active category. */
+  const heading = activeCategory === "Leads" ? "New Leads" : activeCategory;
 
   return (
     <>
@@ -240,18 +321,30 @@ export default function SearchPage() {
       </span>
 
       {/* section header */}
-      <span className="absolute left-[244px] top-[288px] text-[20px] font-light uppercase text-ink/70">New Leads</span>
+      <span className="absolute left-[244px] top-[288px] text-[20px] font-light uppercase text-ink/70">{heading}</span>
       <span
-        onClick={() => navigate("/leads")}
+        onClick={() => navigate(activeCategory === "Creators" ? "/creators" : activeCategory === "Campaigns" ? "/campaigns" : "/leads")}
         className="absolute left-[1006px] top-[292px] cursor-pointer text-[15px] font-light text-ink/70"
       >
         View All
       </span>
 
       {/* result cards */}
-      {results.map((data, i) => (
-        <LeadCard key={i} data={data} left={SLOTS[i].left} top={SLOTS[i].top} />
-      ))}
+      {results.length === 0 ? (
+        // Empty / loading occupies the first card slot only — same box, same geometry.
+        <div
+          className="absolute h-[193px] w-[266px] rounded-[12px] bg-[#F5F5F5]"
+          style={{ left: SLOTS[0].left, top: SLOTS[0].top }}
+        >
+          <span className="absolute left-[17px] top-[60px] text-[17px] font-normal leading-[27px] text-ink/90">
+            {isLoading ? "Loading…" : "No results"}
+          </span>
+        </div>
+      ) : (
+        results.map((data, i) => (
+          <LeadCard key={data.id} data={data} left={SLOTS[i].left} top={SLOTS[i].top} />
+        ))
+      )}
     </>
   );
 }

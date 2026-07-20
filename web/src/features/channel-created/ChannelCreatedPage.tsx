@@ -1,7 +1,7 @@
 import type { CSSProperties, ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import type { LucideIcon } from "lucide-react";
-import { useChannels, useUsers } from "@/api/hooks";
+import { useCampaigns, useChannels, useUsers } from "@/api/hooks";
 import {
   Hash,
   ChevronDown,
@@ -203,15 +203,21 @@ function AddRow({ top, label, indent = 0, onClick }: { top: number; label: strin
 }
 
 /* -------------------------------- data --------------------------------- */
+/* structural section headers — these are labels, not data */
 const SECTIONS: { top: number; label: string; dir: "down" | "right"; right?: "plus" | "userplus"; indent?: number }[] = [
   { top: 176, label: "Notifications", dir: "down", right: "plus" },
   { top: 288, label: "Groups", dir: "down", right: "userplus" },
   { top: 626, label: "Campaigns", dir: "down", right: "plus" },
-  { top: 654, label: "Vishal Sharma", dir: "down" },
-  { top: 682, label: "Nike Diwali", dir: "down", indent: 21 },
-  { top: 794, label: "Ritika Verma", dir: "right" },
-  { top: 822, label: "Neha", dir: "right" },
-  { top: 850, label: "Ajay", dir: "right" },
+];
+
+/* campaign tree slots under the "Campaigns" header — labels come from live campaigns.
+   "person" rows show the campaign's contact, the nested "name" row shows the campaign itself. */
+const CAMPAIGN_ROWS: { top: number; dir: "down" | "right"; indent?: number; field: "person" | "name"; idx: number }[] = [
+  { top: 654, dir: "down", field: "person", idx: 0 },
+  { top: 682, dir: "down", indent: 21, field: "name", idx: 0 },
+  { top: 794, dir: "right", field: "person", idx: 1 },
+  { top: 822, dir: "right", field: "person", idx: 2 },
+  { top: 850, dir: "right", field: "person", idx: 3 },
 ];
 
 const CHANNELS: { top: number; label: string; active?: boolean; indent?: number; dots?: boolean }[] = [
@@ -235,21 +241,12 @@ const ADDS: { top: number; label: string; indent?: number }[] = [
 
 const TOOLS: LucideIcon[] = [Link2, AtSign, Smile, Paperclip, BarChartHorizontal];
 
-/* section-header rows that map to a real destination (headers with no target stay inert) */
-const SECTION_ROUTES: Record<string, string> = {
-  Campaigns: "/campaigns",
-  "Vishal Sharma": "/campaigns/detail",
-  "Nike Diwali": "/campaigns/detail",
-  "Ritika Verma": "/chat",
-  Neha: "/chat",
-  Ajay: "/chat",
-};
-
 /* -------------------------------- page --------------------------------- */
 export default function ChannelCreatedPage() {
   const navigate = useNavigate();
   const { data: channels = [] } = useChannels();
   const { data: users = [] } = useUsers();
+  const { data: campaigns = [] } = useCampaigns();
   const activeSlot = CHANNELS.findIndex((c) => c.active);
   const activeChannelName = channels[activeSlot]?.name ?? "";
   return (
@@ -288,9 +285,28 @@ export default function ChannelCreatedPage() {
       </Abs>
 
       {/* section headers */}
-      {SECTIONS.map((s) => {
-        const route = SECTION_ROUTES[s.label];
-        return <SectionRow key={`sec-${s.top}`} {...s} onClick={route ? () => navigate(route) : undefined} />;
+      {SECTIONS.map((s) => (
+        <SectionRow
+          key={`sec-${s.top}`}
+          {...s}
+          onClick={s.label === "Campaigns" ? () => navigate("/campaigns") : undefined}
+        />
+      ))}
+
+      {/* campaign tree — real campaigns mapped onto the design's row slots */}
+      {CAMPAIGN_ROWS.map((r) => {
+        const c = campaigns[r.idx];
+        if (!c) return null;
+        return (
+          <SectionRow
+            key={`camp-${r.top}`}
+            top={r.top}
+            label={r.field === "name" ? c.name : c.contactPerson ?? c.brandName}
+            dir={r.dir}
+            indent={r.indent}
+            onClick={() => navigate(`/campaigns/detail?id=${c.id}`)}
+          />
+        );
       })}
 
       {/* channel rows — real channels mapped onto the design's row slots */}

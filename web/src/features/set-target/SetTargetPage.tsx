@@ -1,7 +1,7 @@
 import type { CSSProperties, ReactNode } from "react";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useUsers, type User } from "@/api/hooks";
+import { useUsers, useCampaigns, useList, type User, type Campaign } from "@/api/hooks";
 import type { LucideIcon } from "lucide-react";
 import {
   X,
@@ -61,23 +61,23 @@ function ProgressChip({ color, n }: { color: string; n: string }) {
   );
 }
 
-function LeadChips() {
+function LeadChips({ counts }: { counts: Triple }) {
   return (
     <div className="flex items-center gap-[3.5px]">
-      <ChipPill icon={Mail} iconClass="text-black/70">2 Leads</ChipPill>
-      <ChipPill icon={MailWarning} iconClass="text-black/70">4 Leads</ChipPill>
-      <ChipPill icon={MailCheck} iconClass="text-black/70">7 Leads</ChipPill>
+      <ChipPill icon={Mail} iconClass="text-black/70">{counts[0]} Leads</ChipPill>
+      <ChipPill icon={MailWarning} iconClass="text-black/70">{counts[1]} Leads</ChipPill>
+      <ChipPill icon={MailCheck} iconClass="text-black/70">{counts[2]} Leads</ChipPill>
     </div>
   );
 }
 
-function CampaignChips() {
+function CampaignChips({ total, counts }: { total: number; counts: Triple }) {
   return (
     <div className="flex items-center gap-[4.3px]">
-      <ChipPill icon={Flag} iconClass="text-black/80">7 Campaigns</ChipPill>
-      <ProgressChip color="#75A7C7" n="4" />
-      <ProgressChip color="#79B282" n="1" />
-      <ProgressChip color="#EBB363" n="2" />
+      <ChipPill icon={Flag} iconClass="text-black/80">{total} Campaigns</ChipPill>
+      <ProgressChip color="#75A7C7" n={String(counts[0])} />
+      <ProgressChip color="#79B282" n={String(counts[1])} />
+      <ProgressChip color="#EBB363" n={String(counts[2])} />
     </div>
   );
 }
@@ -91,6 +91,9 @@ function PersonRow({
   name,
   target,
   sub,
+  pct,
+  counts,
+  total,
   variant,
   onOpen,
 }: {
@@ -102,6 +105,9 @@ function PersonRow({
   name: string;
   target: string;
   sub: string;
+  pct: number;
+  counts: Triple;
+  total: number;
   variant: "leads" | "campaigns";
   onOpen?: () => void;
 }) {
@@ -116,9 +122,9 @@ function PersonRow({
       </div>
       {/* name */}
       <span className="absolute left-[52px] top-[8px] text-[14px] text-black/90">{name}</span>
-      {/* 45% badge */}
+      {/* progress badge */}
       <span className="absolute left-[299px] top-[12px] flex h-[28px] w-[28px] items-center justify-center rounded-full bg-[#DAFDB0] text-[9.3px] text-black">
-        45%
+        {pct}%
       </span>
       {/* target label */}
       <span className="absolute left-[335px] top-[13px] flex flex-col leading-[13px]">
@@ -134,7 +140,11 @@ function PersonRow({
       </span>
       {/* chips */}
       <div className="absolute left-[52px] top-[27px]">
-        {variant === "leads" ? <LeadChips /> : <CampaignChips />}
+        {variant === "leads" ? (
+          <LeadChips counts={counts} />
+        ) : (
+          <CampaignChips total={total} counts={counts} />
+        )}
       </div>
     </div>
   );
@@ -152,7 +162,7 @@ function GroupHeader({
   left: number;
   top: number;
   label: string;
-  count: string;
+  count: number;
   dividerLeft: number;
   dividerWidth: number;
   arrowLeft: number;
@@ -184,12 +194,16 @@ function GroupHeader({
 
 /* --------------------------- team card (panel) ------------------------- */
 
+type Triple = [number, number, number];
 type Slot = { dx: number; y: number; bg: string; tc: string };
 type PersonData = Slot & {
   initial: string;
   name: string;
   target: string;
   sub: string;
+  pct: number;
+  counts: Triple;
+  total: number;
 };
 
 function TeamCard({
@@ -199,6 +213,8 @@ function TeamCard({
   memberCount,
   statCard,
   people,
+  groupCounts,
+  loading,
   variant,
   onOpen,
   onPersonOpen,
@@ -209,14 +225,16 @@ function TeamCard({
   memberCount: number;
   statCard: ReactNode;
   people: PersonData[];
+  groupCounts: Triple;
+  loading: boolean;
   variant: "leads" | "campaigns";
   onOpen?: () => void;
   onPersonOpen?: () => void;
 }) {
   const groups = [
-    { label: "Manager", count: "1", labelDx: 54, dividerDx: 191, dividerW: 146, arrowDx: 346.7, y: 545 },
-    { label: "Team Lead", count: "1", labelDx: 47, dividerDx: 184, dividerW: 147, arrowDx: 340.3, y: 646 },
-    { label: "Employees", count: "10", labelDx: 47, dividerDx: 184, dividerW: 114, arrowDx: 307.3, y: 751 },
+    { label: "Manager", count: groupCounts[0], labelDx: 54, dividerDx: 191, dividerW: 146, arrowDx: 346.7, y: 545 },
+    { label: "Team Lead", count: groupCounts[1], labelDx: 47, dividerDx: 184, dividerW: 147, arrowDx: 340.3, y: 646 },
+    { label: "Employees", count: groupCounts[2], labelDx: 47, dividerDx: 184, dividerW: 114, arrowDx: 307.3, y: 751 },
   ];
   return (
     <>
@@ -285,27 +303,41 @@ function TeamCard({
           name={p.name}
           target={p.target}
           sub={p.sub}
+          pct={p.pct}
+          counts={p.counts}
+          total={p.total}
           variant={variant}
           onOpen={onPersonOpen}
         />
       ))}
+      {/* empty / loading — occupies the first row slot, geometry unchanged */}
+      {people.length === 0 && (
+        <span
+          className="absolute text-[13px] text-black/40"
+          style={{ left: baseX + 60, top: 594 }}
+        >
+          {loading ? "Loading…" : "No members yet"}
+        </span>
+      )}
     </>
   );
 }
 
-function GreenTarget({ left }: { left: number }) {
+function GreenTarget({ left, monthly, yearly }: { left: number; monthly: number; yearly: number }) {
   return (
     <div
       className="absolute flex h-[64px] w-[119px] flex-col items-center justify-center rounded-[12px] bg-[#DAFDB0]"
       style={{ left, top: 421 }}
     >
-      <span className="text-[20px] font-medium text-black">₹5L of ₹20L</span>
+      <span className="text-[20px] font-medium text-black">
+        {lakhs(monthly)} of {lakhs(yearly)}
+      </span>
       <span className="text-[10px] font-light text-black/90">TARGET</span>
     </div>
   );
 }
 
-function StatNum({ left, n, label }: { left: number; n: string; label: string }) {
+function StatNum({ left, n, label }: { left: number; n: number; label: string }) {
   return (
     <div className="absolute flex flex-col items-center" style={{ left, top: 431 }}>
       <span className="text-[14px] font-medium leading-[20px] text-black">{n}</span>
@@ -363,25 +395,101 @@ const OPS_SLOTS: Slot[] = [
   { dx: 45, y: 856, bg: "#D5FFE3", tc: "#006E25" },
 ];
 
-function toPeople(list: User[], slots: Slot[]): PersonData[] {
-  return list.slice(0, slots.length).map((u, i) => ({
-    ...slots[i],
+/** Only the Lead columns this screen needs — `ownerId` is on the payload but not the shared Lead type. */
+type LeadRow = { id: string; status: string; ownerId: string | null };
+
+const sum = (list: User[], key: "targetMonthly" | "targetYearly") =>
+  list.reduce((t, u) => t + (u[key] ?? 0), 0);
+
+/** Managers first, then the rest by list order (the API sorts oldest-first). */
+function rank(list: User[]) {
+  const managers = list.filter((u) => u.role.endsWith("_MANAGER"));
+  const rest = list.filter((u) => !u.role.endsWith("_MANAGER"));
+  return { managers, rest, ordered: [...managers, ...rest] };
+}
+
+function base(u: User, slot: Slot) {
+  return {
+    ...slot,
     initial: (u.name || "?").charAt(0),
     name: u.name,
     target: `₹${compact(u.targetMonthly ?? 0)}`,
     sub: `(${lakhs(u.targetYearly ?? 0)})`,
-  }));
+  };
+}
+
+/** Sales rows: chips = the member's own leads by status, badge = their conversion rate. */
+function salesPeopleOf(list: User[], leads: LeadRow[]): PersonData[] {
+  return list.slice(0, SALES_SLOTS.length).map((u, i) => {
+    const mine = leads.filter((l) => l.ownerId === u.id);
+    const counts: Triple = [
+      mine.filter((l) => l.status === "NEW").length,
+      mine.filter((l) => l.status === "CONTACTED").length,
+      mine.filter((l) => l.status === "CONVERTED").length,
+    ];
+    return {
+      ...base(u, SALES_SLOTS[i]),
+      counts,
+      total: mine.length,
+      pct: mine.length ? Math.round((counts[2] / mine.length) * 100) : 0,
+    };
+  });
+}
+
+/** Ops rows: campaigns they are the contact for, split by status; badge = their mean progress. */
+function opsPeopleOf(list: User[], campaigns: Campaign[]): PersonData[] {
+  return list.slice(0, OPS_SLOTS.length).map((u, i) => {
+    const mine = campaigns.filter((c) => c.contactPerson === u.name);
+    const counts: Triple = [
+      mine.filter((c) => c.status === "ACTIVE").length,
+      mine.filter((c) => c.status === "DONE").length,
+      mine.filter((c) => c.status === "DRAFT").length,
+    ];
+    return {
+      ...base(u, OPS_SLOTS[i]),
+      counts,
+      total: mine.length,
+      pct: mine.length
+        ? Math.round(mine.reduce((t, c) => t + (c.progress ?? 0), 0) / mine.length)
+        : 0,
+    };
+  });
+}
+
+/** Manager / Team Lead / Employees tallies. The schema has no TEAM_LEAD role, so the
+ *  longest-serving non-manager stands in as the lead and the remainder are employees. */
+function groupCountsOf(managers: User[], rest: User[]): Triple {
+  return [managers.length, rest.length ? 1 : 0, Math.max(0, rest.length - 1)];
 }
 
 export default function SetTargetPage() {
   const navigate = useNavigate();
   const [effective, setEffective] = useState<"next" | "this" | null>(null);
-  const { data } = useUsers();
+  const { data, isLoading } = useUsers();
+  const { data: campaignData } = useCampaigns();
+  const { data: leadData } = useList<LeadRow>("leads");
   const users = data ?? [];
-  const salesUsers = users.filter((u) => u.team?.kind === "SALES");
-  const opsUsers = users.filter((u) => u.team?.kind === "OPERATIONS");
-  const salesPeople = toPeople(salesUsers, SALES_SLOTS);
-  const opsPeople = toPeople(opsUsers, OPS_SLOTS);
+  const campaigns = campaignData ?? [];
+  const leads = leadData ?? [];
+
+  const sales = rank(users.filter((u) => u.team?.kind === "SALES"));
+  const ops = rank(users.filter((u) => u.team?.kind === "OPERATIONS"));
+  const salesUsers = sales.ordered;
+  const opsUsers = ops.ordered;
+  const salesPeople = salesPeopleOf(salesUsers, leads);
+  const opsPeople = opsPeopleOf(opsUsers, campaigns);
+
+  // team-wide lead funnel (Sales stat card)
+  const leadNew = leads.filter((l) => l.status === "NEW").length;
+  const leadContacted = leads.filter((l) => l.status === "CONTACTED").length;
+  const leadConverted = leads.filter((l) => l.status === "CONVERTED").length;
+  // campaigns bucketed by progress milestone (Operation stat card)
+  const campLow = campaigns.filter((c) => c.progress <= 20).length;
+  const campMid = campaigns.filter((c) => c.progress > 20 && c.progress <= 50).length;
+  const campHigh = campaigns.filter((c) => c.progress > 50).length;
+
+  const orgMonthly = sum(users, "targetMonthly");
+  const orgYearly = sum(users, "targetYearly");
 
   return (
     <div className="absolute inset-0 z-30">
@@ -425,9 +533,9 @@ export default function SetTargetPage() {
       <span className="absolute left-[765px] top-[198px] h-[62px] w-px bg-black/10" />
       {/* monthly / yearly current */}
       <span className="absolute left-[544px] top-[198px] text-[20px] font-light text-[#8D8D8D]">Monthly Target</span>
-      <span className="absolute left-[544px] top-[228px] text-[32px] font-medium text-black">₹5L</span>
+      <span className="absolute left-[544px] top-[228px] text-[32px] font-medium text-black">{lakhs(orgMonthly)}</span>
       <span className="absolute left-[793px] top-[198px] text-[20px] font-light text-[#8D8D8D]">Yearly Target</span>
-      <span className="absolute left-[793px] top-[228px] text-[32px] font-medium text-black">₹50L</span>
+      <span className="absolute left-[793px] top-[228px] text-[32px] font-medium text-black">{lakhs(orgYearly)}</span>
       {/* Change Target */}
       <div className="absolute left-[1065px] top-[198px] flex h-[47px] w-[163px] items-center justify-center rounded-[40px] bg-white">
         <span className="text-[20px] font-light text-black">Change Target</span>
@@ -441,6 +549,8 @@ export default function SetTargetPage() {
         memberCount={salesUsers.length}
         variant="leads"
         people={salesPeople}
+        groupCounts={groupCountsOf(sales.managers, sales.rest)}
+        loading={isLoading}
         onOpen={() => navigate("/people")}
         onPersonOpen={() => navigate("/people")}
         statCard={
@@ -452,11 +562,15 @@ export default function SetTargetPage() {
               <Package className="h-[14px] w-[14px] text-[#3a7d2c]" strokeWidth={1.7} />
             </span>
             <span className="absolute left-[231px] top-[457px] text-[14px] font-medium text-[#242220]">Leads</span>
-            <StatNum left={292} n="10" label="All" />
-            <StatNum left={349} n="4" label="Unattended" />
-            <StatNum left={422} n="4" label="Contacted" />
-            <StatNum left={500} n="2" label="Converted" />
-            <GreenTarget left={572} />
+            <StatNum left={292} n={leads.length} label="All" />
+            <StatNum left={349} n={leadNew} label="Unattended" />
+            <StatNum left={422} n={leadContacted} label="Contacted" />
+            <StatNum left={500} n={leadConverted} label="Converted" />
+            <GreenTarget
+              left={572}
+              monthly={sum(salesUsers, "targetMonthly")}
+              yearly={sum(salesUsers, "targetYearly")}
+            />
           </>
         }
       />
@@ -469,6 +583,8 @@ export default function SetTargetPage() {
         memberCount={opsUsers.length}
         variant="campaigns"
         people={opsPeople}
+        groupCounts={groupCountsOf(ops.managers, ops.rest)}
+        loading={isLoading}
         onOpen={() => navigate("/people")}
         onPersonOpen={() => navigate("/people")}
         statCard={
@@ -478,11 +594,15 @@ export default function SetTargetPage() {
               <Package className="h-[14px] w-[14px] text-[#3a7d2c]" strokeWidth={1.7} />
             </span>
             <span className="absolute left-[760px] top-[456px] text-[14px] font-medium text-[#242220]">Campaigns</span>
-            <StatNum left={860} n="10" label="All" />
-            <StatNum left={914} n="4" label="20%" />
-            <StatNum left={979} n="4" label="50%" />
-            <StatNum left={1044} n="4" label="100%" />
-            <GreenTarget left={1108} />
+            <StatNum left={860} n={campaigns.length} label="All" />
+            <StatNum left={914} n={campLow} label="20%" />
+            <StatNum left={979} n={campMid} label="50%" />
+            <StatNum left={1044} n={campHigh} label="100%" />
+            <GreenTarget
+              left={1108}
+              monthly={sum(opsUsers, "targetMonthly")}
+              yearly={sum(opsUsers, "targetYearly")}
+            />
           </>
         }
       />
@@ -515,10 +635,10 @@ export default function SetTargetPage() {
           CURRENT TARGETS
         </span>
         <span className="absolute left-[80px] top-[150px] text-[20px] font-medium text-[#8D8D8D]">Monthly Target</span>
-        <span className="absolute left-[80px] top-[182px] text-[32px] font-medium text-black">₹5L</span>
+        <span className="absolute left-[80px] top-[182px] text-[32px] font-medium text-black">{lakhs(orgMonthly)}</span>
         <span className="absolute left-[300px] top-[150px] h-[63px] w-px bg-black/10" />
         <span className="absolute left-[329px] top-[150px] text-[20px] font-medium text-[#8D8D8D]">Yearly Target</span>
-        <span className="absolute left-[329px] top-[182px] text-[32px] font-medium text-black">₹50L</span>
+        <span className="absolute left-[329px] top-[182px] text-[32px] font-medium text-black">{lakhs(orgYearly)}</span>
 
         {/* Monthly / Yearly inputs */}
         <span className="absolute left-[51px] top-[259px] text-[24px] text-black">Monthly Target</span>

@@ -10,8 +10,8 @@ import {
   SprayCan,
   Shirt,
 } from "lucide-react";
-import { useNavigate } from "react-router-dom";
-import { useContracts } from "@/api/hooks";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import { useList, useCreators, useCampaigns, type Contract } from "@/api/hooks";
 
 /**
  * Super Admin — Contracts.
@@ -27,7 +27,16 @@ const TOP_CARDS: TopCard[] = [
   { title: "Create Contract", sub: "Quickly generate and activate new creator or campaign contracts.", left: 1013, route: "/contracts" },
 ];
 
-type CampaignRow = { id: string; name: string; budget: string; icon: LucideIcon; top: number };
+type CampaignRow = {
+  id: string;
+  name: string;
+  budget: string;
+  status: string;
+  timeline: string;
+  extraPeople: number;
+  icon: LucideIcon;
+  top: number;
+};
 /* Icons + row positions are design constants, not data. */
 const CAMPAIGN_ICONS: LucideIcon[] = [Luggage, SprayCan, Shirt];
 const CAMPAIGN_TOPS = [478, 581, 684];
@@ -40,14 +49,26 @@ const AVATAR_GRADS = [
   "bg-gradient-to-br from-[#FFE1B3] to-[#FF9C6D]",
 ];
 
+/* --------------------------- formatters -------------------------------- */
+const fmtCount = (n: number) =>
+  n >= 1_000_000
+    ? `${(n / 1_000_000).toFixed(1).replace(/\.0$/, "")}M`
+    : n >= 1_000
+      ? `${Math.round(n / 1_000)}k`
+      : `${n}`;
+const fmtDate = (iso?: string) =>
+  iso ? new Date(iso).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "____________________";
+const fmtRupees = (n?: number) => (n != null ? n.toLocaleString("en-IN") : "[Amount]");
+const titleCase = (s: string) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : "—");
+
 type Section = { h: string; b: string };
-const CONTRACT_INTRO =
-  'This Creator Contract (the "Agreement") is made and entered into on 06 Jan 2026 by and between [Client Name] ("Client") and [Agency Name] ("Contractor").\nBrand / Company: [Brand Name]\nCreator: [Creator Name]';
-const CONTRACT_SECTIONS: Section[] = [
+const contractIntro = (kindLabel: string, date: string, brand: string, creator: string) =>
+  `This ${kindLabel} (the "Agreement") is made and entered into on ${date} by and between [Client Name] ("Client") and [Agency Name] ("Contractor").\nBrand / Company: ${brand}\nCreator: ${creator}`;
+const contractSections = (amount?: number): Section[] => [
   { h: "1. Scope of Work", b: "The Creator agrees to create and publish content as per the requirements defined by the Brand." },
   { h: "2. Deliverables", b: "The Creator will deliver:\n\n[e.g., 1 Instagram Reel]\n\n[e.g., 2 Instagram Stories]\n\n[e.g., 1 Static Post]\n\nAll content must follow brand guidelines and campaign instructions." },
   { h: "3. Timeline", b: "Content Submission Date: [Date]\n\nPublishing Date: [Date]" },
-  { h: "4. Compensation", b: "Payment Amount: ₹[Amount]\n\nPayment Terms: Payment will be made within [X] days after content is published and approved.\n\n5. Content Approval\nThe Brand has the right to review and request reasonable changes before publishing." },
+  { h: "4. Compensation", b: `Payment Amount: ₹${fmtRupees(amount)}\n\nPayment Terms: Payment will be made within [X] days after content is published and approved.\n\n5. Content Approval\nThe Brand has the right to review and request reasonable changes before publishing.` },
   { h: "7. Confidentiality", b: "The Creator agrees not to disclose contract terms or brand information." },
   { h: "8. Termination", b: "Either party may terminate this contract if agreed obligations are not fulfilled." },
   { h: "9. Acceptance", b: "By accepting this contract, both parties agree to the terms above.\n\nBrand Representative: ____________________\nCreator: ____________________\nDate: ____________________" },
@@ -80,22 +101,37 @@ function ArrowBtn({ size, iconSize }: { size: number; iconSize: number }) {
   );
 }
 
-function StackAvatars() {
+function StackAvatars({ extra }: { extra: number }) {
   const offsets = [2.5, 16.8, 31.1, 41.6, 55.7];
   return (
     <>
-      {offsets.map((x, i) => (
-        <span
-          key={i}
-          className={`absolute top-[2.6px] flex h-[21.8px] w-[21.1px] items-center justify-center rounded-full border border-white ${
-            i === 4 ? "bg-[#E5E5E5] text-black" : AVATAR_GRADS[i % AVATAR_GRADS.length]
-          }`}
-          style={{ left: x }}
-        >
-          {i === 4 && <span className="text-[7px] leading-none">+8</span>}
-        </span>
-      ))}
+      {offsets.map((x, i) => {
+        if (i === 4 && extra <= 0) return null;
+        return (
+          <span
+            key={i}
+            className={`absolute top-[2.6px] flex h-[21.8px] w-[21.1px] items-center justify-center rounded-full border border-white ${
+              i === 4 ? "bg-[#E5E5E5] text-black" : AVATAR_GRADS[i % AVATAR_GRADS.length]
+            }`}
+            style={{ left: x }}
+          >
+            {i === 4 && <span className="text-[7px] leading-none">+{extra}</span>}
+          </span>
+        );
+      })}
     </>
+  );
+}
+
+/** Empty / loading state that occupies the first row slot — same geometry as a row. */
+function RowPlaceholder({ left, top, width, text }: { left: number; top: number; width: number; text: string }) {
+  return (
+    <div
+      className="absolute flex h-[95px] items-center justify-center rounded-[10.72px] border border-[#E5E7EB] bg-white text-[11px] font-light text-black/40"
+      style={{ left, top, width }}
+    >
+      {text}
+    </div>
   );
 }
 
@@ -133,18 +169,18 @@ function CampaignRowView({ row, onClick }: { row: CampaignRow; onClick?: () => v
       <span className="absolute left-[9.4px] top-[8px] flex h-[31px] w-[31px] items-center justify-center rounded-full bg-white shadow-[0_1px_3px_rgba(0,0,0,0.08)]">
         <Icon className="h-[18px] w-[18px] text-ink" strokeWidth={1.6} />
       </span>
-      <div className="absolute left-[46.9px] top-[6.7px] text-[13.2px] font-medium leading-[21px] text-black/90">{row.name}</div>
+      <div className="absolute left-[46.9px] top-[6.7px] truncate pr-[60px] text-[13.2px] font-medium leading-[21px] text-black/90">{row.name}</div>
       <div className="absolute left-[46.9px] top-[24.1px] font-inter text-[8.8px] font-normal leading-[13px] text-black/70">{row.budget}</div>
 
       {/* chips */}
       <span className="absolute left-[9.4px] top-[56.7px] flex h-[26.2px] w-[51.3px] items-center justify-center rounded-full border border-[#D9D9D9] bg-white text-[12px] leading-none text-ink">
-        Paid
+        {row.status}
       </span>
       <span className="absolute left-[65.4px] top-[56.4px] flex h-[26.8px] w-[84.9px] items-center justify-center rounded-[13.4px] border border-[#D9D9D9] bg-white text-[11.2px] leading-none text-black/80">
-        12 nov - 13 dec
+        {row.timeline}
       </span>
       <span className="absolute left-[155.1px] top-[56.3px] h-[27px] w-[81.1px] rounded-[15.2px] border border-[#D9D9D9] bg-white">
-        <StackAvatars />
+        <StackAvatars extra={row.extraPeople} />
       </span>
 
       <span className="absolute left-[284px] top-[58px]">
@@ -177,18 +213,29 @@ function StatPill({
       }`}
       style={{ left, width }}
     >
-      <Icon className="h-[12px] w-[12px]" strokeWidth={1.6} style={{ color: iconColor ?? "rgba(0,0,0,0.8)" }} />
-      <span className="text-[9.4px] leading-none text-black/80">{label}</span>
+      <Icon className="h-[12px] w-[12px] shrink-0" strokeWidth={1.6} style={{ color: iconColor ?? "rgba(0,0,0,0.8)" }} />
+      <span className="truncate text-[9.4px] leading-none text-black/80">{label}</span>
     </span>
   );
 }
 
 /* --------------------------- creator row ------------------------------- */
-function CreatorRowView({ name, top, onClick }: { name: string; top: number; onClick?: () => void }) {
+type CreatorRow = {
+  id: string;
+  name: string;
+  handle: string;
+  followers: number;
+  avgViews: number;
+  engagementRate: number;
+  location: string;
+  top: number;
+};
+
+function CreatorRowView({ row, onClick }: { row: CreatorRow; onClick?: () => void }) {
   return (
     <div
       className="absolute left-[676px] h-[95px] w-[307px] cursor-pointer rounded-[10.72px] border border-[#E5E7EB] bg-white"
-      style={{ top }}
+      style={{ top: row.top }}
       onClick={onClick}
     >
       {/* avatar + fire */}
@@ -196,30 +243,30 @@ function CreatorRowView({ name, top, onClick }: { name: string; top: number; onC
         <span className="absolute left-0 top-[1px] h-[31px] w-[31px] rounded-full bg-gradient-to-br from-[#FFD6E7] to-[#C8B3ED]" />
         <Flame className="absolute left-[21px] top-[17px] h-[14px] w-[14px]" fill="#FF7A45" color="#FF4D2E" strokeWidth={1} />
       </span>
-      <div className="absolute left-[46.9px] top-[6.7px] text-[13.2px] font-medium leading-[21px] text-black/90">{name}</div>
-      <div className="absolute left-[46.9px] top-[24.1px] font-inter text-[8.8px] font-normal leading-[13px] text-black/70">@leenabliss</div>
+      <div className="absolute left-[46.9px] top-[6.7px] truncate pr-[80px] text-[13.2px] font-medium leading-[21px] text-black/90">{row.name}</div>
+      <div className="absolute left-[46.9px] top-[24.1px] font-inter text-[8.8px] font-normal leading-[13px] text-black/70">{row.handle}</div>
 
       {/* stats */}
-      <StatPill icon={Crown} label="1.2M" left={9} width={55} translucent />
-      <StatPill icon={Eye} iconColor="#2CC37F" label="900k Avg. views" left={68} width={98} />
-      <StatPill icon={Heart} label="4.5% ER" left={170} width={66} translucent />
+      <StatPill icon={Crown} label={fmtCount(row.followers)} left={9} width={55} translucent />
+      <StatPill icon={Eye} iconColor="#2CC37F" label={`${fmtCount(row.avgViews)} Avg. views`} left={68} width={98} />
+      <StatPill icon={Heart} label={`${row.engagementRate}% ER`} left={170} width={66} translucent />
 
       {/* location */}
       <span className="absolute left-[243px] top-[9px] flex h-[20px] w-[55px] items-center justify-center gap-[2px] rounded-[12px] border border-[#D9D9D9] bg-white/60">
         <span className="text-[10px] leading-none">📍</span>
-        <span className="text-[10.2px] leading-none text-ink">Delhi</span>
+        <span className="truncate text-[10.2px] leading-none text-ink">{row.location}</span>
       </span>
     </div>
   );
 }
 
 /* -------------------------- contract preview --------------------------- */
-function ContractPreview() {
+function ContractPreview({ kindLabel, intro, sections }: { kindLabel: string; intro: string; sections: Section[] }) {
   return (
     <>
       {/* outer device panel */}
       <div className="absolute left-[1039px] top-[473.5px] h-[469px] w-[299px] rounded-[11px] bg-[rgba(232,238,255,0.55)]" />
-      <div className="absolute left-[1049.5px] top-[486.4px] text-[15.7px] font-normal leading-[28.8px] text-ink">Creator Contract</div>
+      <div className="absolute left-[1049.5px] top-[486.4px] text-[15.7px] font-normal leading-[28.8px] text-ink">{kindLabel}</div>
 
       {/* Edit pill */}
       <span className="absolute left-[1250.2px] top-[483.8px] flex h-[33.5px] w-[77.3px] items-center justify-center rounded-full border border-black/5 bg-white text-[15.5px] font-light text-[#121212] shadow-[0_2px_8px_rgba(0,0,0,0.08)]">
@@ -232,12 +279,12 @@ function ContractPreview() {
       <div className="absolute left-[1062.2px] top-[544.3px] h-[361.2px] w-[255.2px] overflow-hidden rounded-[15.45px] border border-[#A9CEE6] bg-white" />
 
       {/* paper content */}
-      <div className="absolute left-[1162.1px] top-[570.9px] text-[6.9px] font-bold leading-[8.6px] text-[#0A2540]">Creator Contract</div>
+      <div className="absolute left-[1162.1px] top-[570.9px] text-[6.9px] font-bold leading-[8.6px] text-[#0A2540]">{kindLabel}</div>
       <div className="absolute left-[1096.5px] top-[588.5px] w-[186.6px] whitespace-pre-line text-[4.3px] font-normal leading-[5.4px] text-[#0A2540]">
-        {CONTRACT_INTRO}
+        {intro}
       </div>
       <div className="absolute left-[1096.5px] top-[618.1px] flex w-[186.6px] flex-col gap-[8.58px]">
-        {CONTRACT_SECTIONS.map((s) => (
+        {sections.map((s) => (
           <div key={s.h} className="flex flex-col gap-[4.29px]">
             <div className="text-[5.1px] font-bold leading-[6.5px] text-[#0A2540]">{s.h}</div>
             <div className="whitespace-pre-line text-[4.3px] font-normal leading-[5.4px] text-[#0A2540]">{s.b}</div>
@@ -257,24 +304,57 @@ function ContractPreview() {
 /* -------------------------------- page --------------------------------- */
 export default function ContractsPage() {
   const navigate = useNavigate();
-  const { data } = useContracts();
-  const contracts = data ?? [];
+  const [params] = useSearchParams();
+  const { data: contractData, isLoading: contractsLoading } = useList<Contract & { createdAt: string }>("contracts");
+  const { data: creatorData, isLoading: creatorsLoading } = useCreators();
+  const { data: campaignData } = useCampaigns();
+
+  const contracts = contractData ?? [];
+  const creators = creatorData ?? [];
+  const campaigns = campaignData ?? [];
 
   const campaignRows: CampaignRow[] = contracts
     .filter((c) => c.kind === "CAMPAIGN")
     .slice(0, 3)
-    .map((c, i) => ({
-      id: c.id,
-      name: c.title,
-      budget: c.amount != null ? `Budget ₹${(c.amount / 100_000).toFixed(1)}L` : "Budget",
-      icon: CAMPAIGN_ICONS[i % CAMPAIGN_ICONS.length],
-      top: CAMPAIGN_TOPS[i],
-    }));
+    .map((c, i) => {
+      const campaign = campaigns.find((cp) => cp.id === c.campaignId);
+      return {
+        id: c.campaignId ?? c.id,
+        name: c.title,
+        budget: c.amount != null ? `Budget ₹${(c.amount / 100_000).toFixed(1)}L` : "Budget",
+        status: titleCase(c.status),
+        timeline: campaign?.timeline ?? "—",
+        extraPeople: Math.max((campaign?.peopleCount ?? 0) - 4, 0),
+        icon: CAMPAIGN_ICONS[i % CAMPAIGN_ICONS.length],
+        top: CAMPAIGN_TOPS[i],
+      };
+    });
 
-  const creatorRows = contracts
-    .filter((c) => c.kind === "CREATOR")
-    .slice(0, 3)
-    .map((c, i) => ({ id: c.id, name: c.title, top: CREATOR_TOPS[i] }));
+  /* Contract has no creator relation in the schema, so the "Creators Contract"
+     list is driven by real Creator records — name, handle and every stat pill
+     therefore come from one and the same record. */
+  const creatorRows: CreatorRow[] = creators.slice(0, 3).map((c, i) => ({
+    id: c.id,
+    name: c.name,
+    handle: c.handle,
+    followers: c.followers,
+    avgViews: c.avgViews,
+    engagementRate: c.engagementRate,
+    location: c.location ?? "—",
+    top: CREATOR_TOPS[i],
+  }));
+
+  /* Selected contract drives the document preview (?id=… → first contract). */
+  const selected = contracts.find((c) => c.id === params.get("id")) ?? contracts[0];
+  const kindLabel = selected?.kind === "CAMPAIGN" ? "Campaign Contract" : "Creator Contract";
+  const selectedCampaign = campaigns.find((cp) => cp.id === selected?.campaignId);
+  const intro = contractIntro(
+    kindLabel,
+    fmtDate(selected?.createdAt),
+    selectedCampaign?.brandName ?? "[Brand Name]",
+    /* Contract has no creator relation — stays a template blank rather than a wrong name. */
+    "[Creator Name]",
+  );
 
   return (
     <>
@@ -290,9 +370,18 @@ export default function ContractsPage() {
       <div className="absolute left-[264px] top-[374px] h-[589px] w-[369px] rounded-[24px] border border-[#D4D4D4] bg-white/[0.81] shadow-[0_10px_40px_rgba(0,0,0,0.04)]" />
       <div className="absolute left-[305px] top-[398px] text-[20px] font-normal leading-[24px] text-ink">Campaigns Contract</div>
       <SearchBar left={288} top={438} placeholder="Search creators, campaigns" onClick={() => navigate("/search")} />
-      {campaignRows.map((r) => (
-        <CampaignRowView key={r.top} row={r} onClick={() => navigate(`/campaigns/detail?id=${r.id}`)} />
-      ))}
+      {campaignRows.length === 0 ? (
+        <RowPlaceholder
+          left={288}
+          top={CAMPAIGN_TOPS[0]}
+          width={321}
+          text={contractsLoading ? "Loading contracts…" : "No campaign contracts yet"}
+        />
+      ) : (
+        campaignRows.map((r) => (
+          <CampaignRowView key={r.id} row={r} onClick={() => navigate(`/campaigns/detail?id=${r.id}`)} />
+        ))
+      )}
 
       {/* Creators Contract card */}
       <div className="absolute left-[654px] top-[375.5px] h-[589px] w-[711px] rounded-[24px] border border-[#D4D4D4] bg-white/[0.81] shadow-[0_10px_40px_rgba(0,0,0,0.04)]" />
@@ -301,11 +390,20 @@ export default function ContractsPage() {
       <SearchBar left={676} top={434.5} placeholder="Search creators" onClick={() => navigate("/search")} />
       {/* vertical divider */}
       <div className="absolute left-[1007px] top-[448.5px] h-[444px] w-px bg-[#E2E2E2]" />
-      {creatorRows.map((r) => (
-        <CreatorRowView key={r.top} name={r.name} top={r.top} onClick={() => navigate(`/creators/detail?id=${r.id}`)} />
-      ))}
+      {creatorRows.length === 0 ? (
+        <RowPlaceholder
+          left={676}
+          top={CREATOR_TOPS[0]}
+          width={307}
+          text={creatorsLoading ? "Loading creators…" : "No creators yet"}
+        />
+      ) : (
+        creatorRows.map((r) => (
+          <CreatorRowView key={r.id} row={r} onClick={() => navigate(`/creators/detail?id=${r.id}`)} />
+        ))
+      )}
 
-      <ContractPreview />
+      <ContractPreview kindLabel={kindLabel} intro={intro} sections={contractSections(selected?.amount)} />
     </>
   );
 }

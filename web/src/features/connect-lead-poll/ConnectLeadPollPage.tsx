@@ -13,7 +13,7 @@ import {
 import icLuggage from "@/assets/icons/contacted-leads-luggage.svg";
 import icCosmetic from "@/assets/icons/contacted-leads-cosmetic.svg";
 import icHanger from "@/assets/icons/contacted-leads-hanger.svg";
-import { useCampaigns, usePolls } from "@/api/hooks";
+import { useCampaigns, useChannels, useList, useMe, useUsers, type Poll } from "@/api/hooks";
 
 /**
  * Super Admin — Connect lead (poll) / Select Campaign modal.
@@ -186,6 +186,7 @@ function CampaignCard({
   creators,
   live,
   timeline,
+  extra,
   addTop,
   onCard,
   onArrow,
@@ -198,6 +199,7 @@ function CampaignCard({
   creators: string;
   live?: boolean;
   timeline: string;
+  extra: number;
   addTop: number;
   onCard: () => void;
   onArrow: () => void;
@@ -285,7 +287,7 @@ function CampaignCard({
         <div className="absolute left-[36.9px] top-[3px] h-[25px] w-[25px] rounded-full" style={{ background: "linear-gradient(135deg,#D6F5C8,#8BD0E0)", boxShadow: "0 0 0 2px #fff" }} />
         <div className="absolute left-[49.3px] top-[3px] h-[25px] w-[25px] rounded-full" style={{ background: "linear-gradient(135deg,#EFBEFF,#B58BE0)", boxShadow: "0 0 0 2px #fff" }} />
         <div className="absolute left-[66px] top-[3px] flex h-[25px] w-[25px] items-center justify-center rounded-full text-[8.3px] text-black" style={{ background: "#E5E5E5", boxShadow: "0 0 0 2px #fff" }}>
-          +5
+          +{extra}
         </div>
       </Abs>
       {/* up-right button */}
@@ -321,29 +323,44 @@ function CampaignCard({
 }
 
 /* -------------------------------- data --------------------------------- */
-const SECTIONS: { top: number; label: string; dir: "down" | "right"; indent?: number }[] = [
+/**
+ * Sidebar section slots. Static group headings keep their literal label; the person /
+ * campaign headings bind positionally to live useUsers() / useCampaigns() data.
+ */
+const SECTIONS: {
+  top: number;
+  label?: string;
+  dir: "down" | "right";
+  indent?: number;
+  userIdx?: number;
+  campaignIdx?: number;
+}[] = [
   { top: 176, label: "Notifications", dir: "down" },
   { top: 288, label: "Groups", dir: "down" },
   { top: 486, label: "Direct messages", dir: "right" },
   { top: 626, label: "Campaigns", dir: "down" },
-  { top: 654, label: "Vishal Sharma", dir: "down" },
-  { top: 682, label: "Nike Diwali", dir: "down", indent: 21 },
-  { top: 794, label: "Ritika Verma", dir: "right" },
-  { top: 822, label: "Neha", dir: "right" },
-  { top: 850, label: "Ajay", dir: "right" },
+  { top: 654, dir: "down", userIdx: 3 },
+  { top: 682, dir: "down", indent: 21, campaignIdx: 0 },
+  { top: 794, dir: "right", userIdx: 4 },
+  { top: 822, dir: "right", userIdx: 5 },
+  { top: 850, dir: "right", userIdx: 6 },
 ];
 
-const CHANNELS: { top: number; label: string; active?: boolean; indent?: number }[] = [
-  { top: 204, label: "Agency announcemets" },
-  { top: 232, label: "skincare-campaign-poll" },
-  { top: 316, label: "Welcome" },
-  { top: 344, label: "General", active: true },
-  { top: 372, label: "marketing" },
-  { top: 400, label: "operations" },
-  { top: 428, label: "sales" },
-  { top: 710, label: "Brand + Agencies", indent: 21 },
-  { top: 738, label: "Only Agencies", indent: 20 },
+/* channel-row layout slots; labels bind to live useChannels() data (positional) */
+const CHANNELS: { top: number; active?: boolean; indent?: number }[] = [
+  { top: 204 },
+  { top: 232 },
+  { top: 316 },
+  { top: 344, active: true },
+  { top: 372 },
+  { top: 400 },
+  { top: 428 },
+  { top: 710, indent: 21 },
+  { top: 738, indent: 20 },
 ];
+
+/** the channel slot whose name the message header mirrors (the poll's channel) */
+const POLL_CHANNEL_SLOT = 1;
 
 const ADDS: { top: number; label: string; indent?: number }[] = [
   { top: 260, label: "Add channels" },
@@ -352,10 +369,11 @@ const ADDS: { top: number; label: string; indent?: number }[] = [
   { top: 766, label: "Add group", indent: 20 },
 ];
 
-const DMS: { top: number; name: string; letter?: string; bg?: string; color?: string; nameW: number }[] = [
-  { top: 514, name: "Dev Singh", nameW: 75 },
-  { top: 542, name: "Sanjay Sharma", letter: "S", bg: "#FFF4AD", color: "#B49C01", nameW: 107 },
-  { top: 570, name: "Pooja Singh", letter: "P", bg: "#BCD4FD", color: "#1155C8", nameW: 107 },
+/* DM row slots; names bind to live useUsers() data (positional). */
+const DMS: { top: number; avatar?: { bg: string; color: string }; nameW: number }[] = [
+  { top: 514, nameW: 75 },
+  { top: 542, avatar: { bg: "#FFF4AD", color: "#B49C01" }, nameW: 107 },
+  { top: 570, avatar: { bg: "#BCD4FD", color: "#1155C8" }, nameW: 107 },
 ];
 
 /** Fixed positions/icons for the 3 campaign cards the design shows (data fills the rest). */
@@ -378,12 +396,32 @@ export default function ConnectLeadPollPage() {
   const navigate = useNavigate();
   const lakhs = (n: number) => "₹" + (n / 1e5).toFixed(1) + "L";
 
-  const { data: campaignData } = useCampaigns();
-  const { data: pollData } = usePolls();
-  const campaigns = (campaignData ?? []).slice(0, CARD_SLOTS.length);
+  const { data: campaignData, isLoading: campaignsLoading } = useCampaigns();
+  /* polls carry a createdAt the shared Poll type omits — widen rather than re-declare */
+  const { data: pollData } = useList<Poll & { createdAt?: string }>("polls");
+  const { data: userData } = useUsers();
+  const { data: channelData } = useChannels();
+  const { data: me } = useMe();
+
+  const allCampaigns = campaignData ?? [];
+  const users = userData ?? [];
+  const channels = channelData ?? [];
+  const campaigns = allCampaigns.slice(0, CARD_SLOTS.length);
+
   const poll = (pollData ?? [])[0];
   const pollOptions = poll?.options ?? [];
   const pollVotes = (poll?.results ?? []).reduce((a, b) => a + b, 0);
+  const pollTime = poll?.createdAt
+    ? new Date(poll.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false })
+    : "";
+
+  /* the header/message author is the signed-in user; first name only keeps the fixed coords intact */
+  const meFirstName = me?.name?.split(" ")[0] ?? "";
+  const meHandle = me?.email?.split("@")[0] ?? "";
+  const headerChannel = channels[POLL_CHANNEL_SLOT]?.name ?? "";
+  const memberOverflow = Math.max(0, users.length - 4);
+  /* header member stack: slot 0 is the gradient-only avatar, slots 1-3 show the member's initial */
+  const initial = (i: number) => users[i]?.name?.charAt(0) ?? "";
 
   return (
     <>
@@ -422,10 +460,22 @@ export default function ConnectLeadPollPage() {
 
       {/* section headers + channels + adds */}
       {SECTIONS.map((s) => (
-        <SectionRow key={`sec-${s.top}`} {...s} />
+        <SectionRow
+          key={`sec-${s.top}`}
+          top={s.top}
+          dir={s.dir}
+          indent={s.indent}
+          label={
+            s.userIdx !== undefined
+              ? users[s.userIdx]?.name ?? ""
+              : s.campaignIdx !== undefined
+                ? allCampaigns[s.campaignIdx]?.name ?? ""
+                : s.label ?? ""
+          }
+        />
       ))}
-      {CHANNELS.map((c) => (
-        <ChannelRow key={`ch-${c.top}`} {...c} />
+      {CHANNELS.map((c, i) => (
+        <ChannelRow key={`ch-${c.top}`} {...c} label={channels[i]?.name ?? ""} />
       ))}
       {ADDS.map((a) => (
         <AddRow key={`add-${a.top}`} {...a} />
@@ -444,16 +494,24 @@ export default function ConnectLeadPollPage() {
       </Abs>
 
       {/* ---- DM rows ---- */}
-      {DMS.map((d) => (
+      {DMS.map((d, i) => (
         <div key={`dm-${d.top}`}>
-          {d.letter ? (
-            <LetterAvatar l={254} t={d.top + 3.5} size={20} letter={d.letter} bg={d.bg!} color={d.color!} font={12} />
+          {d.avatar ? (
+            <LetterAvatar
+              l={254}
+              t={d.top + 3.5}
+              size={20}
+              letter={users[i]?.name?.charAt(0) ?? ""}
+              bg={d.avatar.bg}
+              color={d.avatar.color}
+              font={12}
+            />
           ) : (
             <Abs l={254} t={d.top + 3.5} w={20} h={20} className="rounded-full" style={{ background: "linear-gradient(135deg,#F4B0C4,#B58BE0)" }} />
           )}
           <StatusDot l={268} t={d.top + 17.5} />
           <Abs l={283} t={d.top + 6.5} className="text-[15px] leading-[15px]" style={{ color: W70 }}>
-            {d.name}
+            {users[i]?.name ?? ""}
           </Abs>
           <Abs l={283 + d.nameW} t={d.top + 6.5} className="text-[15px] leading-[15px]" style={{ color: W70 }}>
             you
@@ -467,23 +525,23 @@ export default function ConnectLeadPollPage() {
       {/* ---- bottom user profile ---- */}
       <Abs l={254} t={948} w={38} h={38} className="rounded-full" style={{ background: AVATAR }} />
       <Abs l={297} t={952.5} className="text-[12px] leading-[15px] text-white">
-        Dev
+        {meFirstName}
       </Abs>
       <Abs l={297} t={968.5} className="text-[8px] leading-[13px]" style={{ color: W70 }}>
-        @dev
+        {meHandle && `@${meHandle}`}
       </Abs>
 
       {/* ================= message header ================= */}
       <Abs l={511} t={134.5} className="text-[16px] font-medium leading-[20px] text-[#1B1B1B]">
-        #skincare-campaign-poll
+        {headerChannel && `#${headerChannel}`}
       </Abs>
       {/* member avatar pill (top-right of header) */}
       <Abs l={1250} t={128.5} w={96} h={32} className="rounded-[18px] bg-white" style={{ boxShadow: "0 1px 4px rgba(0,0,0,0.08)" }} />
       <Abs l={1254} t={132} w={25} h={25} className="rounded-full" style={{ background: "linear-gradient(135deg,#FFE1B0,#E58BB0)", boxShadow: "0 0 0 2px #fff" }} />
-      <LetterAvatar l={1270.9} t={132} size={25} letter="S" bg="#FFF4AD" color="#B49C01" font={15} ring />
-      <LetterAvatar l={1287.9} t={132} size={25} letter="P" bg="#BCD4FD" color="#1155C8" font={15} ring />
-      <LetterAvatar l={1300.3} t={132} size={25} letter="R" bg="#EFBEFF" color="#8701B4" font={15} ring />
-      <LetterAvatar l={1317} t={132} size={25} letter="+15" bg="#E5E5E5" color="#000000" font={8.3} ring />
+      <LetterAvatar l={1270.9} t={132} size={25} letter={initial(1)} bg="#FFF4AD" color="#B49C01" font={15} ring />
+      <LetterAvatar l={1287.9} t={132} size={25} letter={initial(2)} bg="#BCD4FD" color="#1155C8" font={15} ring />
+      <LetterAvatar l={1300.3} t={132} size={25} letter={initial(3)} bg="#EFBEFF" color="#8701B4" font={15} ring />
+      <LetterAvatar l={1317} t={132} size={25} letter={`+${memberOverflow}`} bg="#E5E5E5" color="#000000" font={8.3} ring />
       {/* header divider */}
       <Abs l={497} t={169} w={863} h={1} style={{ background: "#EDEDED" }} />
 
@@ -491,10 +549,10 @@ export default function ConnectLeadPollPage() {
       {/* author avatar */}
       <Abs l={511} t={194} w={32} h={32} className="rounded-full" style={{ background: AVATAR }} />
       <Abs l={551} t={194} className="text-[13px] font-extrabold leading-[16px] text-[#1B1B1B]">
-        Dev
+        {meFirstName}
       </Abs>
       <Abs l={579} t={195.5} className="text-[11px] font-medium leading-[13px] text-[#2E2E2E]">
-        11:55
+        {pollTime}
       </Abs>
       {/* POLL tag */}
       <Abs l={614} t={196} w={30} h={13} className="flex items-center justify-center rounded-[3px]" style={{ background: "#DFDFDF" }}>
@@ -605,7 +663,13 @@ export default function ConnectLeadPollPage() {
       </Abs>
 
       {/* campaigns list container (frame coords) */}
-      <Abs l={453} t={263} w={534} h={493} className="z-[70] rounded-[12px]" style={{ outline: "1px solid #EAEAEA" }} />
+      <Abs l={453} t={263} w={534} h={493} className="z-[70] rounded-[12px]" style={{ outline: "1px solid #EAEAEA" }}>
+        {!campaignsLoading && campaigns.length === 0 && (
+          <div className="absolute left-[14px] top-[62px] font-inter text-[11px] font-medium leading-[16px]" style={{ color: "#94A3B8" }}>
+            No campaigns yet
+          </div>
+        )}
+      </Abs>
       {/* search bar */}
       <Abs l={467} t={282} w={395} h={30} className="z-[70] flex items-center rounded-[16px] bg-white px-[11px] cursor-pointer" style={{ outline: "1px solid #EAEAEA" }} onClick={() => navigate("/search")}>
         <span className="font-light text-[12px]" style={{ color: "rgba(0,0,0,0.7)" }}>
@@ -630,6 +694,7 @@ export default function ConnectLeadPollPage() {
               creators={`${c.peopleCount ?? 0} Creators`}
               live={c.status === "ACTIVE"}
               timeline={c.timeline ?? ""}
+              extra={Math.max(0, (c.peopleCount ?? 0) - 4)}
               addTop={slot.addTop}
               onCard={() => navigate("/campaigns/detail")}
               onArrow={() => navigate("/campaigns/creator-list")}

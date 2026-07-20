@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
-import { useNavigate } from "react-router-dom";
-import { useCreators, type Creator } from "@/api/hooks";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import { useAgencies, useCampaignFull, useCampaigns, useCreators, type Creator } from "@/api/hooks";
 import {
   ChevronLeft,
   Search,
@@ -54,7 +54,17 @@ function CircleBtn({ icon: Icon }: { icon: LucideIcon }) {
 }
 
 /* ------------------------------- creator card -------------------------- */
-function CreatorCard({ x, c }: { x: number; c: Creator }) {
+function CreatorCard({
+  x,
+  c,
+  agencyName,
+  agencyStars,
+}: {
+  x: number;
+  c: Creator;
+  agencyName: string;
+  agencyStars: number | null;
+}) {
   return (
     <div
       className="absolute top-[369px] h-[193px] w-[266px] rounded-[12px] border border-[#D9D9D9] bg-[#F5F5F5]"
@@ -87,7 +97,7 @@ function CreatorCard({ x, c }: { x: number; c: Creator }) {
       <div className="absolute left-[10px] top-[82px] flex gap-[3px]">
         <Stat icon={Star} iconClass="fill-[#FDD835] text-[#FDD835]">{`${c.stars.toFixed(1)} Stars`}</Stat>
         <Stat icon={Eye} iconClass="text-[#2CC37F]">{`${c.cpv.toFixed(2)}p CPV`}</Stat>
-        <Stat icon={Sparkles} iconClass="fill-[#603CFF] text-[#603CFF]">80% Match</Stat>
+        <Stat icon={Sparkles} iconClass="fill-[#603CFF] text-[#603CFF]">{`${c.matchPct ?? 0}% Match`}</Stat>
       </div>
 
       {/* managed by */}
@@ -98,8 +108,10 @@ function CreatorCard({ x, c }: { x: number; c: Creator }) {
       >
         <span className="h-[24px] w-[24px] shrink-0 rounded-full bg-[linear-gradient(135deg,#C8E6FF,#C8B3ED)]" />
         <div className="ml-[4px]">
-          <div className="text-[10.2px] leading-[12px] text-ink/90">Stellar Talents</div>
-          <div className="text-[8px] font-light leading-[12px] text-ink/60">4.8 Stars</div>
+          <div className="text-[10.2px] leading-[12px] text-ink/90">{agencyName}</div>
+          <div className="text-[8px] font-light leading-[12px] text-ink/60">
+            {agencyStars === null ? "Unrated" : `${agencyStars.toFixed(1)} Stars`}
+          </div>
         </div>
         <span className="ml-auto flex h-[25px] w-[81px] items-center justify-center gap-[4px] rounded-[8px] bg-white/70">
           <Star className="h-[13px] w-[13px] fill-[#E8E6E6] text-[#E8E6E6]" strokeWidth={1} />
@@ -131,9 +143,39 @@ const QUESTIONS: { label: string; labelTop: number; starsTop: number }[] = [
 /* -------------------------------- page --------------------------------- */
 export default function RatingCreatorPage() {
   const navigate = useNavigate();
-  const { data: creators } = useCreators();
-  const cards = (creators ?? []).slice(0, 4);
+  const [params] = useSearchParams();
+
+  const { data: campaigns } = useCampaigns();
+  const campaignId = params.get("id") ?? campaigns?.[0]?.id ?? null;
+  const { data: full } = useCampaignFull(campaignId);
+  const { data: creators, isLoading } = useCreators();
+  const { data: agencies } = useAgencies();
+
+  const campaignName = full?.name ?? campaigns?.find((c) => c.id === campaignId)?.name ?? "";
+
+  /* roster = the campaign's assigned creators, resolved against the full creator
+     records (campaign/:id/full omits matchPct + agencyId). Falls back to all creators. */
+  const allCreators = creators ?? [];
+  const memberIds = new Set((full?.creatorList ?? []).map((c) => c.id));
+  const roster = memberIds.size ? allCreators.filter((c) => memberIds.has(c.id)) : allCreators;
+  const cards = roster.slice(0, 4);
   const cardX = [277, 558, 839, 1120];
+
+  /* managing agency per creator + its star rating, averaged from that agency's
+     creators (Agency has no stars column in the schema). */
+  const agencyNameById = new Map((agencies ?? []).map((a) => [a.id, a.name]));
+  const agencyStarsById = new Map<string, number>();
+  const tally = new Map<string, { sum: number; n: number }>();
+  for (const c of allCreators) {
+    if (!c.agencyId) continue;
+    const t = tally.get(c.agencyId) ?? { sum: 0, n: 0 };
+    tally.set(c.agencyId, { sum: t.sum + c.stars, n: t.n + 1 });
+  }
+  for (const [id, t] of tally) agencyStarsById.set(id, t.sum / t.n);
+
+  /* the creator this modal is rating — ?creator= or the first card. */
+  const ratingTarget = allCreators.find((c) => c.id === params.get("creator")) ?? cards[0];
+  const selectedCount = ratingTarget ? 1 : 0;
   return (
     <>
       {/* ===================== underlying creators page ===================== */}
@@ -149,7 +191,7 @@ export default function RatingCreatorPage() {
       </button>
 
       {/* campaign title */}
-      <h1 className="absolute left-[268px] top-[230px] text-[34px] font-normal leading-none text-ink">Nike’s Diwali</h1>
+      <h1 className="absolute left-[268px] top-[230px] text-[34px] font-normal leading-none text-ink">{campaignName}</h1>
 
       {/* action buttons */}
       <div className="absolute left-[761px] top-[247px] flex gap-[8px]">
@@ -164,7 +206,7 @@ export default function RatingCreatorPage() {
         <span className="flex h-[15px] w-[15px] items-center justify-center rounded-[5px] bg-white">
           <Check className="h-[9px] w-[9px] text-ink" strokeWidth={2.6} />
         </span>
-        <span className="text-[12px] font-light text-ink">1 selected</span>
+        <span className="text-[12px] font-light text-ink">{selectedCount} selected</span>
       </div>
 
       {/* share link */}
@@ -184,8 +226,22 @@ export default function RatingCreatorPage() {
 
       {/* creator cards */}
       {cards.map((c, i) => (
-        <CreatorCard key={c.id} x={cardX[i]} c={c} />
+        <CreatorCard
+          key={c.id}
+          x={cardX[i]}
+          c={c}
+          agencyName={(c.agencyId && agencyNameById.get(c.agencyId)) || "Unmanaged"}
+          agencyStars={c.agencyId ? agencyStarsById.get(c.agencyId) ?? null : null}
+        />
       ))}
+      {cards.length === 0 && (
+        <div
+          className="absolute top-[369px] flex h-[193px] w-[266px] items-center justify-center rounded-[12px] border border-[#D9D9D9] bg-[#F5F5F5] px-[10px] text-center text-[12px] text-ink/60"
+          style={{ left: cardX[0] }}
+        >
+          {isLoading ? "Loading creators…" : "No creators on this campaign yet"}
+        </div>
+      )}
 
       {/* ============================== dim scrim ============================== */}
       {/* Figma frame 1171276614: rgba(0,0,0,0.5) over the full 1439×1024 frame.

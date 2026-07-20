@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { useLeaves, useUpdate, useUsers } from "@/api/hooks";
+import { useLeaves, useList, useMe, useUpdate, useUsers } from "@/api/hooks";
 import {
   AlignJustify,
   ArrowUp,
@@ -229,6 +229,13 @@ const WEEKS = [
 ];
 const COLX = [250, 358, 466, 574, 682, 790, 898];
 const ROWY = [479, 577, 675, 773, 871];
+/** Avatar-chip colourways from the Figma calendar, cycled per person. */
+const CHIP_PALETTE = [
+  { bg: "#C6A6DF", color: "#6000AA" },
+  { bg: "#C4F1D2", color: "#007726" },
+  { bg: "#D4CFFF", color: "#1A0C9A" },
+  { bg: "#FFE3CF", color: "#DB6714" },
+];
 const WEEKDAYS: { label: string; x: number; color: string }[] = [
   { label: "Mon", x: 282, color: "#000000" },
   { label: "Tue", x: 393, color: "#000000" },
@@ -240,6 +247,23 @@ const WEEKDAYS: { label: string; x: number; color: string }[] = [
 ];
 
 function Calendarium() {
+  const { data: users } = useUsers();
+  const { data: leaves } = useLeaves();
+
+  // day-of-month -> initials of everyone on approved leave that day.
+  const nameById = new Map((users ?? []).map((u) => [u.id, u.name] as const));
+  const chips = new Map<number, string[]>();
+  for (const l of leaves ?? []) {
+    if (l.status !== "APPROVED") continue;
+    const name = nameById.get(l.userId);
+    if (!name) continue;
+    for (const day of daysCovered(l.from, l.to)) {
+      const bucket = chips.get(day) ?? [];
+      bucket.push(initial(name));
+      chips.set(day, bucket);
+    }
+  }
+
   return (
     <>
       {/* weekday header */}
@@ -278,9 +302,29 @@ function Calendarium() {
         }),
       )}
 
+      {/* people on approved leave, chipped onto their day cell (page-absolute coords) */}
+      {WEEKS.map((week, ri) =>
+        week.map((day, ci) => {
+          if (ri === 4 && ci >= 3) return null; // trailing next-month cells
+          return (chips.get(day) ?? []).slice(0, 3).map((letter, k) => {
+            const pal = CHIP_PALETTE[(day + k) % CHIP_PALETTE.length];
+            return (
+              <Ini
+                key={`chip-${ri}-${ci}-${k}`}
+                x={COLX[ci] + 66 - k * 16}
+                y={ROWY[ri] + 57}
+                s={24}
+                bg={pal.bg}
+                color={pal.color}
+                letter={letter}
+                fs={8}
+              />
+            );
+          });
+        }),
+      )}
+
       {/* decorations (page-absolute coords) */}
-      <Ini x={640} y={535} s={24} bg="#C6A6DF" color="#6000AA" letter="T" fs={8} />
-      <Ini x={750} y={637} s={24} bg="#C4F1D2" color="#007726" letter="S" fs={8} />
       <span className="absolute left-[430px] top-[691px] text-[13px] leading-none">🎂</span>
       <span className="absolute left-[322px] top-[789px] text-[13px] leading-none">🎂</span>
       {/* Holiday pill on day 24 */}
@@ -288,9 +332,6 @@ function Calendarium() {
         <span className="h-[8px] w-[8px] rounded-full bg-[#88DFA9]" />
         <span className="text-[10px] text-black/80">Holiday</span>
       </div>
-      {/* K + P avatars on day 25 (P painted over K) */}
-      <Ini x={640} y={830} s={24} bg="#D4CFFF" color="#1A0C9A" letter="K" fs={8} />
-      <Ini x={624} y={830} s={24} bg="#FFE3CF" color="#DB6714" letter="P" fs={8} />
     </>
   );
 }
@@ -334,11 +375,12 @@ function FestiveBar({ x, y }: { x: number; y: number }) {
   );
 }
 
-function BirthdayRow({
+function EventRow({
   dy,
   bg,
   color,
   letter,
+  caption,
   name,
   date,
 }: {
@@ -346,6 +388,7 @@ function BirthdayRow({
   bg: string;
   color: string;
   letter: string;
+  caption: string;
   name: string;
   date: string;
 }) {
@@ -358,7 +401,7 @@ function BirthdayRow({
         className="absolute text-[12px] font-light leading-none text-black/70"
         style={{ left: 56, top: 69 + dy }}
       >
-        Happy birthday
+        {caption}
       </span>
       <Ini x={56} y={87 + dy} s={16} bg={bg} color={color} letter={letter} fs={8} />
       <span
@@ -378,42 +421,105 @@ function BirthdayRow({
   );
 }
 
+/** Colourways for the two Upcoming Events rows, in Figma order. */
+const EVENT_PALETTE = [
+  { bg: "#C6A6DF", color: "#6000AA" },
+  { bg: "#DDF7FF", color: "#0F7D9E" },
+];
+
 function RightRail() {
+  const { data: users } = useUsers();
+  const { data: leaves } = useLeaves();
+  const { data: reminders } = useList<{ id: string; title: string; dueAt: string; ownerId?: string }>(
+    "reminders",
+  );
+
+  // Whoever is out right now; when nobody is out today, surface the next one up.
+  const approved = (leaves ?? []).filter((l) => l.status === "APPROVED");
+  const current =
+    approved.find((l) => coversToday(l.from, l.to)) ??
+    [...approved]
+      .filter((l) => new Date(l.to).getTime() >= Date.now())
+      .sort((a, b) => new Date(a.from).getTime() - new Date(b.from).getTime())[0];
+  const person = (users ?? []).find((u) => u.id === current?.userId);
+  // Reporting manager = the *_MANAGER sitting on the same team.
+  const manager = (users ?? []).find(
+    (u) => u.role.endsWith("MANAGER") && !!person?.team && u.team?.id === person.team.id,
+  );
+
+  // Upcoming Events = the next reminders falling due, credited to their owner.
+  const nameById = new Map((users ?? []).map((u) => [u.id, u.name] as const));
+  const startOfToday = new Date(new Date().toDateString()).getTime();
+  const upcoming = (reminders ?? [])
+    .filter((r) => {
+      const t = new Date(r.dueAt).getTime();
+      return !Number.isNaN(t) && t >= startOfToday;
+    })
+    .sort((a, b) => new Date(a.dueAt).getTime() - new Date(b.dueAt).getTime())
+    .slice(0, 2);
+
   return (
     <>
       {/* On leave */}
       <RightCard x={1015} y={224} title="On leave">
         <span className="absolute left-[10px] top-[39px] text-[12px] leading-none text-black/70">Today</span>
         <span className="absolute left-[51px] top-[48px] h-px w-[92px] bg-black/10" />
-        {/* Tanvi Sharma — sick leave */}
-        <Ini x={17} y={80} s={42} bg="#C6A6DF" color="#6000AA" letter="T" fs={14} />
-        <span className="absolute left-[64px] top-[82px] text-[14px] leading-none text-black/90">
-          Tanvi Sharma
-        </span>
-        <span className="absolute left-[166px] top-[85px] text-[10px] font-light leading-none text-black/70">
-          Operations
-        </span>
-        <span className="absolute left-[64px] top-[100px] w-[80px] text-[10px] font-light leading-[12px] text-black/70">
-          Rep. Manager: Vishal Sharma
-        </span>
-        <span className="absolute left-[152px] top-[108px] text-[10px] font-light leading-none text-black/70">
-          Sick Leave
-        </span>
-        <PdfButton x={216} y={102} />
+        {current && person ? (
+          <>
+            <Ini x={17} y={80} s={42} bg="#C6A6DF" color="#6000AA" letter={initial(person.name)} fs={14} />
+            <span className="absolute left-[64px] top-[82px] text-[14px] leading-none text-black/90">
+              {person.name}
+            </span>
+            <span className="absolute left-[166px] top-[85px] text-[10px] font-light leading-none text-black/70">
+              {person.team?.name ?? person.role}
+            </span>
+            <span className="absolute left-[64px] top-[100px] w-[80px] text-[10px] font-light leading-[12px] text-black/70">
+              Rep. Manager: {manager?.name ?? "—"}
+            </span>
+            <span className="absolute left-[152px] top-[108px] text-[10px] font-light leading-none text-black/70">
+              {current.type}
+            </span>
+            <PdfButton x={216} y={102} />
+          </>
+        ) : (
+          <span className="absolute left-[17px] top-[92px] text-[12px] font-light leading-none text-black/40">
+            No one on leave
+          </span>
+        )}
       </RightCard>
 
       {/* Upcoming Events */}
       <RightCard x={1015} y={485} title="Upcoming Events">
-        <BirthdayRow dy={0} bg="#C6A6DF" color="#6000AA" letter="T" name="Tanvi Sharma" date="16/09/2025" />
-        <BirthdayRow dy={74} bg="#DDF7FF" color="#0F7D9E" letter="P" name="Pooja Sharma" date="22/09/2025" />
+        {upcoming.length === 0 ? (
+          <span className="absolute left-[22px] top-[92px] text-[12px] font-light leading-none text-black/40">
+            No upcoming events
+          </span>
+        ) : (
+          upcoming.map((r, i) => {
+            const owner = r.ownerId ? nameById.get(r.ownerId) : undefined;
+            return (
+              <EventRow
+                key={r.id}
+                dy={i * 74}
+                bg={EVENT_PALETTE[i % EVENT_PALETTE.length].bg}
+                color={EVENT_PALETTE[i % EVENT_PALETTE.length].color}
+                letter={owner ? initial(owner) : "—"}
+                caption={r.title}
+                name={owner ?? "Unassigned"}
+                date={fmtDateLong(r.dueAt)}
+              />
+            );
+          })
+        )}
       </RightCard>
 
-      {/* Holidays */}
+      {/* Holidays — no Holiday model exists yet, so the card owns up to being empty. */}
       <RightCard x={1014} y={750} title="Holidays">
-        <span className="absolute left-[10px] top-[39px] text-[12px] leading-none text-black/70">24/09/25</span>
+        <span className="absolute left-[10px] top-[39px] text-[12px] leading-none text-black/70">Upcoming</span>
         <span className="absolute left-[72px] top-[48px] h-px w-[92px] bg-black/10" />
-        <span className="absolute left-[17px] top-[80px] h-[42px] w-[42px] rounded-full bg-[#88DFA9]" />
-        <span className="absolute left-[65px] top-[92px] text-[14px] leading-none text-black/90">Holiday</span>
+        <span className="absolute left-[17px] top-[92px] text-[12px] font-light leading-none text-black/40">
+          No holidays scheduled
+        </span>
       </RightCard>
     </>
   );
@@ -422,8 +528,70 @@ function RightRail() {
 /* --------------------------------------------------------------------- */
 /* underlying leaves-calendar page                                        */
 /* --------------------------------------------------------------------- */
+/** Local yyyy-mm-dd key, for whole-day comparisons that ignore clock time. */
+function dayKey(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+/** true when today falls inside [from, to], inclusive. */
+function coversToday(from: string, to: string): boolean {
+  const a = new Date(from);
+  const b = new Date(to);
+  if (Number.isNaN(a.getTime()) || Number.isNaN(b.getTime())) return false;
+  const t = dayKey(new Date());
+  return dayKey(a) <= t && t <= dayKey(b);
+}
+
+/** Day-of-month numbers spanned by [from, to], capped at one grid's worth. */
+function daysCovered(from: string, to: string): number[] {
+  const a = new Date(from);
+  const b = new Date(to);
+  if (Number.isNaN(a.getTime()) || Number.isNaN(b.getTime())) return [];
+  const cur = new Date(a.getFullYear(), a.getMonth(), a.getDate());
+  const end = new Date(b.getFullYear(), b.getMonth(), b.getDate());
+  const out: number[] = [];
+  while (cur.getTime() <= end.getTime() && out.length < 31) {
+    out.push(cur.getDate());
+    cur.setDate(cur.getDate() + 1);
+  }
+  return out;
+}
+
+/** dd/mm/yyyy from an ISO date string, matching the Figma event rows. */
+function fmtDateLong(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  return `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}`;
+}
+
+/** First letter of a name, for the circular avatar chips. */
+function initial(name: string): string {
+  return name.trim().charAt(0).toUpperCase();
+}
+
+/** Zero-padded two-digit count, matching the Figma "02" / "01" balance chips. */
+function pad2(n: number): string {
+  return String(n).padStart(2, "0");
+}
+
 function Background() {
   const navigate = useNavigate();
+  const { data: users } = useUsers();
+  const { data: leaves } = useLeaves();
+  const { data: me } = useMe();
+
+  const headcount = (users ?? []).length;
+  const approved = (leaves ?? []).filter((l) => l.status === "APPROVED");
+  const outToday = approved.filter((l) => coversToday(l.from, l.to));
+  const absent = new Set(outToday.map((l) => l.userId)).size;
+  const present = Math.max(0, headcount - absent);
+  const wfh = outToday.filter((l) => /wfh|work from home/i.test(l.type)).length;
+  const halfDay = outToday.filter((l) => /half/i.test(l.type)).length;
+
+  // Leave balance = leaves the signed-in user has already taken, per type.
+  const mine = approved.filter((l) => l.userId === me?.id);
+  const takenOf = (re: RegExp) => pad2(mine.filter((l) => re.test(l.type)).length);
+
   return (
     <>
       {/* page title */}
@@ -439,22 +607,29 @@ function Background() {
       <div className="absolute left-[541px] top-[150px] flex h-[48px] w-[72px] items-center gap-[5px] rounded-[24px] bg-white pl-[11px]">
         <Users className="h-[22px] w-[22px] text-black" strokeWidth={1.5} />
         <span className="flex h-[14px] w-[14px] items-center justify-center rounded-full bg-[#20A271] text-[10px] leading-none text-white">
-          4
+          {headcount}
         </span>
       </div>
 
       {/* attendance stat pills */}
-      <StatItem n="18" label="Present" badgeColor="#DCFF68" icon={Users} numX={810} grpX={855} />
-      <StatItem n="2" label="Absent" badgeColor="#FFB0B1" icon={UserX} numX={938} grpX={983} />
-      <StatItem n="0" label="WFH" badgeColor="#DCFF68" icon={Home} numX={1066} grpX={1111} />
-      <StatItem n="1" label="Half Day" badgeColor="#DCFF68" badgeText="1" numX={1194} grpX={1239} />
+      <StatItem n={String(present)} label="Present" badgeColor="#DCFF68" icon={Users} numX={810} grpX={855} />
+      <StatItem n={String(absent)} label="Absent" badgeColor="#FFB0B1" icon={UserX} numX={938} grpX={983} />
+      <StatItem n={String(wfh)} label="WFH" badgeColor="#DCFF68" icon={Home} numX={1066} grpX={1111} />
+      <StatItem
+        n={String(halfDay)}
+        label="Half Day"
+        badgeColor="#DCFF68"
+        badgeText={String(halfDay)}
+        numX={1194}
+        grpX={1239}
+      />
 
       {/* date pill */}
       <div className="absolute left-[1299px] top-[153px] flex h-[32px] w-[90px] items-center gap-[4px] rounded-[18px] bg-white pl-[3px]">
         <span className="flex h-[24px] w-[24px] items-center justify-center rounded-full bg-[#F1F1F1]">
           <Calendar className="h-[14px] w-[14px] text-black" strokeWidth={1.6} />
         </span>
-        <span className="text-[12px] font-light text-black/90">30/09/25</span>
+        <span className="text-[12px] font-light text-black/90">{fmtDate(new Date().toISOString())}</span>
       </div>
 
       {/* tab / action row */}
@@ -467,8 +642,8 @@ function Background() {
 
       {/* leave balance */}
       <span className="absolute left-[257px] top-[306px] text-[18px] font-light text-black">Leave Balance</span>
-      <BalanceCard x={257} digit="02" digitColor="#6000AA" label="Causal Leave" />
-      <BalanceCard x={427} digit="01" digitColor="#6CA478" label="Sick Leave" />
+      <BalanceCard x={257} digit={takenOf(/casual/i)} digitColor="#6000AA" label="Causal Leave" />
+      <BalanceCard x={427} digit={takenOf(/sick/i)} digitColor="#6CA478" label="Sick Leave" />
 
       {/* calendar */}
       <Calendarium />
@@ -616,6 +791,12 @@ function LeaveRequestModal() {
       >
         <X className="h-[18px] w-[18px] text-black" strokeWidth={1.8} />
       </span>
+
+      {pending.length === 0 && (
+        <span className="absolute left-[19px] top-[92px] text-[13px] font-light leading-none text-black/40">
+          No pending leave requests
+        </span>
+      )}
 
       {pending.map((leave, i) => {
         const user = userById.get(leave.userId);

@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { useLeaves, useUsers } from "@/api/hooks";
+import { useLeaves, useUsers, useContacts, useMe } from "@/api/hooks";
 import {
   Search,
   Users,
@@ -33,6 +33,21 @@ const DAYS = [
   [22, 23, 24, 25, 26, 27, 28],
   [29, 30, 31, 1, 2, 3, 4],
 ];
+
+/** The four fixed marker slots on the calendar grid (positions/colours are from Figma). */
+const MARKER_SLOTS = [
+  { left: 639, top: 529, bg: "#C6A6DF", color: "#6000AA" },
+  { left: 749, top: 631, bg: "#C4F1D2", color: "#007726" },
+  { left: 623, top: 824, bg: "#FFE3CF", color: "#DB6714" },
+  { left: 639, top: 824, bg: "#D4CFFF", color: "#1A0C9A" },
+];
+
+/** dd/MM/yy — the format the design uses for every date pill on this screen. */
+function dmy(value: string | number): string {
+  const d = new Date(value);
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${p(d.getDate())}/${p(d.getMonth() + 1)}/${String(d.getFullYear()).slice(-2)}`;
+}
 
 const WEEKDAYS: { label: string; left: number; color: string }[] = [
   { label: "Mon", left: 281, color: "#000000" },
@@ -184,21 +199,64 @@ function ContentRow({ x, y, w, children }: { x: number; y: number; w: number; ch
 /* ---------------------------------- page ------------------------------------ */
 export default function PeopleLeavesPage() {
   const navigate = useNavigate();
-  const { data: leaves } = useLeaves();
+  const { data: leaves, isLoading: leavesLoading } = useLeaves();
   const { data: users } = useUsers();
-  const userById = new Map((users ?? []).map((u) => [u.id, u] as const));
-  // "On leave" card — design shows a single row; each is a distinct real leave.
-  const onLeave = (leaves ?? []).slice(0, 1).map((lv) => {
+  const { data: contacts } = useContacts();
+  const { data: me } = useMe();
+
+  const leaveList = leaves ?? [];
+  const userList = users ?? [];
+  const userById = new Map(userList.map((u) => [u.id, u] as const));
+
+  // Leaves that cover today (rejected ones never count as time off).
+  const now = Date.now();
+  const granted = leaveList.filter((lv) => lv.status !== "REJECTED");
+  const activeToday = granted.filter(
+    (lv) => Date.parse(lv.from) <= now && now <= Date.parse(lv.to),
+  );
+
+  // Attendance headline numbers, derived from the roster minus today's leaves.
+  const absent = activeToday.length;
+  const present = Math.max(userList.length - absent, 0);
+  const wfh = activeToday.filter((lv) => /wfh|home/i.test(lv.type)).length;
+  const halfDay = activeToday.filter((lv) => /half/i.test(lv.type)).length;
+
+  // Leave balance pills — the signed-in user's own leaves, per type.
+  const myLeaves = leaveList.filter((lv) => lv.userId === me?.id);
+  const balanceOf = (prefix: string) =>
+    String(myLeaves.filter((lv) => lv.type.toLowerCase().startsWith(prefix)).length).padStart(2, "0");
+
+  // "On leave" card — design shows a single row; prefer someone out today,
+  // otherwise the soonest upcoming leave.
+  const upcoming = [...granted].sort((a, b) => Date.parse(a.from) - Date.parse(b.from));
+  const onLeave = (activeToday.length ? activeToday : upcoming).slice(0, 1).map((lv) => {
     const u = userById.get(lv.userId);
     const name = u?.name ?? "";
+    // No manager column exists on User — derive the reporting manager as the
+    // *_MANAGER role holder on the same team.
+    const teamId = u?.team?.id;
+    const manager = teamId
+      ? userList.find((m) => m.id !== lv.userId && m.team?.id === teamId && m.role.includes("MANAGER"))?.name
+      : undefined;
     return {
       id: lv.id,
       name,
       initial: name.charAt(0) || "?",
       department: u?.team?.name ?? "",
       leaveType: `${lv.type} Leave`,
+      manager,
+      reason: lv.reason,
     };
   });
+
+  // "Upcoming Events" — User has no birthday column, so only the roster identity
+  // (name + initial) is real; the date slot stays empty rather than inventing one.
+  const people = userList.slice(0, 2);
+
+  // "Holidays" — there is no Holiday model; the honest source is a leave record
+  // whose free-text type is a holiday.
+  const holiday = upcoming.find((lv) => /holiday/i.test(lv.type));
+
   return (
     <>
       {/* PEOPLE title */}
@@ -217,15 +275,15 @@ export default function PeopleLeavesPage() {
       >
         <Users className="absolute left-[23px] top-[16px] h-[16px] w-[26px] text-black" strokeWidth={1.6} />
         <span className="absolute left-[46px] top-[17px] flex h-[14px] w-[14px] items-center justify-center rounded-full bg-[#20A271]">
-          <span className="text-[9px] font-normal leading-none text-white">4</span>
+          <span className="text-[9px] font-normal leading-none text-white">{(contacts ?? []).length}</span>
         </span>
       </div>
 
       {/* attendance stats */}
-      <StatItem numX={810} num="18" badgeX={871} dir="up" badgeColor="#DCFF68" Icon={Users} labelX={855} label="Present" />
-      <StatItem numX={938} num="2" badgeX={999} dir="down" badgeColor="#FFB0B1" Icon={UserX} labelX={983} label="Absent" />
-      <StatItem numX={1066} num="0" badgeX={1127} dir="up" badgeColor="#DCFF68" Icon={House} labelX={1111} label="WFH" />
-      <StatItem numX={1194} num="1" badgeX={1255} dir="up" badgeColor="#DCFF68" iconText="1" labelX={1239} label="Half Day" />
+      <StatItem numX={810} num={String(present)} badgeX={871} dir="up" badgeColor="#DCFF68" Icon={Users} labelX={855} label="Present" />
+      <StatItem numX={938} num={String(absent)} badgeX={999} dir="down" badgeColor="#FFB0B1" Icon={UserX} labelX={983} label="Absent" />
+      <StatItem numX={1066} num={String(wfh)} badgeX={1127} dir="up" badgeColor="#DCFF68" Icon={House} labelX={1111} label="WFH" />
+      <StatItem numX={1194} num={String(halfDay)} badgeX={1255} dir="up" badgeColor="#DCFF68" iconText={String(halfDay)} labelX={1239} label="Half Day" />
 
       {/* date pill (top-right) */}
       <div
@@ -235,7 +293,7 @@ export default function PeopleLeavesPage() {
         <span className="flex h-[24px] w-[24px] items-center justify-center rounded-full bg-[#F1F1F1]">
           <Calendar className="h-[14px] w-[14px] text-black" strokeWidth={1.4} />
         </span>
-        <span className="text-[12px] font-light leading-none text-black/90">30/09/25</span>
+        <span className="text-[12px] font-light leading-none text-black/90">{dmy(now)}</span>
       </div>
 
       {/* tabs */}
@@ -272,8 +330,8 @@ export default function PeopleLeavesPage() {
 
       {/* Leave Balance */}
       <span className="absolute left-[258px] top-[300px] text-[18px] font-light leading-none text-black">Leave Balance</span>
-      <LeaveBalancePill x={259} num="02" numColor="#6000AA" borderColor="#7420B4" label="Causal Leave" />
-      <LeaveBalancePill x={420} num="01" numColor="#6CA478" borderColor="#6CA478" label="Sick Leave" />
+      <LeaveBalancePill x={259} num={balanceOf("casual")} numColor="#6000AA" borderColor="#7420B4" label="Causal Leave" />
+      <LeaveBalancePill x={420} num={balanceOf("sick")} numColor="#6CA478" borderColor="#6CA478" label="Sick Leave" />
 
       {/* weekday headers */}
       {WEEKDAYS.map((w) => (
@@ -325,23 +383,26 @@ export default function PeopleLeavesPage() {
       </div>
 
       {/* leave / event markers */}
-      <LetterDot left={639} top={529} bg="#C6A6DF" color="#6000AA" letter="T" />
-      <LetterDot left={749} top={631} bg="#C4F1D2" color="#007726" letter="S" />
-      <LetterDot left={623} top={824} bg="#FFE3CF" color="#DB6714" letter="P" />
-      <LetterDot left={639} top={824} bg="#D4CFFF" color="#1A0C9A" letter="K" />
+      {MARKER_SLOTS.map((slot, i) => {
+        const lv = upcoming[i];
+        const initial = lv ? (userById.get(lv.userId)?.name.charAt(0) ?? "") : "";
+        return initial ? <LetterDot key={lv.id} {...slot} letter={initial} /> : null;
+      })}
 
       {/* birthday cakes */}
       <Cake className="absolute h-[16px] w-[16px] text-[#DD2E44]" style={{ left: 429, top: 685 }} strokeWidth={1.4} />
       <Cake className="absolute h-[16px] w-[16px] text-[#DD2E44]" style={{ left: 321, top: 783 }} strokeWidth={1.4} />
 
       {/* holiday pill on day 24 */}
-      <div
-        className="absolute flex h-[26px] items-center gap-[4px] rounded-full bg-white px-[6px]"
-        style={{ left: 477, top: 812 }}
-      >
-        <span className="h-[8px] w-[8px] rounded-full bg-[#88DFA9]" />
-        <span className="text-[10px] font-normal leading-none text-black/80">Holiday</span>
-      </div>
+      {holiday && (
+        <div
+          className="absolute flex h-[26px] items-center gap-[4px] rounded-full bg-white px-[6px]"
+          style={{ left: 477, top: 812 }}
+        >
+          <span className="h-[8px] w-[8px] rounded-full bg-[#88DFA9]" />
+          <span className="text-[10px] font-normal leading-none text-black/80">{holiday.type}</span>
+        </div>
+      )}
 
       {/* ===================== RIGHT COLUMN — On leave ===================== */}
       <RightCardShell cx={1015} cy={222} px={1025} py={261} title="On leave" titleX={1025} titleY={234} octX={1263} octY={222} />
@@ -354,46 +415,67 @@ export default function PeopleLeavesPage() {
           </span>
           <span className="absolute left-[54px] top-[11px] text-[14px] font-normal leading-none text-black/90">{row.name}</span>
           <span className="absolute left-[156px] top-[13px] text-[10px] font-light leading-none text-black/70">{row.department}</span>
-          <span className="absolute left-[54px] top-[30px] w-[95px] text-[10px] font-light leading-[12px] text-black/70">Rep. Manager: Vishal Sharma</span>
+          {row.manager && (
+            <span className="absolute left-[54px] top-[30px] w-[95px] text-[10px] font-light leading-[12px] text-black/70">Rep. Manager: {row.manager}</span>
+          )}
           <span className="absolute left-[142px] top-[37px] text-[10px] font-light leading-none text-black/70">{row.leaveType}</span>
-          <div className="absolute left-[206px] top-[32px] flex h-[23px] w-[87px] items-center justify-center gap-[3px] rounded-[7px] border-[0.5px] border-[#D6D6D6] bg-white">
-            <span className="text-[10px] font-light leading-none text-black/70">Medical..pdf</span>
-            <FileText className="h-[13px] w-[13px] text-black" strokeWidth={1.4} />
-          </div>
+          {row.reason && (
+            <div className="absolute left-[206px] top-[32px] flex h-[23px] w-[87px] items-center justify-center gap-[3px] rounded-[7px] border-[0.5px] border-[#D6D6D6] bg-white">
+              <span className="truncate px-[2px] text-[10px] font-light leading-none text-black/70">{row.reason}</span>
+              <FileText className="h-[13px] w-[13px] shrink-0 text-black" strokeWidth={1.4} />
+            </div>
+          )}
         </ContentRow>
       ))}
+      {!leavesLoading && onLeave.length === 0 && (
+        <span className="absolute left-[1025px] top-[292px] text-[12px] font-light leading-none text-black/40">
+          No one on leave
+        </span>
+      )}
 
       {/* ===================== RIGHT COLUMN — Upcoming Events ===================== */}
       <RightCardShell cx={1015} cy={483} px={1025} py={522} title="Upcoming Events" titleX={1025} titleY={495} octX={1263} octY={483} />
       {/* birthday row 1 */}
-      <ContentRow x={1025} y={538} w={326}>
-        <Cake className="absolute left-[12px] top-[16px] h-[24px] w-[24px] text-[#DD2E44]" strokeWidth={1.3} />
-        <span className="absolute left-[46px] top-[14px] text-[12px] font-light leading-none text-black/70">Happy birthday</span>
-        <span className="absolute left-[46px] top-[33px] flex h-[16px] w-[16px] items-center justify-center rounded-full bg-[#C6A6DF]">
-          <span className="text-[8px] font-normal leading-none text-[#6000AA]">T</span>
-        </span>
-        <span className="absolute left-[67px] top-[32px] text-[14px] font-normal leading-none text-black">Tanvi Sharma</span>
-        <span className="absolute left-[244px] top-[20px] text-[12px] font-light leading-none text-black/70">16/09/2025</span>
-      </ContentRow>
+      {people[0] && (
+        <ContentRow x={1025} y={538} w={326}>
+          <Cake className="absolute left-[12px] top-[16px] h-[24px] w-[24px] text-[#DD2E44]" strokeWidth={1.3} />
+          <span className="absolute left-[46px] top-[14px] text-[12px] font-light leading-none text-black/70">Happy birthday</span>
+          <span className="absolute left-[46px] top-[33px] flex h-[16px] w-[16px] items-center justify-center rounded-full bg-[#C6A6DF]">
+            <span className="text-[8px] font-normal leading-none text-[#6000AA]">{people[0].name.charAt(0)}</span>
+          </span>
+          <span className="absolute left-[67px] top-[32px] text-[14px] font-normal leading-none text-black">{people[0].name}</span>
+        </ContentRow>
+      )}
       {/* birthday row 2 */}
-      <ContentRow x={1025} y={612} w={326}>
-        <Cake className="absolute left-[12px] top-[16px] h-[24px] w-[24px] text-[#DD2E44]" strokeWidth={1.3} />
-        <span className="absolute left-[46px] top-[14px] text-[12px] font-light leading-none text-black/70">Happy birthday</span>
-        <span className="absolute left-[46px] top-[33px] flex h-[16px] w-[16px] items-center justify-center rounded-full bg-[#DDF7FF]">
-          <span className="text-[8px] font-normal leading-none text-[#0F7D9E]">P</span>
-        </span>
-        <span className="absolute left-[67px] top-[32px] text-[14px] font-normal leading-none text-black">Pooja Sharma</span>
-        <span className="absolute left-[244px] top-[20px] text-[12px] font-light leading-none text-black/70">22/09/2025</span>
-      </ContentRow>
+      {people[1] && (
+        <ContentRow x={1025} y={612} w={326}>
+          <Cake className="absolute left-[12px] top-[16px] h-[24px] w-[24px] text-[#DD2E44]" strokeWidth={1.3} />
+          <span className="absolute left-[46px] top-[14px] text-[12px] font-light leading-none text-black/70">Happy birthday</span>
+          <span className="absolute left-[46px] top-[33px] flex h-[16px] w-[16px] items-center justify-center rounded-full bg-[#DDF7FF]">
+            <span className="text-[8px] font-normal leading-none text-[#0F7D9E]">{people[1].name.charAt(0)}</span>
+          </span>
+          <span className="absolute left-[67px] top-[32px] text-[14px] font-normal leading-none text-black">{people[1].name}</span>
+        </ContentRow>
+      )}
 
       {/* ===================== RIGHT COLUMN — Holidays ===================== */}
       <RightCardShell cx={1014} cy={750} px={1024} py={789} title="Holidays" titleX={1024} titleY={762} octX={1262} octY={750} />
-      <span className="absolute left-[1024px] top-[793px] text-[12px] font-normal leading-none text-black/70">24/09/25</span>
+      {holiday && (
+        <span className="absolute left-[1024px] top-[793px] text-[12px] font-normal leading-none text-black/70">{dmy(holiday.from)}</span>
+      )}
       <div className="absolute left-[1086px] top-[798px] h-px w-[92px] bg-[#D0D0D0]" />
-      <ContentRow x={1024} y={820} w={318}>
-        <span className="absolute left-[7px] top-[10px] h-[42px] w-[42px] rounded-full bg-[#88DFA9]" />
-        <span className="absolute left-[55px] top-[22px] text-[14px] font-normal leading-none text-black/90">Holiday</span>
-      </ContentRow>
+      {holiday ? (
+        <ContentRow x={1024} y={820} w={318}>
+          <span className="absolute left-[7px] top-[10px] h-[42px] w-[42px] rounded-full bg-[#88DFA9]" />
+          <span className="absolute left-[55px] top-[22px] text-[14px] font-normal leading-none text-black/90">{holiday.type}</span>
+        </ContentRow>
+      ) : (
+        !leavesLoading && (
+          <span className="absolute left-[1024px] top-[820px] text-[12px] font-light leading-none text-black/40">
+            No holidays scheduled
+          </span>
+        )
+      )}
     </>
   );
 }

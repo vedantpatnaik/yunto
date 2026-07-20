@@ -15,8 +15,8 @@ import {
   ArrowUp,
   MoreVertical,
 } from "lucide-react";
-import { useNavigate } from "react-router-dom";
-import { useCalendar } from "@/api/hooks";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import { useCalendar, useCreators, useNotes } from "@/api/hooks";
 
 /**
  * Super Admin — Manage Calendar (my creator).
@@ -34,16 +34,49 @@ const WEEKDAYS: { label: string; color?: string; x: number; w: number }[] = [
   { label: "Sun", x: 924.3, w: 28, color: "#D43131" },
 ];
 
-const DATES = [22, 23, 24, 25, 26, 27, 28];
-
-const CAPTION = "Discovering hidden gems in Ubud's rice paddies. 🌿💚";
-
 /* fixed layout slots (coords + tint) for the clipped content-card column */
 const CARD_SLOTS: { left: number; top: number; tint: string }[] = [
   { left: 8, top: 316, tint: "#F5EEFB" },
   { left: 295, top: 315, tint: "#EEFBEF" },
   { left: 582, top: 315, tint: "#FBEEEE" },
 ];
+
+/* fixed layout slots (coords + tint) for the two note cards in the right rail */
+const NOTE_SLOTS: { label: string; ruleLeft: number; headTop: number; ruleTop: number; cardTop: number; radius: string; bg: string }[] = [
+  { label: "Today", ruleLeft: 1072, headTop: 874, ruleTop: 883, cardTop: 908, radius: "20px", bg: "rgba(200,222,208,0.42)" },
+  { label: "Yesterday", ruleLeft: 1096, headTop: 1019, ruleTop: 1028, cardTop: 1052, radius: "24px", bg: "#D7DBF3" },
+];
+
+/* ------------------------------ formatters ----------------------------- */
+const compact = (n: number) =>
+  n >= 1_000_000
+    ? `${(n / 1_000_000).toFixed(1).replace(/\.0$/, "")}M`
+    : n >= 1_000
+      ? `${(n / 1_000).toFixed(1).replace(/\.0$/, "")}K`
+      : String(Math.round(n));
+
+const dayMonth = (d: Date) => `${d.getDate()} ${d.toLocaleDateString("en-US", { month: "short" })}`;
+const dayMonthLong = (d: Date) => `${d.getDate()} ${d.toLocaleDateString("en-US", { month: "long" })}`;
+
+/** Monday that starts the week containing `d`. */
+function mondayOf(d: Date) {
+  const x = new Date(d);
+  x.setHours(0, 0, 0, 0);
+  x.setDate(x.getDate() - ((x.getDay() + 6) % 7));
+  return x;
+}
+
+/** Build hashtags out of the significant words of a record's title/niche. */
+function hashtags(...parts: string[]) {
+  const words = parts
+    .join(" ")
+    .split(/[^A-Za-z0-9]+/)
+    .filter((w) => w.length > 2);
+  return [...new Set(words)]
+    .slice(0, 3)
+    .map((w) => `#${w[0].toUpperCase()}${w.slice(1)}`)
+    .join(" ");
+}
 
 /* --------------------------------- bits -------------------------------- */
 function GreenBubble({ icon: Icon }: { icon: LucideIcon }) {
@@ -78,7 +111,24 @@ function DateChip({ children }: { children: ReactNode }) {
 }
 
 /* ----------------------------- content card ---------------------------- */
-function ContentCard({ left, top, tint, day }: { left: number; top: number; tint: string; day: string }) {
+interface CardData {
+  id: string;
+  left: number;
+  top: number;
+  tint: string;
+  day: string;
+  caption: string;
+  avgViews: string;
+  track: string;
+  reach: string;
+  trend: string;
+  tags: string;
+  aiTitle: string;
+  aiBody: string;
+}
+
+function ContentCard({ card }: { card: CardData }) {
+  const { left, top, tint } = card;
   return (
     <div className="absolute rounded-[9.94px]" style={{ left, top, width: 275, height: 838, background: tint }}>
       {/* add button */}
@@ -91,7 +141,7 @@ function ContentCard({ left, top, tint, day }: { left: number; top: number; tint
         <span className="flex h-[16px] w-[16px] items-center justify-center rounded-[4px] bg-gradient-to-br from-[#FEDA75] via-[#D62976] to-[#4F5BD5]">
           <Instagram className="h-[10px] w-[10px] text-white" strokeWidth={2} />
         </span>
-        <span className="font-inter text-[10px] text-[#1A1A1B]">{day}</span>
+        <span className="font-inter text-[10px] text-[#1A1A1B]">{card.day}</span>
       </div>
 
       {/* photo */}
@@ -99,17 +149,17 @@ function ContentCard({ left, top, tint, day }: { left: number; top: number; tint
 
       {/* caption */}
       <p className="absolute left-[9.4px] top-[191.2px] w-[246px] font-inter text-[14px] font-semibold leading-[23.2px] text-[#111827]">
-        {CAPTION}
+        {card.caption}
       </p>
 
       {/* chips */}
       <div className="absolute left-[9px] top-[246px] flex h-[33px] w-[130px] items-center gap-[5px] rounded-[12px] bg-white pl-[6px]">
         <GreenBubble icon={Star} />
-        <span className="font-inter text-[11px] text-black">Avg Views: 100K</span>
+        <span className="font-inter text-[11px] text-black">Avg Views: {card.avgViews}</span>
       </div>
       <div className="absolute left-[147.4px] top-[246px] flex h-[33px] w-[119px] items-center gap-[5px] rounded-[12px] bg-white pl-[6px]">
         <GreenBubble icon={Music} />
-        <span className="font-inter text-[11px] text-black">Big Dawgs</span>
+        <span className="truncate pr-[6px] font-inter text-[11px] text-black">{card.track}</span>
       </div>
 
       <div className="absolute left-[9px] top-[284px] flex h-[33px] w-[122px] items-center gap-[6px] rounded-[12px] bg-white pl-[6px]">
@@ -118,28 +168,25 @@ function ContentCard({ left, top, tint, day }: { left: number; top: number; tint
           <span className="-ml-[4px] h-[14px] w-[14px] rounded-full bg-gradient-to-br from-[#C8E6FF] to-[#C8B3ED] ring-1 ring-white" />
           <span className="-ml-[4px] h-[14px] w-[14px] rounded-full bg-gradient-to-br from-[#F1FFC3] to-[#8DBE7F] ring-1 ring-white" />
         </span>
-        <span className="font-inter text-[11px] text-black">1.5K+&nbsp;&nbsp;ER: 4%</span>
+        <span className="font-inter text-[11px] text-black">{card.reach}</span>
       </div>
       <div className="absolute left-[139.4px] top-[284px] flex h-[33px] w-[127px] items-center gap-[6px] rounded-[12px] bg-white pl-[7px]">
         <GreenBubble icon={TrendingUp} />
-        <span className="font-inter text-[11px] text-black">Trendy&nbsp;&nbsp;29 Dec</span>
+        <span className="font-inter text-[11px] text-black">{card.trend}</span>
       </div>
 
       <div className="absolute left-[9px] top-[322px] flex h-[36px] w-[257.4px] items-center gap-[5px] rounded-[12px] bg-white pl-[6px]">
         <GreenBubble icon={Hash} />
-        <span className="font-inter text-[11px] text-black">#UbudAdventures #RicePaddyViews</span>
+        <span className="truncate pr-[6px] font-inter text-[11px] text-black">{card.tags}</span>
       </div>
 
       {/* AI-generated card */}
       <div className="absolute left-[9px] top-[374px] h-[209px] w-[255px] rounded-[8px] bg-white px-[9px] pt-[9px]">
         <p className="bg-gradient-to-r from-[#983EE1] to-[#E561B4] bg-clip-text font-inter text-[14px] font-medium leading-[24px] text-transparent">
-          AI-generated: Holidays in Bali
+          AI-generated: {card.aiTitle}
         </p>
-        <p className="mt-[2px] font-inter text-[12px] font-medium leading-[20px] text-[#121417]">{CAPTION}</p>
-        <p className="mt-[8px] font-inter text-[12px] leading-[17px] text-[#6B7582]">
-          Wandering through the lush green terraces, I stumbled upon a serene spot perfect for meditation.
-          #UbudAdventures #RicePaddyViews #BaliBliss
-        </p>
+        <p className="mt-[2px] font-inter text-[12px] font-medium leading-[20px] text-[#121417]">{card.caption}</p>
+        <p className="mt-[8px] font-inter text-[12px] leading-[17px] text-[#6B7582]">{card.aiBody}</p>
       </div>
     </div>
   );
@@ -148,14 +195,66 @@ function ContentCard({ left, top, tint, day }: { left: number; top: number; tint
 /* -------------------------------- page --------------------------------- */
 export default function CalendarPage() {
   const navigate = useNavigate();
-  const { data } = useCalendar();
-  const cards = (data ?? []).slice(0, CARD_SLOTS.length).map((item, i) => ({
-    id: item.id,
-    left: CARD_SLOTS[i].left,
-    top: CARD_SLOTS[i].top,
-    tint: CARD_SLOTS[i].tint,
-    day: `${new Date(item.scheduledAt).toLocaleDateString("en-US", { weekday: "short" })} | ${item.title}`,
-  }));
+  const [params] = useSearchParams();
+  const { data: calendar, isLoading } = useCalendar();
+  const { data: creators } = useCreators();
+  const { data: notes, isLoading: notesLoading } = useNotes();
+
+  const items = [...(calendar ?? [])].sort(
+    (a, b) => +new Date(a.scheduledAt) - +new Date(b.scheduledAt),
+  );
+  const byCreator = new Map((creators ?? []).map((c) => [c.id, c]));
+
+  /* the anchor record drives the visible week, the month picker and the creator pill */
+  const anchor = items.find((i) => i.id === params.get("id")) ?? items[0];
+  const weekStart = mondayOf(anchor ? new Date(anchor.scheduledAt) : new Date());
+  const weekEnd = new Date(weekStart);
+  weekEnd.setDate(weekEnd.getDate() + 7);
+
+  const dates = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(weekStart);
+    d.setDate(d.getDate() + i);
+    return d;
+  });
+  const monthLabel = (anchor ? new Date(anchor.scheduledAt) : weekStart).toLocaleDateString("en-US", {
+    month: "long",
+  });
+  const pillCreator = anchor ? byCreator.get(anchor.creatorId) : undefined;
+
+  const cards: CardData[] = items
+    .filter((i) => {
+      const t = +new Date(i.scheduledAt);
+      return t >= +weekStart && t < +weekEnd;
+    })
+    .slice(0, CARD_SLOTS.length)
+    .map((item, i) => {
+      const when = new Date(item.scheduledAt);
+      const creator = byCreator.get(item.creatorId);
+      const niche = creator?.niche ?? "Content";
+      const status = item.status.charAt(0).toUpperCase() + item.status.slice(1);
+      return {
+        id: item.id,
+        left: CARD_SLOTS[i].left,
+        top: CARD_SLOTS[i].top,
+        tint: CARD_SLOTS[i].tint,
+        day: `${when.toLocaleDateString("en-US", { weekday: "short" })} | ${dayMonth(when)}`,
+        caption: item.title,
+        avgViews: creator ? compact(creator.avgViews) : "—",
+        track: niche,
+        reach: creator
+          ? `${compact(creator.followers)}+  ER: ${creator.engagementRate}%`
+          : "—",
+        trend: `${status}  ${dayMonth(when)}`,
+        tags: hashtags(item.title, niche),
+        aiTitle: creator?.location ? `${niche} in ${creator.location}` : niche,
+        aiBody: creator
+          ? `${creator.name} (${creator.handle}) — ${status.toLowerCase()} for ${dayMonth(when)}. ` +
+            `${compact(creator.avgViews)} avg views at ${creator.engagementRate}% engagement. ${hashtags(item.title, niche)}`
+          : `${status} for ${dayMonth(when)}. ${hashtags(item.title, niche)}`,
+      };
+    });
+
+  const noteCards = NOTE_SLOTS.map((slot, i) => ({ slot, note: (notes ?? [])[i] }));
 
   return (
     <>
@@ -180,19 +279,21 @@ export default function CalendarPage() {
         <ChevronDown className="h-[18px] w-[18px] text-white" strokeWidth={2} />
       </div>
 
-      {/* October month picker */}
+      {/* month picker */}
       <div className="absolute left-[279px] top-[325px] flex h-[45px] w-[108px] items-center justify-between rounded-[28px] bg-white/90 pl-[14px] pr-[12px]">
-        <span className="text-[14px] font-light text-black/[0.99]">October</span>
+        <span className="text-[14px] font-light text-black/[0.99]">{monthLabel}</span>
         <ChevronDown className="h-[15px] w-[15px] text-black" strokeWidth={2} />
       </div>
 
-      {/* Leena Sharma pill */}
+      {/* creator pill */}
       <div
-        onClick={() => navigate("/creators/detail")}
+        onClick={() => pillCreator && navigate(`/creators/detail?id=${pillCreator.id}`)}
         className="absolute left-[847px] top-[328px] flex h-[39px] w-[140px] items-center gap-[4px] rounded-[21px] bg-white pl-[7px] cursor-pointer"
       >
         <span className="h-[20px] w-[20px] shrink-0 rounded-full bg-gradient-to-br from-[#FFD6E7] to-[#C8B3ED]" />
-        <span className="text-[14.6px] font-normal text-black/90">Leena Sharma</span>
+        <span className="truncate pr-[7px] text-[14.6px] font-normal text-black/90">
+          {pillCreator?.name ?? (isLoading ? "Loading…" : "No creator")}
+        </span>
       </div>
 
       {/* weekday headers */}
@@ -207,13 +308,15 @@ export default function CalendarPage() {
       ))}
 
       {/* date cells */}
-      {DATES.map((n, i) => (
+      {dates.map((d, i) => (
         <div
-          key={n}
+          key={d.toISOString()}
           className="absolute top-[422px] h-[129.6px] w-[93.9px] rounded-[16.9px] bg-white"
           style={{ left: 279 + i * 101.44 }}
         >
-          <span className="absolute left-[14px] top-[15px] text-[18.8px] font-normal leading-[22.5px] text-black">{n}</span>
+          <span className="absolute left-[14px] top-[15px] text-[18.8px] font-normal leading-[22.5px] text-black">
+            {d.getDate()}
+          </span>
         </div>
       ))}
 
@@ -234,8 +337,13 @@ export default function CalendarPage() {
       {/* clipped column of content cards */}
       <div className="absolute left-[271px] top-[315px] h-[1222px] w-[739px] overflow-hidden rounded-[10.5px]">
         {cards.map((c) => (
-          <ContentCard key={c.id} left={c.left} top={c.top} tint={c.tint} day={c.day} />
+          <ContentCard key={c.id} card={c} />
         ))}
+        {cards.length === 0 && (
+          <span className="absolute left-[8px] top-[316px] font-inter text-[14px] text-black/40">
+            {isLoading ? "Loading content…" : "No content scheduled this week"}
+          </span>
+        )}
       </div>
 
       {/* ============================ right panel ============================ */}
@@ -251,7 +359,7 @@ export default function CalendarPage() {
       {/* generate card */}
       <div className="absolute left-[1031px] top-[296px] h-[537px] w-[312px] rounded-[12px] bg-white shadow-[0_2px_12px_rgba(0,0,0,0.05)]" />
       <span className="absolute left-[1040px] top-[311px]">
-        <DateChip>29 July</DateChip>
+        <DateChip>{dayMonthLong(anchor ? new Date(anchor.scheduledAt) : weekStart)}</DateChip>
       </span>
       <span className="absolute left-[1040px] top-[343px] text-[12px] font-normal text-black">Title</span>
       <span className="absolute left-[1040px] top-[369px] text-[12px] font-normal text-black/60">write description</span>
@@ -281,36 +389,55 @@ export default function CalendarPage() {
 
       {/* ============================== notes ============================== */}
       <span className="absolute left-[1031px] top-[844px] text-[15px] font-normal text-black">Notes</span>
-      <span className="absolute left-[1031px] top-[874px] text-[12px] font-normal text-black/70">Today</span>
-      <span className="absolute left-[1072px] top-[883px] h-px w-[92px] bg-black/10" />
 
-      {/* note card — today */}
-      <div className="absolute left-[1031px] top-[908px] h-[97px] w-[312px] rounded-[20px] bg-[rgba(200,222,208,0.42)]" />
-      <span className="absolute left-[1044px] top-[921px]">
-        <DateChip>29 July</DateChip>
-      </span>
-      <span className="absolute left-[1110px] top-[924px] text-[15px] font-medium text-black">Instagram Post Idea</span>
-      <span className="absolute left-[1301px] top-[921px] flex h-[25px] w-[26px] items-center justify-center rounded-full bg-white">
-        <MoreVertical className="h-[16px] w-[16px] text-black" strokeWidth={2} />
-      </span>
-      <p className="absolute left-[1044px] top-[953px] w-[283px] text-[13px] font-normal leading-[20px] text-black">
-        Instagram Post: "Behind the Scenes of Our Latest Campaign".
-      </p>
-
-      {/* note card — yesterday */}
-      <span className="absolute left-[1031px] top-[1019px] text-[12px] font-normal text-black/70">Yesterday</span>
-      <span className="absolute left-[1096px] top-[1028px] h-px w-[92px] bg-black/10" />
-      <div className="absolute left-[1031px] top-[1052px] h-[97px] w-[312px] rounded-[24px] bg-[#D7DBF3]" />
-      <span className="absolute left-[1044px] top-[1065px]">
-        <DateChip>28 July</DateChip>
-      </span>
-      <span className="absolute left-[1110px] top-[1068px] text-[15px] font-medium text-black">Reel Idea</span>
-      <span className="absolute left-[1301px] top-[1065px] flex h-[25px] w-[26px] items-center justify-center rounded-full bg-white">
-        <MoreVertical className="h-[16px] w-[16px] text-black" strokeWidth={2} />
-      </span>
-      <p className="absolute left-[1044px] top-[1097px] w-[283px] text-[13px] font-normal leading-[20px] text-black">
-        Reels ideas on healthcare, and 1 post on healthcare products.
-      </p>
+      {noteCards.map(({ slot, note }) => {
+        const created = note ? new Date(note.createdAt) : null;
+        /* Note has no title column — take the lead-in clause of the body as the heading */
+        const heading = note ? (note.body.split(/[:—–.]/)[0] || note.body).trim() : "";
+        return (
+          <div key={slot.label}>
+            <span
+              className="absolute left-[1031px] text-[12px] font-normal text-black/70"
+              style={{ top: slot.headTop }}
+            >
+              {slot.label}
+            </span>
+            <span
+              className="absolute h-px w-[92px] bg-black/10"
+              style={{ left: slot.ruleLeft, top: slot.ruleTop }}
+            />
+            <div
+              className="absolute left-[1031px] h-[97px] w-[312px]"
+              style={{ top: slot.cardTop, borderRadius: slot.radius, background: slot.bg }}
+            />
+            {note && created && (
+              <>
+                <span className="absolute left-[1044px]" style={{ top: slot.cardTop + 13 }}>
+                  <DateChip>{dayMonthLong(created)}</DateChip>
+                </span>
+                <span
+                  className="absolute left-[1110px] w-[185px] truncate text-[15px] font-medium text-black"
+                  style={{ top: slot.cardTop + 16 }}
+                >
+                  {heading}
+                </span>
+                <span
+                  className="absolute left-[1301px] flex h-[25px] w-[26px] items-center justify-center rounded-full bg-white"
+                  style={{ top: slot.cardTop + 13 }}
+                >
+                  <MoreVertical className="h-[16px] w-[16px] text-black" strokeWidth={2} />
+                </span>
+              </>
+            )}
+            <p
+              className="absolute left-[1044px] w-[283px] text-[13px] font-normal leading-[20px] text-black"
+              style={{ top: slot.cardTop + 45 }}
+            >
+              {note ? note.body : notesLoading ? "Loading…" : "No notes yet."}
+            </p>
+          </div>
+        );
+      })}
     </>
   );
 }

@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import type { LucideIcon } from "lucide-react";
-import { useCreate, useMe } from "@/api/hooks";
+import { useCreate, useLeaves, useList, useMe, type User } from "@/api/hooks";
 import {
   Search,
   Users,
@@ -12,7 +12,6 @@ import {
   ArrowUp,
   ArrowDown,
   Cake,
-  FileText,
   Plus,
   Waves,
   AlignJustify,
@@ -301,6 +300,12 @@ function Field({
   );
 }
 
+/* Dot palette for the two Upcoming-Events rows (Figma colours, row order). */
+const EVENT_DOTS = [
+  { bg: "#C6A6DF", color: "#6000AA" },
+  { bg: "#DDF7FF", color: "#0F7D9E" },
+];
+
 /* --------------------------------- calendar data --------------------------------- */
 const COLS = [250, 358, 466, 574, 682, 790, 898];
 const ROWS = [479, 577, 675, 773, 871];
@@ -326,11 +331,84 @@ export default function ApplyLeavesPage() {
   const navigate = useNavigate();
   const create = useCreate("leaves");
   const { data: me } = useMe();
+  const { data: leaves, isLoading: leavesLoading } = useLeaves();
+  // /users returns createdAt alongside the typed User fields (see users.routes.ts).
+  const { data: users, isLoading: usersLoading } = useList<User & { createdAt?: string }>("users");
   const today = new Date().toISOString().slice(0, 10);
   const [type, setType] = useState("");
   const [reason, setReason] = useState("");
   const [from, setFrom] = useState(today);
   const [to, setTo] = useState(today);
+
+  /* ---- live derivations (headcount, today's attendance split, on-leave row) ---- */
+  const now = new Date();
+  const nowMs = now.getTime();
+  const userById = new Map((users ?? []).map((u) => [u.id, u]));
+  const active = (leaves ?? []).filter((lv) => lv.status !== "REJECTED");
+  const onLeaveToday = active.filter(
+    (lv) =>
+      new Date(lv.from).setHours(0, 0, 0, 0) <= nowMs &&
+      new Date(lv.to).setHours(23, 59, 59, 999) >= nowMs,
+  );
+  const bucket = (needle: string) =>
+    onLeaveToday.filter((lv) => lv.type.toLowerCase().includes(needle)).length;
+  const headcount = users?.length ?? 0;
+  const wfhCount = bucket("wfh");
+  const halfDayCount = bucket("half");
+  const absentCount = onLeaveToday.length - wfhCount - halfDayCount;
+  const presentCount = Math.max(0, headcount - onLeaveToday.length);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const datePill = `${pad(now.getDate())}/${pad(now.getMonth() + 1)}/${String(now.getFullYear()).slice(2)}`;
+
+  /* ---- leave balance: this user's recorded leaves per type, current year ---- */
+  const myLeaves = active.filter(
+    (lv) => lv.userId === me?.id && new Date(lv.from).getFullYear() === now.getFullYear(),
+  );
+  const myTypeCount = (needle: string) =>
+    myLeaves.filter((lv) => lv.type.toLowerCase().includes(needle)).length;
+  const casualCount = myTypeCount("casual");
+  const sickCount = myTypeCount("sick");
+
+  /* ---- Upcoming events ----
+     There is no date-of-birth column on User, so the honest analogue is each
+     teammate's work anniversary, derived from their User.createdAt join date. */
+  const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  const upcomingEvents = (users ?? [])
+    .flatMap((u) => {
+      if (!u.createdAt) return [];
+      const joined = new Date(u.createdAt);
+      const at = new Date(now.getFullYear(), joined.getMonth(), joined.getDate());
+      if (at.getTime() < midnight) at.setFullYear(now.getFullYear() + 1);
+      return [
+        {
+          id: u.id,
+          name: u.name,
+          initial: u.name.charAt(0) || "?",
+          ms: at.getTime(),
+          date: `${pad(at.getDate())}/${pad(at.getMonth() + 1)}/${at.getFullYear()}`,
+        },
+      ];
+    })
+    .sort((a, b) => a.ms - b.ms)
+    .slice(0, EVENT_DOTS.length);
+
+  /* The "On leave" card is a single-row design (same card as LeavesPage). */
+  const onLeaveRows = active.slice(0, 1).map((lv) => {
+    const u = userById.get(lv.userId);
+    const name = u?.name ?? "";
+    // No manager relation exists; the reporting manager is the MANAGER-role peer on the same team.
+    const manager = (users ?? []).find(
+      (m) => m.role.endsWith("MANAGER") && !!m.team?.id && m.team?.id === u?.team?.id,
+    );
+    return {
+      id: lv.id,
+      name,
+      initial: name.charAt(0) || "?",
+      department: u?.team?.name ?? "",
+      manager: manager?.name ?? "",
+      leaveType: `${lv.type} Leave`,
+    };
+  });
 
   async function handleSubmit() {
     try {
@@ -382,15 +460,15 @@ export default function ApplyLeavesPage() {
           className="absolute flex items-center justify-center rounded-full text-[10px] font-normal text-white"
           style={{ left: 46, top: 17, width: 14, height: 14, background: "#20A271" }}
         >
-          4
+          {headcount}
         </span>
       </div>
 
       {/* ===== top-right stat pills ===== */}
-      <StatPill numX={810} badgeX={871} labelX={855} num="18" badgeBg="#DCFF68" dir="up" icon={Users} label="Present" />
-      <StatPill numX={938} badgeX={999} labelX={983} num="2" badgeBg="#FFB0B1" dir="down" icon={UserX} label="Absent" />
-      <StatPill numX={1066} badgeX={1127} labelX={1111} num="0" badgeBg="#DCFF68" dir="up" icon={House} label="WFH" />
-      <StatPill numX={1194} badgeX={1255} labelX={1239} num="1" badgeBg="#DCFF68" dir="up" badgeText="1" label="Half Day" />
+      <StatPill numX={810} badgeX={871} labelX={855} num={String(presentCount)} badgeBg="#DCFF68" dir="up" icon={Users} label="Present" />
+      <StatPill numX={938} badgeX={999} labelX={983} num={String(absentCount)} badgeBg="#FFB0B1" dir="down" icon={UserX} label="Absent" />
+      <StatPill numX={1066} badgeX={1127} labelX={1111} num={String(wfhCount)} badgeBg="#DCFF68" dir="up" icon={House} label="WFH" />
+      <StatPill numX={1194} badgeX={1255} labelX={1239} num={String(halfDayCount)} badgeBg="#DCFF68" dir="up" badgeText={String(halfDayCount)} label="Half Day" />
 
       {/* ===== date pill ===== */}
       <div className="absolute rounded-[18px] bg-white" style={{ left: 1299, top: 153, width: 90, height: 32 }}>
@@ -401,7 +479,7 @@ export default function ApplyLeavesPage() {
           <Calendar className="h-[14px] w-[14px] text-ink" strokeWidth={1.6} />
         </div>
         <span className="absolute text-[12px] font-light leading-none text-ink/90" style={{ left: 30, top: 10 }}>
-          30/09/25
+          {datePill}
         </span>
       </div>
 
@@ -448,7 +526,7 @@ export default function ApplyLeavesPage() {
           className="absolute flex items-center justify-center rounded-full border"
           style={{ left: 7, top: 10, width: 42, height: 42, borderColor: "#731FB4" }}
         >
-          <span className="text-[14px] font-normal leading-none text-[#6000AA]">02</span>
+          <span className="text-[14px] font-normal leading-none text-[#6000AA]">{pad(casualCount)}</span>
         </div>
         <span className="absolute text-[14px] font-normal leading-none text-ink/90" style={{ left: 54, top: 24 }}>
           Causal Leave
@@ -460,7 +538,7 @@ export default function ApplyLeavesPage() {
           className="absolute flex items-center justify-center rounded-full border"
           style={{ left: 7, top: 10, width: 42, height: 42, borderColor: "#6CA478" }}
         >
-          <span className="text-[14px] font-normal leading-none text-[#6CA478]">01</span>
+          <span className="text-[14px] font-normal leading-none text-[#6CA478]">{pad(sickCount)}</span>
         </div>
         <span className="absolute text-[14px] font-normal leading-none text-ink/90" style={{ left: 54, top: 24 }}>
           Sick Leave
@@ -531,58 +609,63 @@ export default function ApplyLeavesPage() {
         Today
       </Txt>
       <div className="absolute bg-black/10" style={{ left: 1066, top: 272, width: 92, height: 1 }} />
-      <ContentRow x={1025} y={294} w={318}>
-        <span
-          className="absolute flex items-center justify-center rounded-full"
-          style={{ left: 7, top: 10, width: 42, height: 42, background: "#C6A6DF" }}
-        >
-          <span className="text-[14px] font-normal leading-none text-[#6000AA]">T</span>
-        </span>
-        <span className="absolute left-[54px] top-[11px] text-[14px] font-normal leading-none text-ink/90">Tanvi Sharma</span>
-        <span className="absolute left-[156px] top-[13px] text-[10px] font-light leading-none text-ink/70">Operations</span>
-        <span className="absolute left-[54px] top-[30px] w-[77px] text-[10px] font-light leading-[12px] text-ink/70">
-          Rep. Manager: Vishal Sharma
-        </span>
-        <span className="absolute left-[142px] top-[37px] text-[10px] font-light leading-none text-ink/70">Sick Leave</span>
-        <div className="absolute left-[206px] top-[32px] flex h-[23px] w-[87px] items-center justify-center gap-[3px] rounded-[7px] border border-[#D6D6D6] bg-white">
-          <span className="text-[10px] font-light leading-none text-ink/70">Medical..pdf</span>
-          <FileText className="h-[13px] w-[13px] text-ink" strokeWidth={1.4} />
-        </div>
-      </ContentRow>
+      {onLeaveRows.map((row) => (
+        <ContentRow key={row.id} x={1025} y={294} w={318}>
+          <span
+            className="absolute flex items-center justify-center rounded-full"
+            style={{ left: 7, top: 10, width: 42, height: 42, background: "#C6A6DF" }}
+          >
+            <span className="text-[14px] font-normal leading-none text-[#6000AA]">{row.initial}</span>
+          </span>
+          <span className="absolute left-[54px] top-[11px] text-[14px] font-normal leading-none text-ink/90">{row.name}</span>
+          <span className="absolute left-[156px] top-[13px] text-[10px] font-light leading-none text-ink/70">{row.department}</span>
+          {row.manager && (
+            <span className="absolute left-[54px] top-[30px] w-[77px] text-[10px] font-light leading-[12px] text-ink/70">
+              Rep. Manager: {row.manager}
+            </span>
+          )}
+          <span className="absolute left-[142px] top-[37px] text-[10px] font-light leading-none text-ink/70">{row.leaveType}</span>
+          {/* Leave has no attachment column — the document chip is omitted rather than faked. */}
+        </ContentRow>
+      ))}
+      {!leavesLoading && onLeaveRows.length === 0 && (
+        <Txt l={1025} t={294} s={12} lh={24} cls="font-light text-ink/50">
+          No one is on leave
+        </Txt>
+      )}
 
       {/* --- Upcoming Events --- */}
       <SideCard cx={1015} cy={485} px={1025} py={524} title="Upcoming Events" octX={1263} />
-      <ContentRow x={1025} y={540} w={326}>
-        <Cake className="absolute left-[12px] top-[16px] h-[24px] w-[24px] text-[#DD2E44]" strokeWidth={1.3} />
-        <span className="absolute left-[46px] top-[14px] text-[12px] font-light leading-none text-ink/70">Happy birthday</span>
-        <span className="absolute left-[46px] top-[33px] flex h-[16px] w-[16px] items-center justify-center rounded-full bg-[#C6A6DF]">
-          <span className="text-[8px] font-normal leading-none text-[#6000AA]">T</span>
-        </span>
-        <span className="absolute left-[67px] top-[32px] text-[14px] font-normal leading-none text-ink">Tanvi Sharma</span>
-        <Bunting left={142} top={2} />
-        <span className="absolute left-[244px] top-[19px] text-[12px] font-light leading-none text-ink/70">16/09/2025</span>
-      </ContentRow>
-      <ContentRow x={1025} y={614} w={326}>
-        <Cake className="absolute left-[12px] top-[16px] h-[24px] w-[24px] text-[#DD2E44]" strokeWidth={1.3} />
-        <span className="absolute left-[46px] top-[14px] text-[12px] font-light leading-none text-ink/70">Happy birthday</span>
-        <span className="absolute left-[46px] top-[33px] flex h-[16px] w-[16px] items-center justify-center rounded-full bg-[#DDF7FF]">
-          <span className="text-[8px] font-normal leading-none text-[#0F7D9E]">P</span>
-        </span>
-        <span className="absolute left-[67px] top-[32px] text-[14px] font-normal leading-none text-ink">Pooja Sharma</span>
-        <Bunting left={142} top={2} />
-        <span className="absolute left-[244px] top-[19px] text-[12px] font-light leading-none text-ink/70">22/09/2025</span>
-      </ContentRow>
+      {upcomingEvents.map((ev, i) => (
+        <ContentRow key={ev.id} x={1025} y={i === 0 ? 540 : 614} w={326}>
+          <Cake className="absolute left-[12px] top-[16px] h-[24px] w-[24px] text-[#DD2E44]" strokeWidth={1.3} />
+          <span className="absolute left-[46px] top-[14px] text-[12px] font-light leading-none text-ink/70">Work anniversary</span>
+          <span
+            className="absolute left-[46px] top-[33px] flex h-[16px] w-[16px] items-center justify-center rounded-full"
+            style={{ background: EVENT_DOTS[i].bg }}
+          >
+            <span className="text-[8px] font-normal leading-none" style={{ color: EVENT_DOTS[i].color }}>
+              {ev.initial}
+            </span>
+          </span>
+          <span className="absolute left-[67px] top-[32px] text-[14px] font-normal leading-none text-ink">{ev.name}</span>
+          <Bunting left={142} top={2} />
+          <span className="absolute left-[244px] top-[19px] text-[12px] font-light leading-none text-ink/70">{ev.date}</span>
+        </ContentRow>
+      ))}
+      {!usersLoading && upcomingEvents.length === 0 && (
+        <Txt l={1025} t={540} s={12} lh={24} cls="font-light text-ink/50">
+          No upcoming events
+        </Txt>
+      )}
 
       {/* --- Holidays --- */}
       <SideCard cx={1014} cy={750} px={1024} py={789} title="Holidays" octX={1262} />
-      <Txt l={1024} t={790} s={12} lh={16} cls="font-normal text-ink/70">
-        24/09/25
-      </Txt>
       <div className="absolute bg-black/10" style={{ left: 1086, top: 798, width: 92, height: 1 }} />
-      <ContentRow x={1024} y={820} w={318}>
-        <span className="absolute left-[7px] top-[10px] h-[42px] w-[42px] rounded-full" style={{ background: "#88DFA9" }} />
-        <span className="absolute left-[55px] top-[22px] text-[14px] font-normal leading-none text-ink/90">Holiday</span>
-      </ContentRow>
+      {/* No Holiday model exists in the schema, so this card has no record to render. */}
+      <Txt l={1024} t={820} s={12} lh={24} cls="font-light text-ink/50">
+        No holidays scheduled
+      </Txt>
 
       {/* ================= dim scrim + modal ================= */}
       <div className="absolute inset-0 z-50" style={{ background: "rgba(0,0,0,0.5)" }} />
@@ -696,8 +779,8 @@ export default function ApplyLeavesPage() {
         {/* footer */}
         <Info className="absolute h-[16px] w-[16px] text-ink/70" style={{ left: 488, top: 761 }} strokeWidth={1.6} />
         <div className="absolute whitespace-pre text-[14px] font-light text-ink/70" style={{ left: 512, top: 762, lineHeight: "16px" }}>
-          Casual Leaves Left: <span className="font-normal text-ink">2</span>
-          {"           "}Sick Leaves Left: <span className="font-normal text-ink">2</span>
+          Casual Leaves Left: <span className="font-normal text-ink">{casualCount}</span>
+          {"           "}Sick Leaves Left: <span className="font-normal text-ink">{sickCount}</span>
         </div>
       </div>
     </>

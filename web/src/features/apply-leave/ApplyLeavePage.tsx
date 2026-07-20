@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import { useState } from "react";
 import type { LucideIcon } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { useMe, useCreate } from "@/api/hooks";
+import { useMe, useCreate, useLeaves, useUsers } from "@/api/hooks";
 import {
   ArrowUp,
   ArrowDown,
@@ -132,13 +132,13 @@ function ActionPill({
 }
 
 /* --------------------------- panel month pill --------------------------- */
-function MonthPill({ x, y }: { x: number; y: number }) {
+function MonthPill({ x, y, label }: { x: number; y: number; label: string }) {
   return (
     <div
       className="absolute flex items-center gap-[6px] rounded-[28px] px-[12px]"
       style={{ left: x, top: y, width: 101, height: 28, background: "rgba(255,255,255,0.9)" }}
     >
-      <span className="text-[14px] font-light leading-none text-ink/90">October</span>
+      <span className="text-[14px] font-light leading-none text-ink/90">{label}</span>
       <ChevronDown className="h-[11px] w-[11px] text-ink" strokeWidth={1.8} />
     </div>
   );
@@ -147,21 +147,13 @@ function MonthPill({ x, y }: { x: number; y: number }) {
 /* --------------------------------- data --------------------------------- */
 const COLS = [250, 358, 466, 574, 682, 790, 898];
 const ROWS = [479, 577, 675, 773, 871];
-const DAYS: number[][] = [
-  [1, 2, 3, 4, 5, 6, 7],
-  [8, 9, 10, 11, 12, 13, 14],
-  [15, 16, 17, 18, 19, 20, 21],
-  [22, 23, 24, 25, 26, 27, 28],
-  [29, 30, 31, 1, 2, 3, 4],
+/** Chip palette for per-day leave markers (colour only — the letter is live). */
+const CHIP_COLORS = [
+  { bg: "#C6A6DF", color: "#6000AA" },
+  { bg: "#C4F1D2", color: "#007726" },
+  { bg: "#FFE3CF", color: "#DB6714" },
+  { bg: "#D4CFFF", color: "#1A0C9A" },
 ];
-
-function Cake({ x, y }: { x: number; y: number }) {
-  return (
-    <div className="absolute flex items-center justify-center text-[13px] leading-none" style={{ left: x, top: y, width: 16, height: 16 }}>
-      🎂
-    </div>
-  );
-}
 
 function DayChip({ x, y, bg, letter, color }: { x: number; y: number; bg: string; letter: string; color: string }) {
   return (
@@ -226,6 +218,8 @@ function Field({
 export default function ApplyLeavePage() {
   const navigate = useNavigate();
   const { data: me } = useMe();
+  const { data: leaves = [] } = useLeaves();
+  const { data: users = [] } = useUsers();
   const create = useCreate("leaves");
   const [selectedType, setSelectedType] = useState("");
   const [reason, setReason] = useState("");
@@ -234,6 +228,64 @@ export default function ApplyLeavePage() {
   const today = new Date();
   const fromISO = today.toISOString();
   const toISO = new Date(today.getTime() + 86_400_000).toISOString();
+
+  /* ---- live derivations (no literals restated) ---- */
+  const dayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime();
+  const dayEnd = dayStart + 86_400_000;
+  const activeLeaves = leaves.filter((l) => l.status !== "REJECTED");
+  const todayLeaves = activeLeaves.filter(
+    (l) => new Date(l.from).getTime() < dayEnd && new Date(l.to).getTime() >= dayStart,
+  );
+  const wfhCount = todayLeaves.filter((l) => /wfh|home/i.test(l.type)).length;
+  const halfDayCount = todayLeaves.filter((l) => /half/i.test(l.type)).length;
+  const absentCount = Math.max(todayLeaves.length - wfhCount - halfDayCount, 0);
+  const presentCount = Math.max(users.length - absentCount, 0);
+
+  const userById = new Map(users.map((u) => [u.id, u]));
+  const onLeaveCards = (
+    todayLeaves.length
+      ? todayLeaves
+      : [...activeLeaves].sort((a, b) => +new Date(b.from) - +new Date(a.from))
+  ).slice(0, 2);
+
+  const myLeaves = me?.id ? leaves.filter((l) => l.userId === me.id) : [];
+  const casualTaken = myLeaves.filter((l) => /ca(su|us)al/i.test(l.type)).length;
+  const sickTaken = myLeaves.filter((l) => /sick/i.test(l.type)).length;
+
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const dmy = (d: Date) => `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${String(d.getFullYear()).slice(2)}`;
+
+  /* ---- live calendar scaffold for the real current month ---- */
+  const year = today.getFullYear();
+  const month = today.getMonth();
+  const monthLabel = today.toLocaleString("en-US", { month: "long" });
+  const firstDow = (new Date(year, month, 1).getDay() + 6) % 7; // Monday-first
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const daysInPrev = new Date(year, month, 0).getDate();
+  const cells = Array.from({ length: ROWS.length * COLS.length }, (_, i) => {
+    const n = i - firstDow + 1;
+    const inMonth = n >= 1 && n <= daysInMonth;
+    return {
+      label: inMonth ? n : n < 1 ? daysInPrev + n : n - daysInMonth,
+      inMonth,
+      isToday: inMonth && n === today.getDate(),
+      start: inMonth ? new Date(year, month, n).getTime() : 0,
+    };
+  });
+  /** People on leave per in-month day, keyed by day number — real Leave records. */
+  const chipsByDay = new Map<number, { id: string; letter: string }[]>();
+  for (const lv of activeLeaves) {
+    const from = new Date(lv.from);
+    const to = new Date(lv.to);
+    const letter = (userById.get(lv.userId)?.name ?? "?").charAt(0).toUpperCase();
+    for (const cell of cells) {
+      if (!cell.inMonth) continue;
+      if (from.getTime() >= cell.start + 86_400_000 || to.getTime() < cell.start) continue;
+      const list = chipsByDay.get(cell.label) ?? [];
+      if (list.length < 2) list.push({ id: lv.id, letter });
+      chipsByDay.set(cell.label, list);
+    }
+  }
 
   async function handleSubmit() {
     if (!me?.id) return;
@@ -285,15 +337,15 @@ export default function ApplyLeavePage() {
           className="absolute flex items-center justify-center rounded-full text-[10px] font-normal text-white"
           style={{ left: 46, top: 17, width: 14, height: 14, background: "#20A271" }}
         >
-          4
+          {users.length}
         </span>
       </div>
 
       {/* ===== top-right stat pills ===== */}
-      <StatPill numX={810} badgeX={871} labelX={855} num="18" badgeBg="#DCFF68" dir="up" icon={Users} label="Present" />
-      <StatPill numX={938} badgeX={999} labelX={983} num="2" badgeBg="#FFB0B1" dir="down" icon={UserX} label="Absent" />
-      <StatPill numX={1066} badgeX={1127} labelX={1111} num="0" badgeBg="#DCFF68" dir="up" icon={House} label="WFH" />
-      <StatPill numX={1194} badgeX={1255} labelX={1239} num="1" badgeBg="#DCFF68" dir="up" badgeText="1" label="Half Day" />
+      <StatPill numX={810} badgeX={871} labelX={855} num={String(presentCount)} badgeBg="#DCFF68" dir="up" icon={Users} label="Present" />
+      <StatPill numX={938} badgeX={999} labelX={983} num={String(absentCount)} badgeBg="#FFB0B1" dir="down" icon={UserX} label="Absent" />
+      <StatPill numX={1066} badgeX={1127} labelX={1111} num={String(wfhCount)} badgeBg="#DCFF68" dir="up" icon={House} label="WFH" />
+      <StatPill numX={1194} badgeX={1255} labelX={1239} num={String(halfDayCount)} badgeBg="#DCFF68" dir="up" badgeText={String(halfDayCount)} label="Half Day" />
 
       {/* ===== date pill ===== */}
       <div className="absolute rounded-[18px] bg-white" style={{ left: 1299, top: 153, width: 90, height: 32 }}>
@@ -304,7 +356,7 @@ export default function ApplyLeavePage() {
           <Calendar className="h-[14px] w-[14px] text-ink" strokeWidth={1.6} />
         </div>
         <span className="absolute text-[12px] font-light leading-none text-ink/90" style={{ left: 30, top: 10 }}>
-          30/09/25
+          {dmy(today)}
         </span>
       </div>
 
@@ -354,7 +406,7 @@ export default function ApplyLeavePage() {
       </ActionPill>
       <ActionPill x={890} w={108} bg="rgba(255,255,255,0.9)" radius={28}>
         <span className="absolute text-[14px] font-light leading-none text-ink/90" style={{ left: 14, top: 15 }}>
-          October
+          {monthLabel}
         </span>
         <ChevronDown className="absolute h-[11px] w-[12px] text-ink" style={{ left: 68, top: 17 }} strokeWidth={1.8} />
         <Plus className="absolute h-[10px] w-[10px] text-ink" style={{ left: 84, top: 17.5 }} strokeWidth={1.8} />
@@ -370,7 +422,7 @@ export default function ApplyLeavePage() {
           className="absolute flex items-center justify-center rounded-full"
           style={{ left: 7, top: 10, width: 42, height: 42, background: "#C6A6DF" }}
         >
-          <span className="text-[14px] font-normal leading-none text-[#6000AA]">02</span>
+          <span className="text-[14px] font-normal leading-none text-[#6000AA]">{pad(casualTaken)}</span>
         </div>
         <span className="absolute text-[14px] font-normal leading-none text-ink/90" style={{ left: 54, top: 24 }}>
           Causal Leave
@@ -382,7 +434,7 @@ export default function ApplyLeavePage() {
           className="absolute flex items-center justify-center rounded-full"
           style={{ left: 7, top: 10, width: 42, height: 42, background: "#C6A6DF" }}
         >
-          <span className="text-[14px] font-normal leading-none text-[#6CA478]">01</span>
+          <span className="text-[14px] font-normal leading-none text-[#6CA478]">{pad(sickTaken)}</span>
         </div>
         <span className="absolute text-[14px] font-normal leading-none text-ink/90" style={{ left: 54, top: 24 }}>
           Sick Leave
@@ -402,8 +454,9 @@ export default function ApplyLeavePage() {
       {ROWS.map((ry, r) =>
         COLS.map((cx, c) => {
           const isSun = c === 6;
-          const day = DAYS[r][c];
-          const isDay4 = r === 0 && c === 3;
+          const cell = cells[r * COLS.length + c];
+          const marked = cell.isToday;
+          const chips = cell.inMonth ? chipsByDay.get(cell.label) ?? [] : [];
           return (
             <div key={`${r}-${c}`}>
               <div
@@ -417,37 +470,36 @@ export default function ApplyLeavePage() {
                   background: isSun ? "transparent" : "#FFFFFF",
                 }}
               />
-              {isDay4 && (
+              {marked && (
                 <div
                   className="absolute"
                   style={{ left: cx + 5, top: ry + 6, width: 42, height: 44, borderRadius: 22, background: "#D4EBF9" }}
                 />
               )}
               <div
-                className="absolute text-[20px] font-normal text-ink"
-                style={{ left: cx + (isDay4 ? 18 : 15), top: ry + 16, lineHeight: "24px" }}
+                className={`absolute text-[20px] font-normal ${cell.inMonth ? "text-ink" : "text-ink/35"}`}
+                style={{ left: cx + (marked ? 18 : 15), top: ry + 16, lineHeight: "24px" }}
               >
-                {day}
+                {cell.label}
               </div>
+              {/* per-day leave markers — initials of real users on leave that day */}
+              {chips.map((chip, ci) => {
+                const tone = CHIP_COLORS[(cell.label + ci) % CHIP_COLORS.length];
+                return (
+                  <DayChip
+                    key={chip.id}
+                    x={cx + 15 + ci * 26}
+                    y={ry + 56}
+                    bg={tone.bg}
+                    letter={chip.letter}
+                    color={tone.color}
+                  />
+                );
+              })}
             </div>
           );
         }),
       )}
-      {/* grid decorations */}
-      <DayChip x={640} y={535} bg="#C6A6DF" letter="T" color="#6000AA" />
-      <DayChip x={750} y={637} bg="#C4F1D2" letter="S" color="#007726" />
-      <Cake x={430} y={691} />
-      <Cake x={322} y={789} />
-      {/* Holiday pill on day 24 */}
-      <div
-        className="absolute flex items-center gap-[3px] rounded-full bg-white pl-[5px]"
-        style={{ left: 478, top: 818, width: 76, height: 26 }}
-      >
-        <span className="h-[8px] w-[8px] rounded-full" style={{ background: "#88DFA9" }} />
-        <span className="text-[10px] font-normal leading-none text-ink/80">Holiday</span>
-      </div>
-      <DayChip x={624} y={830} bg="#FFE3CF" letter="P" color="#DB6714" />
-      <DayChip x={640} y={830} bg="#D4CFFF" letter="K" color="#1A0C9A" />
 
       {/* ================= right panels ================= */}
       {/* --- On leave --- */}
@@ -456,30 +508,53 @@ export default function ApplyLeavePage() {
         style={{ left: 1015, top: 223, width: 352, height: 241, background: "rgba(255,255,255,0.55)" }}
       />
       <Txt l={1025} t={231} s={12} lh={24} cls="font-normal text-ink">On leave</Txt>
-      <MonthPill x={1263} y={223} />
+      <MonthPill x={1263} y={223} label={monthLabel} />
       <div className="absolute rounded-[12px] bg-white" style={{ left: 1025, top: 262, width: 327, height: 188 }} />
       {/* Today divider */}
       <Txt l={1025} t={262} s={12} lh={16} cls="font-normal text-ink/70">Today</Txt>
       <div className="absolute bg-black/10" style={{ left: 1066, top: 271, width: 92, height: 1 }} />
-      {/* Tanvi Sharma leave card */}
-      <div className="absolute rounded-[32px] bg-white" style={{ left: 1025, top: 293, width: 318, height: 62 }} />
-      <div
-        className="absolute flex items-center justify-center rounded-full"
-        style={{ left: 1032, top: 303, width: 42, height: 42, background: "#C6A6DF" }}
-      >
-        <span className="text-[14px] font-normal leading-none text-[#6000AA]">T</span>
-      </div>
-      <Txt l={1079} t={304} s={14} lh={18} cls="font-normal text-ink/90">Tanvi Sharma</Txt>
-      <Txt l={1181} t={306} s={10} lh={13} cls="font-light text-ink/70">Operations</Txt>
-      <Txt l={1079} t={325} s={10} lh={12} cls="font-light text-ink/70">Rep. Manager: Vishal Sharma</Txt>
-      <Txt l={1167} t={331} s={10} lh={13} cls="font-light text-ink/70">Sick Leave</Txt>
-      <div
-        className="absolute flex items-center gap-[4px] rounded-[7px] bg-white pl-[6px]"
-        style={{ left: 1231, top: 325, width: 87, height: 23 }}
-      >
-        <span className="text-[10px] leading-none text-red-600">📄</span>
-        <span className="text-[10px] font-light leading-none text-ink/70">Medical..pdf</span>
-      </div>
+      {/* leave cards — live */}
+      {onLeaveCards.length === 0 ? (
+        <Txt l={1079} t={315} s={12} lh={16} cls="font-light text-ink/50">
+          No one is on leave
+        </Txt>
+      ) : (
+        onLeaveCards.map((lv, i) => {
+          const u = userById.get(lv.userId);
+          const name = u?.name ?? "Unknown";
+          const T = 293 + i * 74;
+          return (
+            <div key={lv.id}>
+              <div className="absolute rounded-[32px] bg-white" style={{ left: 1025, top: T, width: 318, height: 62 }} />
+              <div
+                className="absolute flex items-center justify-center rounded-full"
+                style={{ left: 1032, top: T + 10, width: 42, height: 42, background: "#C6A6DF" }}
+              >
+                <span className="text-[14px] font-normal leading-none text-[#6000AA]">
+                  {name.charAt(0).toUpperCase()}
+                </span>
+              </div>
+              <Txt l={1079} t={T + 11} s={14} lh={18} cls="font-normal text-ink/90">{name}</Txt>
+              {u?.team?.name ? (
+                <Txt l={1181} t={T + 13} s={10} lh={13} cls="font-light text-ink/70">{u.team.name}</Txt>
+              ) : null}
+              <Txt l={1079} t={T + 32} s={10} lh={12} cls="font-light text-ink/70">
+                {`${dmy(new Date(lv.from))} – ${dmy(new Date(lv.to))}`}
+              </Txt>
+              <Txt l={1167} t={T + 38} s={10} lh={13} cls="font-light text-ink/70">{lv.type}</Txt>
+              {lv.reason ? (
+                <div
+                  className="absolute flex items-center gap-[4px] overflow-hidden rounded-[7px] bg-white pl-[6px]"
+                  style={{ left: 1231, top: T + 32, width: 87, height: 23 }}
+                >
+                  <span className="shrink-0 text-[10px] leading-none text-red-600">📄</span>
+                  <span className="min-w-0 truncate pr-[6px] text-[10px] font-light leading-none text-ink/70">{lv.reason}</span>
+                </div>
+              ) : null}
+            </div>
+          );
+        })
+      )}
 
       {/* --- Upcoming Events --- */}
       <div
@@ -487,32 +562,12 @@ export default function ApplyLeavePage() {
         style={{ left: 1015, top: 476, width: 352, height: 241, background: "rgba(255,255,255,0.55)" }}
       />
       <Txt l={1025} t={484} s={12} lh={24} cls="font-normal text-ink">Upcoming Events</Txt>
-      <MonthPill x={1263} y={476} />
+      <MonthPill x={1263} y={476} label={monthLabel} />
       <div className="absolute rounded-[12px] bg-white" style={{ left: 1025, top: 515, width: 327, height: 188 }} />
-      {/* birthday card 1 */}
-      <div className="absolute rounded-[32px] bg-white" style={{ left: 1025, top: 531, width: 326, height: 62 }} />
-      <div className="absolute flex items-center justify-center text-[20px] leading-none" style={{ left: 1037, top: 550, width: 24, height: 24 }}>🎂</div>
-      <Txt l={1071} t={545} s={12} lh={16} cls="font-light text-ink/70">Happy birthday</Txt>
-      <div
-        className="absolute flex items-center justify-center rounded-full"
-        style={{ left: 1071, top: 563, width: 16, height: 16, background: "#C6A6DF" }}
-      >
-        <span className="text-[8px] font-normal leading-none text-[#6000AA]">T</span>
-      </div>
-      <Txt l={1092} t={563} s={14} lh={16} cls="font-normal text-ink">Tanvi Sharma</Txt>
-      <Txt l={1269} t={550} s={12} lh={16} cls="font-light text-ink/70">16/09/2025</Txt>
-      {/* birthday card 2 */}
-      <div className="absolute rounded-[32px] bg-white" style={{ left: 1025, top: 605, width: 326, height: 62 }} />
-      <div className="absolute flex items-center justify-center text-[20px] leading-none" style={{ left: 1037, top: 624, width: 24, height: 24 }}>🎂</div>
-      <Txt l={1071} t={619} s={12} lh={16} cls="font-light text-ink/70">Happy birthday</Txt>
-      <div
-        className="absolute flex items-center justify-center rounded-full"
-        style={{ left: 1071, top: 637, width: 16, height: 16, background: "#DDF7FF" }}
-      >
-        <span className="text-[8px] font-normal leading-none text-[#0F7D9E]">P</span>
-      </div>
-      <Txt l={1092} t={637} s={14} lh={16} cls="font-normal text-ink">Pooja Sharma</Txt>
-      <Txt l={1269} t={624} s={12} lh={16} cls="font-light text-ink/70">22/09/2025</Txt>
+      {/* No birthday/event source exists in the schema — empty state, never invented people. */}
+      <Txt l={1071} t={568} s={12} lh={16} cls="font-light text-ink/50">
+        No upcoming events
+      </Txt>
 
       {/* --- Holidays --- */}
       <div
@@ -520,13 +575,12 @@ export default function ApplyLeavePage() {
         style={{ left: 1014, top: 731, width: 352, height: 241, background: "rgba(255,255,255,0.55)" }}
       />
       <Txt l={1024} t={739} s={12} lh={24} cls="font-normal text-ink">Holidays</Txt>
-      <MonthPill x={1262} y={731} />
+      <MonthPill x={1262} y={731} label={monthLabel} />
       <div className="absolute rounded-[12px] bg-white" style={{ left: 1024, top: 770, width: 327, height: 188 }} />
-      <Txt l={1024} t={770} s={12} lh={16} cls="font-normal text-ink/70">24/09/25</Txt>
-      <div className="absolute bg-black/10" style={{ left: 1086, top: 779, width: 92, height: 1 }} />
-      <div className="absolute rounded-[32px] bg-white" style={{ left: 1024, top: 801, width: 318, height: 62 }} />
-      <div className="absolute rounded-full" style={{ left: 1031, top: 811, width: 42, height: 42, background: "#88DFA9" }} />
-      <Txt l={1079} t={823} s={14} lh={24} cls="font-normal text-ink/90">Holiday</Txt>
+      {/* No Holiday model exists in the schema — empty state, never a fabricated date row. */}
+      <Txt l={1078} t={823} s={12} lh={16} cls="font-light text-ink/50">
+        No holidays this month
+      </Txt>
 
       {/* ================= dim scrim + modal ================= */}
       <div className="absolute inset-0 z-50" style={{ background: "rgba(0,0,0,0.5)" }} />
@@ -649,8 +703,10 @@ export default function ApplyLeavePage() {
         {/* footer */}
         <Info className="absolute h-[16px] w-[16px] text-ink/70" style={{ left: 488, top: 761 }} strokeWidth={1.6} />
         <div className="absolute whitespace-pre text-[14px] font-light text-ink/70" style={{ left: 512, top: 762, lineHeight: "16px" }}>
-          Casual Leaves Left: <span className="font-normal text-ink">2</span>
-          {"           "}Sick Leaves Left: <span className="font-normal text-ink">2</span>
+          {/* No per-user leave quota exists in the schema, so "remaining" is not
+              computable — show what IS real: leaves taken, counted from my records. */}
+          Casual Leaves Taken: <span className="font-normal text-ink">{casualTaken}</span>
+          {"           "}Sick Leaves Taken: <span className="font-normal text-ink">{sickTaken}</span>
         </div>
       </div>
     </>

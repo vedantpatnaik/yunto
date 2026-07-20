@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { useCreators } from "@/api/hooks";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import { useCreators, useLeaves, useMe, useUpdate, useUsers } from "@/api/hooks";
+import type { User } from "@/api/hooks";
 import type { ReactNode, CSSProperties } from "react";
 import type { LucideIcon } from "lucide-react";
 import {
@@ -48,11 +49,36 @@ const GRADS = [
   "linear-gradient(135deg,#BBF7D0,#86EFAC)",
 ];
 
+/* Fixed visual slots (position + avatar palette) for the four member cards the
+   design renders. Live users are poured into these slots in order, so the
+   layout stays pixel-identical however many members come back. */
+const MEMBER_SLOTS = [
+  { x: 285, y: 569, w: 318, avatarBg: "#FFD9E2", initialColor: "#BE2146" },
+  { x: 290, y: 666, w: 310, avatarBg: "#E5DFFF", initialColor: "#3F19E2" },
+  { x: 289, y: 764, w: 318, avatarBg: "#FFE2DD", initialColor: "#BE3A19" },
+  { x: 287, y: 828, w: 318, avatarBg: "#FFD3F4", initialColor: "#AA0069" },
+] as const;
+
+/* Display labels for the Prisma Role enum. */
+const ROLE_LABEL: Record<string, string> = {
+  SUPER_ADMIN: "Super Admin",
+  SALES_MANAGER: "Manager",
+  SALES_EMPLOYEE: "Employee",
+  OPS_MANAGER: "Manager",
+  OPS_EMPLOYEE: "Employee",
+};
+
 /* --------------------------- format helpers ---------------------------- */
 function compact(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1).replace(/\.0$/, "")}M`;
   if (n >= 1_000) return `${Math.round(n / 1_000)}k`;
   return String(n);
+}
+
+/** dd/mm/yy, matching the design's date pill format. */
+function shortDate(d: Date): string {
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${p(d.getDate())}/${p(d.getMonth() + 1)}/${String(d.getFullYear()).slice(-2)}`;
 }
 
 /* ------------------------------ primitives ----------------------------- */
@@ -83,11 +109,11 @@ function CreatorRow({ x, y, w, c, control, onClick }: { x: number; y: number; w:
   );
 }
 
-function MemberRow({ x, y, w, avatarBg, initial, initialColor, name, creators }: {
-  x: number; y: number; w: number; avatarBg: string; initial: string; initialColor: string; name: string; creators: string;
+function MemberRow({ x, y, w, avatarBg, initial, initialColor, name, sub, onClick }: {
+  x: number; y: number; w: number; avatarBg: string; initial: string; initialColor: string; name: string; sub: string; onClick?: () => void;
 }) {
   return (
-    <div className="absolute rounded-[30px] border border-[#D6D6D6] bg-white" style={{ left: x, top: y, width: w, height: 53 }}>
+    <div onClick={onClick} className={`absolute rounded-[30px] border border-[#D6D6D6] bg-white${onClick ? " cursor-pointer" : ""}`} style={{ left: x, top: y, width: w, height: 53 }}>
       <span className="absolute flex items-center justify-center rounded-full border" style={{ left: 5, top: 5, width: 42, height: 42, background: avatarBg, borderColor: "#4CCC16" }}>
         <span className="text-[14px] leading-none" style={{ color: initialColor }}>{initial}</span>
       </span>
@@ -95,7 +121,7 @@ function MemberRow({ x, y, w, avatarBg, initial, initialColor, name, creators }:
         <span className="text-[14px] leading-none text-ink/90">{name}</span>
         <span className="flex h-[15px] items-center rounded-[24px] bg-white px-[6px] font-inter text-[8px] font-medium leading-none text-[#4CCC16]">Active</span>
       </div>
-      <span className="absolute text-[10px] font-light leading-none text-ink/70" style={{ left: 50, top: 31 }}>{creators}</span>
+      <span className="absolute text-[10px] font-light leading-none text-ink/70" style={{ left: 50, top: 31 }}>{sub}</span>
     </div>
   );
 }
@@ -169,36 +195,76 @@ const profileGrad: CSSProperties = {
 /* -------------------------------- page --------------------------------- */
 export default function AssignCreatorsPage() {
   const navigate = useNavigate();
-  const { data } = useCreators();
-  // Live creators, sliced to the four cards the design renders.
-  const creators = useMemo<CreatorVM[]>(
-    () =>
-      (data ?? []).slice(0, 4).map((cr, i) => ({
-        id: cr.id,
-        name: cr.name,
-        handle: cr.handle,
-        followers: compact(cr.followers),
-        location: cr.location ?? "",
-        stars: `${cr.stars.toFixed(1)} stars`,
-        grad: GRADS[i % GRADS.length],
-      })),
-    [data],
-  );
+  const [params, setParams] = useSearchParams();
+  const { data: creatorData, isLoading: creatorsLoading } = useCreators();
+  const { data: userData } = useUsers();
+  const { data: leaveData } = useLeaves();
+  // agencyCode lives on the Prisma User model but is omitted from the /users
+  // select, so it only reaches the client via /auth/me — same cast pattern the
+  // Settings / Revenue / Creator-detail screens use for this exact field.
+  const me = useMe().data as (User & { agencyCode?: string | null }) | undefined;
+  const updateCreator = useUpdate("creators");
 
-  const [selected, setSelected] = useState<Set<number>>(() => new Set([0]));
-  const [removed, setRemoved] = useState<Set<string>>(() => new Set());
-  const assigned = creators.filter((c) => !removed.has(c.id));
-  const allSelected = creators.length > 0 && creators.every((_, i) => selected.has(i));
-  const toggleSelected = (i: number) =>
+  const all = useMemo(() => creatorData ?? [], [creatorData]);
+  // A creator "belongs" to a roster once it has an agency; the rest are the
+  // unassigned pool. Both columns render the four cards the design draws.
+  const toVM = (cr: (typeof all)[number], i: number): CreatorVM => ({
+    id: cr.id,
+    name: cr.name,
+    handle: cr.handle,
+    followers: compact(cr.followers),
+    location: cr.location ?? "",
+    stars: `${cr.stars.toFixed(1)} stars`,
+    grad: GRADS[i % GRADS.length],
+  });
+  const unassignedAll = all.filter((c) => !c.agencyId);
+  const assignedAll = all.filter((c) => !!c.agencyId);
+  const unassigned = unassignedAll.slice(0, 4).map(toVM);
+  const assigned = assignedAll.slice(0, 4).map(toVM);
+  const pendingApproval = all.filter((c) => !c.listed).length;
+
+  // Team members — the card is the Operations team; slots are filled manager-first.
+  const users = userData ?? [];
+  const ops = users.filter((u) => u.team?.kind === "OPERATIONS");
+  const opsSorted = [...ops].sort(
+    (a, b) => (a.role.includes("MANAGER") ? 0 : 1) - (b.role.includes("MANAGER") ? 0 : 1),
+  );
+  const managerCount = ops.filter((u) => u.role.includes("MANAGER")).length;
+  const restCount = ops.length - managerCount;
+  const leadCount = Math.min(restCount, 1);
+  const employeeCount = Math.max(restCount - leadCount, 0);
+
+  // The profile panel shows one member: ?id=… falling back to the first one.
+  const member = opsSorted.find((u) => u.id === params.get("id")) ?? opsSorted[0];
+  const memberRole = member
+    ? [member.team?.name, ROLE_LABEL[member.role] ?? member.role].filter(Boolean).join(" | ")
+    : "";
+
+  // Attendance — approved leaves overlapping today, split by leave type.
+  const today = shortDate(new Date());
+  const todayKey = new Date().toISOString().slice(0, 10);
+  const onLeave = (leaveData ?? []).filter(
+    (l) => l.status === "APPROVED" && l.from.slice(0, 10) <= todayKey && l.to.slice(0, 10) >= todayKey,
+  );
+  const wfh = onLeave.filter((l) => /wfh|home/i.test(l.type)).length;
+  const halfDay = onLeave.filter((l) => /half/i.test(l.type)).length;
+  const absent = onLeave.length - wfh - halfDay;
+  const present = Math.max(users.length - absent - wfh - halfDay, 0);
+
+  const [selected, setSelected] = useState<Set<string>>(() => new Set());
+  const allSelected = unassigned.length > 0 && unassigned.every((c) => selected.has(c.id));
+  const toggleSelected = (id: string) =>
     setSelected((s) => {
       const next = new Set(s);
-      if (next.has(i)) next.delete(i);
-      else next.add(i);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
       return next;
     });
   const toggleSelectAll = () =>
-    setSelected(allSelected ? new Set<number>() : new Set(creators.map((_, i) => i)));
-  const removeAssigned = (id: string) => setRemoved((r) => new Set(r).add(id));
+    setSelected(allSelected ? new Set<string>() : new Set(unassigned.map((c) => c.id)));
+  /* Un-assigning persists: clearing the agency moves the creator back into the
+     unassigned pool, so both columns and every count update from the server. */
+  const removeAssigned = (id: string) => updateCreator.mutate({ id, data: { agencyId: null } });
 
   return (
     <>
@@ -216,21 +282,21 @@ export default function AssignCreatorsPage() {
       {/* People-count button */}
       <div onClick={() => navigate("/people")} className="absolute left-[552px] top-[150px] h-[48px] w-[72px] cursor-pointer rounded-[24px] border border-[#CCCCCC] bg-white">
         <Users className="absolute h-[18px] w-[24px] text-ink" style={{ left: 12, top: 15 }} strokeWidth={1.6} />
-        <span className="absolute flex items-center justify-center rounded-full bg-[#20A271] text-[8px] leading-none text-white" style={{ left: 46, top: 17, width: 14, height: 14 }}>4</span>
+        <span className="absolute flex items-center justify-center rounded-full bg-[#20A271] text-[8px] leading-none text-white" style={{ left: 46, top: 17, width: 14, height: 14 }}>{users.length}</span>
       </div>
 
       {/* Attendance stats */}
-      <AttendanceStat x={810} value="18" badgeColor="#DCFF68" label="Present" glyph={<Users className="h-[11px] w-[11px] text-ink" strokeWidth={1.6} />} />
-      <AttendanceStat x={938} value="2" badgeColor="#FFB0B1" label="Absent" glyph={<UserX className="h-[11px] w-[11px] text-ink" strokeWidth={1.6} />} />
-      <AttendanceStat x={1066} value="0" badgeColor="#DCFF68" label="WFH" glyph={<House className="h-[11px] w-[11px] text-ink" strokeWidth={1.6} />} />
-      <AttendanceStat x={1194} value="1" badgeColor="#DCFF68" label="Half Day" glyph={<span className="text-[10px] leading-none text-ink">1</span>} />
+      <AttendanceStat x={810} value={String(present)} badgeColor="#DCFF68" label="Present" glyph={<Users className="h-[11px] w-[11px] text-ink" strokeWidth={1.6} />} />
+      <AttendanceStat x={938} value={String(absent)} badgeColor="#FFB0B1" label="Absent" glyph={<UserX className="h-[11px] w-[11px] text-ink" strokeWidth={1.6} />} />
+      <AttendanceStat x={1066} value={String(wfh)} badgeColor="#DCFF68" label="WFH" glyph={<House className="h-[11px] w-[11px] text-ink" strokeWidth={1.6} />} />
+      <AttendanceStat x={1194} value={String(halfDay)} badgeColor="#DCFF68" label="Half Day" glyph={<span className="text-[10px] leading-none text-ink">1</span>} />
 
       {/* Date pill */}
       <div onClick={() => navigate("/calendar")} className="absolute left-[1299px] top-[151px] h-[32px] w-[90px] cursor-pointer rounded-[18px] bg-white">
         <span className="absolute flex items-center justify-center rounded-full bg-[#F1F1F1]" style={{ left: 3, top: 4, width: 24, height: 24 }}>
           <Calendar className="h-[14px] w-[14px] text-ink" strokeWidth={1.6} />
         </span>
-        <span className="absolute left-[30px] top-[9px] text-[12px] font-light leading-none text-ink/90">30/09/25</span>
+        <span className="absolute left-[30px] top-[9px] text-[12px] font-light leading-none text-ink/90">{today}</span>
       </div>
 
       {/* ---------------- Outer / panel backgrounds ---------------- */}
@@ -246,10 +312,10 @@ export default function AssignCreatorsPage() {
       <Tab x={486} w={156} icon={AlignJustify} label="Assign Creators" active onClick={() => navigate("/people/assign-creators")} />
 
       {/* Stat cards */}
-      <StatCard x={259} w={161} label="Total Creators" value="90" />
-      <StatCard x={438} w={161} label="Assigned Creators" value="70" />
-      <StatCard x={617} w={161} label="Unassigned Creators" value="20" />
-      <StatCard x={796} w={175} label="Pending Approval" value="5" />
+      <StatCard x={259} w={161} label="Total Creators" value={String(all.length)} />
+      <StatCard x={438} w={161} label="Assigned Creators" value={String(assignedAll.length)} />
+      <StatCard x={617} w={161} label="Unassigned Creators" value={String(unassignedAll.length)} />
+      <StatCard x={796} w={175} label="Pending Approval" value={String(pendingApproval)} />
 
       {/* Teams & Roles header */}
       <span className="absolute left-[271px] top-[428px] text-[12px] leading-none text-ink">Teams &amp; Roles</span>
@@ -261,32 +327,48 @@ export default function AssignCreatorsPage() {
       <span className="absolute flex items-center justify-center rounded-full" style={{ left: 286, top: 474, width: 34, height: 34, background: "#ECC5F5" }}>
         <Users className="h-[18px] w-[18px] text-ink" strokeWidth={1.6} />
       </span>
-      <span className="absolute left-[325px] top-[478px] text-[20px] leading-none text-ink/90">Operations</span>
+      <span className="absolute left-[325px] top-[478px] text-[20px] leading-none text-ink/90">{opsSorted[0]?.team?.name ?? ""}</span>
       <div className="absolute left-[325px] top-[500px] flex items-center gap-[4px]">
         <Users className="h-[11px] w-[11px]" style={{ color: "#B56CC5" }} strokeWidth={1.8} />
-        <span className="text-[10px] font-light leading-none text-ink/70">12 Members</span>
+        <span className="text-[10px] font-light leading-none text-ink/70">{ops.length} Members</span>
       </div>
-      <DotPill x={453} y={476} w={113} text="15 Assigned Creators" textColor="#222222" />
+      <DotPill x={453} y={476} w={113} text={`${assignedAll.length} Assigned Creators`} textColor="#222222" />
       <span onClick={() => navigate("/people")} className="absolute flex cursor-pointer items-center justify-center rounded-full border border-[#D6D6D6] bg-white" style={{ left: 584, top: 466, width: 23, height: 23 }}>
         <ArrowUpRight className="h-[13px] w-[13px] text-ink" strokeWidth={1.8} />
       </span>
 
       {/* Manager section */}
-      <SectionHeader labelX={286} y={535} label="Manager" badgeX={391} count="1" divX={423} divW={146} chevX={578} />
-      <MemberRow x={285} y={569} w={318} avatarBg="#FFD9E2" initial="R" initialColor="#BE2146" name="Ronak" creators="7 Creators" />
+      <SectionHeader labelX={286} y={535} label="Manager" badgeX={391} count={String(managerCount)} divX={423} divW={146} chevX={578} />
 
       {/* Team Lead section */}
-      <SectionHeader labelX={320} y={632} label="Team Lead" badgeX={425} count="1" divX={457} divW={114} chevX={580} />
-      <MemberRow x={290} y={666} w={310} avatarBg="#E5DFFF" initial="N" initialColor="#3F19E2" name="Neeraj" creators="3 Creators" />
+      <SectionHeader labelX={320} y={632} label="Team Lead" badgeX={425} count={String(leadCount)} divX={457} divW={114} chevX={580} />
 
       {/* Employees section */}
-      <SectionHeader labelX={319} y={730} label="Employees" badgeX={424} count="10" divX={456} divW={114} chevX={579} />
-      <MemberRow x={289} y={764} w={318} avatarBg="#FFE2DD" initial="N" initialColor="#BE3A19" name="Neha" creators="2 Creators" />
-      <MemberRow x={287} y={828} w={318} avatarBg="#FFD3F4" initial="A" initialColor="#AA0069" name="Ajay" creators="2 Creators" />
+      <SectionHeader labelX={319} y={730} label="Employees" badgeX={424} count={String(employeeCount)} divX={456} divW={114} chevX={579} />
+
+      {/* member cards — live users poured into the design's fixed slots */}
+      {MEMBER_SLOTS.map((slot, i) => {
+        const u = opsSorted[i];
+        if (!u) return null;
+        return (
+          <MemberRow
+            key={u.id}
+            x={slot.x}
+            y={slot.y}
+            w={slot.w}
+            avatarBg={slot.avatarBg}
+            initialColor={slot.initialColor}
+            initial={u.name.charAt(0).toUpperCase()}
+            name={u.name}
+            sub={u.email}
+            onClick={() => setParams({ id: u.id })}
+          />
+        );
+      })}
 
       {/* ---------------- Unassigned Creators ---------------- */}
       <span className="absolute left-[629px] top-[479px] text-[20px] leading-none text-ink/90">Unassigned Creators</span>
-      <DotPill x={872} y={479} w={76} text="20 Creators" textColor="#222222" />
+      <DotPill x={872} y={479} w={76} text={`${unassignedAll.length} Creators`} textColor="#222222" />
 
       {/* search */}
       <div onClick={() => navigate("/search")} className="absolute cursor-pointer rounded-[16px] border border-[#E6E6E6] bg-white" style={{ left: 629, top: 517, width: 325, height: 30 }}>
@@ -305,19 +387,24 @@ export default function AssignCreatorsPage() {
         <span onClick={toggleSelectAll} className="absolute cursor-pointer rounded-[3px] border-2 border-[#C4C4CC]" style={{ left: 765, top: 564, width: 18, height: 18 }} />
       )}
       <span className="absolute left-[798px] top-[565px] font-inter text-[13px] leading-none text-[#6B7280]">Select All</span>
-      <span className="absolute flex h-[20px] items-center rounded-full bg-white/[0.4] px-[8px] font-inter text-[13px] leading-none text-[#6B7280]" style={{ left: 875, top: 563 }}>2 selected</span>
+      <span className="absolute flex h-[20px] items-center rounded-full bg-white/[0.4] px-[8px] font-inter text-[13px] leading-none text-[#6B7280]" style={{ left: 875, top: 563 }}>{selected.size} selected</span>
 
       {/* unassigned rows */}
-      {creators.map((c, i) => (
+      {unassigned.length === 0 && (
+        <span className="absolute text-[12px] font-light leading-none text-ink/70" style={{ left: 629, top: 610 }}>
+          {creatorsLoading ? "Loading…" : "No unassigned creators"}
+        </span>
+      )}
+      {unassigned.map((c, i) => (
         <CreatorRow
           key={`u-${c.id}`}
           x={629}
           y={602 + i * 72}
           w={318}
           c={c}
-          onClick={() => toggleSelected(i)}
+          onClick={() => toggleSelected(c.id)}
           control={
-            selected.has(i) ? (
+            selected.has(c.id) ? (
               <span className="absolute flex items-center justify-center rounded-[3px] bg-[#6750A4]" style={{ left: 282, top: 18, width: 18, height: 18 }}>
                 <Check className="h-[12px] w-[12px] text-white" strokeWidth={3} />
               </span>
@@ -333,26 +420,31 @@ export default function AssignCreatorsPage() {
 
       {/* avatar */}
       <span className="absolute flex items-center justify-center rounded-full border border-black/[0.14]" style={{ left: 1157, top: 242, width: 82, height: 82, background: "#D0C6FB" }}>
-        <span className="text-[20px] leading-none" style={{ color: "#3F19E2" }}>N</span>
+        <span className="text-[20px] leading-none" style={{ color: "#3F19E2" }}>{member?.name.charAt(0).toUpperCase() ?? ""}</span>
       </span>
       <span className="absolute flex h-[15px] items-center rounded-[24px] bg-white px-[6px] font-inter text-[8px] font-medium leading-none text-[#4CCC16]" style={{ left: 1262, top: 340 }}>Active</span>
 
       {/* name + role, centered in panel */}
-      <span className="absolute top-[336px] text-center text-[20px] font-semibold leading-none text-[#111827]" style={{ left: 1013, width: 369 }}>Neeraj</span>
-      <span className="absolute top-[361px] text-center text-[12px] leading-none text-[#6B7280]" style={{ left: 1013, width: 369 }}>Operations | Team Lead</span>
+      <span className="absolute top-[336px] text-center text-[20px] font-semibold leading-none text-[#111827]" style={{ left: 1013, width: 369 }}>{member?.name ?? ""}</span>
+      <span className="absolute top-[361px] text-center text-[12px] leading-none text-[#6B7280]" style={{ left: 1013, width: 369 }}>{memberRole}</span>
 
       {/* employee code */}
       <div className="absolute flex items-center justify-center rounded-[24px] bg-white/[0.5]" style={{ left: 1126, top: 384, width: 144, height: 28 }}>
-        <span className="text-[10px] leading-none text-ink/80">Employee Code&nbsp;&nbsp;55678</span>
+        <span className="text-[10px] leading-none text-ink/80">Employee Code&nbsp;&nbsp;{me?.agencyCode ?? "—"}</span>
       </div>
 
       {/* assigned creators header */}
       <div className="absolute left-[1032px] top-[431px] flex items-baseline gap-[6px]">
         <span className="text-[14px] font-medium leading-none text-ink">Assigned Creators</span>
-        <span className="text-[14px] font-light leading-none text-ink/70">({String(assigned.length).padStart(2, "0")})</span>
+        <span className="text-[14px] font-light leading-none text-ink/70">({String(assignedAll.length).padStart(2, "0")})</span>
       </div>
 
       {/* assigned rows */}
+      {assigned.length === 0 && (
+        <span className="absolute text-[12px] font-light leading-none text-ink/70" style={{ left: 1032, top: 476 }}>
+          {creatorsLoading ? "Loading…" : "No assigned creators"}
+        </span>
+      )}
       {assigned.map((c, i) => (
         <CreatorRow
           key={`a-${c.id}`}

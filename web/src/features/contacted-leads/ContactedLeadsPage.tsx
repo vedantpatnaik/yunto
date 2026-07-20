@@ -130,15 +130,46 @@ const INTENT_STYLE: Record<string, { badge: string; badgeBg: string; badgeColor:
   LOW: { badge: "Low Intent", badgeBg: "#F0EDE8", badgeColor: "#2563EB" },
 };
 
+/* intent chip label → LeadIntent enum value */
+const INTENT_BY_CHIP: Record<string, string> = {
+  "High Intent": "HIGH",
+  "Medium Intent": "MEDIUM",
+  "Low Intent": "LOW",
+};
+
+/* cards start at y=457 and step 108px inside the fixed 1024px canvas → 5 rows fit */
+const MAX_ROWS = 5;
+
 /* -------------------------------- page --------------------------------- */
 export default function ContactedLeadsPage() {
   const navigate = useNavigate();
   const [intentFilter, setIntentFilter] = useState("All");
   const [categoryTab, setCategoryTab] = useState("All");
-  const { data } = useLeads();
-  const cards: CardData[] = (data ?? [])
-    .filter((l) => l.status === "CONTACTED")
-    .slice(0, 3)
+  const { data, isLoading } = useLeads();
+  const leads = data ?? [];
+
+  /* headline pipeline counts, derived from the live lead list */
+  const deals = leads.length;
+  const won = leads.filter((l) => l.status === "CONVERTED").length;
+  const lost = leads.filter((l) => l.status === "DEAD").length;
+  /* still in play — LeadStatus partitions into open / CONVERTED / DEAD, so the three
+     badges below are the live pipeline composition and always total 100% */
+  const open = deals - won - lost;
+  const pct = (n: number) => (deals ? Math.round((n / deals) * 100) : 0);
+  const openPct = pct(open);
+  const wonPct = pct(won);
+  const lostPct = pct(lost);
+
+  /* the "Dead" chip switches the status bucket; the rest narrow by LeadIntent */
+  const matched = leads.filter((l) => {
+    if (intentFilter === "Dead") return l.status === "DEAD";
+    if (l.status !== "CONTACTED") return false;
+    const wantIntent = INTENT_BY_CHIP[intentFilter];
+    return !wantIntent || l.intent === wantIntent;
+  });
+
+  const cards: CardData[] = matched
+    .slice(0, MAX_ROWS)
     .map((l, i) => {
       const style = INTENT_STYLE[l.intent] ?? INTENT_STYLE.MEDIUM;
       return {
@@ -177,9 +208,9 @@ export default function ContactedLeadsPage() {
 
       {/* stat pills */}
       <div className="absolute left-[938px] top-[150px] flex items-start gap-[35px]">
-        <StatPill n="18" badge="10" dir="up" label="Deals" />
-        <StatPill n="11" badge="5" dir="down" label="won" />
-        <StatPill n="11" badge="1" dir="down" label="lost" />
+        <StatPill n={String(deals)} badge={String(openPct)} dir={openPct >= 50 ? "up" : "down"} label="Deals" />
+        <StatPill n={String(won)} badge={String(wonPct)} dir={wonPct >= 50 ? "up" : "down"} label="won" />
+        <StatPill n={String(lost)} badge={String(lostPct)} dir={lostPct >= 50 ? "up" : "down"} label="lost" />
       </div>
 
       {/* search bar */}
@@ -279,7 +310,7 @@ export default function ContactedLeadsPage() {
 
       {/* results header */}
       <span className="absolute left-[266px] top-[421px] font-inter text-[14px] font-bold uppercase tracking-[0.04em] leading-[20px] text-[#64748B]">
-        Showing 3 results
+        Showing {cards.length} result{cards.length === 1 ? "" : "s"}
       </span>
       <div className="absolute left-[1173px] top-[421px] flex items-center gap-[8px]">
         <span className="font-inter text-[14px] font-normal leading-[20px] text-[#94A3B8]">Sort by:</span>
@@ -291,8 +322,13 @@ export default function ContactedLeadsPage() {
 
       {/* contacted lead cards */}
       {cards.map((c) => (
-        <LeadCard key={c.top} data={c} onClick={() => navigate(`/leads/detail?id=${c.id}`)} />
+        <LeadCard key={c.id} data={c} onClick={() => navigate(`/leads/detail?id=${c.id}`)} />
       ))}
+      {cards.length === 0 && (
+        <span className="absolute left-[266px] top-[457px] font-inter text-[14px] font-normal leading-[20px] text-[#94A3B8]">
+          {isLoading ? "Loading leads…" : "No contacted leads match these filters"}
+        </span>
+      )}
     </>
   );
 }

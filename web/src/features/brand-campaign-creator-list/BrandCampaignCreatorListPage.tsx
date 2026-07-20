@@ -1,8 +1,14 @@
 import type { ReactNode } from "react";
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import type { LucideIcon } from "lucide-react";
-import { useCreators, type Creator } from "@/api/hooks";
+import {
+  useCreators,
+  useAgencies,
+  useCampaigns,
+  useCampaignFull,
+  type Creator,
+} from "@/api/hooks";
 import {
   ChevronLeft,
   ChevronDown,
@@ -33,14 +39,8 @@ import {
  * CLEAN build: the captured frame's dim profile-popup + scrim overlay are skipped.
  */
 
-type Variant = "internal" | "agency";
-
-const CARDS: { x: number; variant: Variant }[] = [
-  { x: 275, variant: "internal" },
-  { x: 559, variant: "agency" },
-  { x: 843, variant: "agency" },
-  { x: 1127, variant: "agency" },
-];
+/** Column origins for the single row of creator cards (4 slots wide). */
+const CARD_X = [275, 559, 843, 1127];
 
 const CARD_Y = 360;
 
@@ -54,6 +54,13 @@ const compact = (n: number): string => {
   if (n >= 1_000_000) return (n / 1_000_000).toFixed(1).replace(/\.0$/, "") + "M";
   if (n >= 1_000) return Math.round(n / 1_000) + "k";
   return String(n);
+};
+
+/** Rupee amounts as they read on the fee pills: 60K, 65.5K, 1.2L. */
+const money = (n: number): string => {
+  if (n >= 100_000) return (n / 100_000).toFixed(1).replace(/\.0$/, "") + "L";
+  if (n >= 1_000) return (n / 1_000).toFixed(1).replace(/\.0$/, "") + "K";
+  return String(Math.round(n));
 };
 
 /* ------------------------------ primitives ----------------------------- */
@@ -91,7 +98,7 @@ function Metric({
   );
 }
 
-function InternalManaged() {
+function InternalManaged({ fee }: { fee: number }) {
   return (
     <>
       <span
@@ -105,33 +112,47 @@ function InternalManaged() {
       <div className="absolute left-[178px] top-[147px] flex h-[23px] w-[72px] items-center justify-center gap-[3px] rounded-[8px] bg-white">
         <Coins className="h-[14px] w-[14px]" strokeWidth={1.7} style={{ color: "#C29B3B" }} />
         <span className="text-[12.5px] font-medium leading-none" style={{ color: "#571A9F" }}>
-          ₹ 60K
+          ₹ {money(fee)}
         </span>
       </div>
     </>
   );
 }
 
-function AgencyManaged() {
+function AgencyManaged({
+  name,
+  stars,
+  fee,
+  discount,
+}: {
+  name: string;
+  stars: number;
+  fee: number;
+  discount: number;
+}) {
   return (
     <>
       <span
         className="absolute left-[6px] top-[140px] h-[33px] w-[251px] rounded-[11px] border border-[#6801FE]/15"
         style={{ background: MANAGED_GRAD }}
       />
-      <div
-        className="absolute left-[104px] top-[133px] flex h-[13px] w-[49px] items-center justify-center rounded-[3px]"
-        style={{ background: "linear-gradient(90deg,#A27CEE,#7F4BE7)" }}
-      >
-        <span className="whitespace-nowrap text-[9px] leading-none text-white">-45% OFF</span>
-      </div>
+      {discount > 0 && (
+        <div
+          className="absolute left-[104px] top-[133px] flex h-[13px] w-[49px] items-center justify-center rounded-[3px]"
+          style={{ background: "linear-gradient(90deg,#A27CEE,#7F4BE7)" }}
+        >
+          <span className="whitespace-nowrap text-[9px] leading-none text-white">
+            -{discount}% OFF
+          </span>
+        </div>
+      )}
       <span className="absolute left-[12px] top-[145px] h-[24px] w-[24px] rounded-full bg-gradient-to-br from-[#C8E6FF] to-[#C8B3ED]" />
-      <span className="absolute left-[42px] top-[144px] text-[11px] leading-none text-ink/90">
-        Stellar Talents
+      <span className="absolute left-[42px] top-[144px] max-w-[124px] truncate text-[11px] leading-none text-ink/90">
+        {name}
       </span>
       <span className="absolute left-[42px] top-[157px] flex items-center gap-[4px]">
         <Star className="h-[12px] w-[12px]" strokeWidth={0} style={{ color: "#FFC107", fill: "#FFC107" }} />
-        <span className="text-[8.5px] leading-none text-ink/60">4.8 Stars</span>
+        <span className="text-[8.5px] leading-none text-ink/60">{stars.toFixed(1)} Stars</span>
       </span>
       <div
         className="absolute left-[170px] top-[144px] flex h-[26px] w-[78px] items-center justify-center gap-[3px] rounded-[8px]"
@@ -139,7 +160,7 @@ function AgencyManaged() {
       >
         <Coins className="h-[14px] w-[14px]" strokeWidth={1.7} style={{ color: "#C29B3B" }} />
         <span className="text-[12.5px] font-medium leading-none" style={{ color: "#571A9F" }}>
-          ₹65.5K
+          ₹{money(fee)}
         </span>
       </div>
     </>
@@ -149,14 +170,24 @@ function AgencyManaged() {
 function CreatorCard({
   x,
   y,
-  variant,
   creator,
+  agencyName,
+  agencyStars,
+  fee,
+  discount,
+  selected,
+  onToggle,
   onOpen,
 }: {
   x: number;
   y: number;
-  variant: Variant;
   creator: Creator;
+  agencyName: string | null;
+  agencyStars: number;
+  fee: number;
+  discount: number;
+  selected: boolean;
+  onToggle: () => void;
   onOpen: () => void;
 }) {
   return (
@@ -212,15 +243,31 @@ function CreatorCard({
       <span className="absolute left-[8px] top-[126px] text-[9.5px] leading-none text-ink/60">
         Managed by:
       </span>
-      {variant === "internal" ? <InternalManaged /> : <AgencyManaged />}
+      {agencyName === null ? (
+        <InternalManaged fee={fee} />
+      ) : (
+        <AgencyManaged name={agencyName} stars={agencyStars} fee={fee} discount={discount} />
+      )}
 
       {/* checkbox */}
-      {variant === "internal" ? (
-        <span className="absolute left-[232px] top-[178px] flex h-[22px] w-[22px] items-center justify-center rounded-[6px] border border-black/25 bg-white">
+      {selected ? (
+        <span
+          className="absolute left-[232px] top-[178px] flex h-[22px] w-[22px] items-center justify-center rounded-[6px] border border-black/25 bg-white"
+          onClick={(e) => {
+            e.stopPropagation();
+            onToggle();
+          }}
+        >
           <Check className="h-[13px] w-[13px] text-ink" strokeWidth={2.5} />
         </span>
       ) : (
-        <span className="absolute left-[232px] top-[178px] h-[22px] w-[22px] rounded-[6px] border border-black/15 bg-white" />
+        <span
+          className="absolute left-[232px] top-[178px] h-[22px] w-[22px] rounded-[6px] border border-black/15 bg-white"
+          onClick={(e) => {
+            e.stopPropagation();
+            onToggle();
+          }}
+        />
       )}
     </div>
   );
@@ -229,8 +276,53 @@ function CreatorCard({
 /* -------------------------------- page --------------------------------- */
 export default function BrandCampaignCreatorListPage() {
   const navigate = useNavigate();
+  const [params] = useSearchParams();
   const [activeTab, setActiveTab] = useState(1);
-  const creators = (useCreators().data ?? []).slice(0, CARDS.length);
+  const [picked, setPicked] = useState<string[] | null>(null);
+
+  const { data: campaigns = [] } = useCampaigns();
+  const campaignId = params.get("id") ?? campaigns[0]?.id ?? null;
+  const { data: campaign } = useCampaignFull(campaignId);
+  const { data: allCreators = [], isLoading } = useCreators();
+  const { data: agencies = [] } = useAgencies();
+
+  // Roster = the creators actually linked to this campaign; before a campaign is
+  // resolved (or if none are linked yet) fall back to the full creator list.
+  const linkedIds = campaign?.creatorList.map((c) => c.id) ?? [];
+  const roster = linkedIds.length
+    ? allCreators.filter((c) => linkedIds.includes(c.id))
+    : allCreators;
+  const creators = roster.slice(0, CARD_X.length);
+
+  const agencyById = new Map(agencies.map((a) => [a.id, a]));
+  /** An agency's star rating = mean stars of the creators on its books. */
+  const starsFor = (agencyId: string): number => {
+    const books = allCreators.filter((c) => c.agencyId === agencyId);
+    return books.length
+      ? books.reduce((s, c) => s + c.stars, 0) / books.length
+      : 0;
+  };
+
+  // Fee pill: this campaign's budget split across its creators by share of
+  // reach; the OFF badge is that fee measured against the creator's own
+  // rate card (CPV × avg. views), so a cheaper-than-list buy reads as a discount.
+  const budget = campaign?.budget ?? 0;
+  const reach = creators.reduce((s, c) => s + c.avgViews, 0);
+  const listRate = (c: Creator) => (c.cpv * c.avgViews) / 100;
+  const feeFor = (c: Creator) =>
+    budget > 0 && reach > 0 ? (budget * c.avgViews) / reach : listRate(c);
+  const discountFor = (c: Creator) => {
+    const list = listRate(c);
+    if (list <= 0) return 0;
+    return Math.max(0, Math.round((1 - feeFor(c) / list) * 100));
+  };
+
+  const selected = picked ?? creators.slice(0, 1).map((c) => c.id);
+  const toggle = (id: string) =>
+    setPicked(
+      selected.includes(id) ? selected.filter((s) => s !== id) : [...selected, id]
+    );
+
   return (
     <>
       {/* back button */}
@@ -242,8 +334,8 @@ export default function BrandCampaignCreatorListPage() {
       </span>
 
       {/* campaign title + underline */}
-      <h1 className="absolute left-[266px] top-[236px] text-[35px] font-normal leading-none text-[#1A1A1A]">
-        Nike&rsquo;s Diwali
+      <h1 className="absolute left-[266px] top-[236px] max-w-[380px] truncate text-[35px] font-normal leading-none text-[#1A1A1A]">
+        {campaign?.name ?? ""}
       </h1>
       <span className="absolute left-[262px] top-[280px] h-px w-[258px] bg-[#D0D0D0]" />
 
@@ -278,16 +370,32 @@ export default function BrandCampaignCreatorListPage() {
       </h2>
 
       {/* creator cards */}
-      {creators.map((creator, i) => (
-        <CreatorCard
-          key={creator.id}
-          x={CARDS[i].x}
-          y={CARD_Y}
-          variant={CARDS[i].variant}
-          creator={creator}
-          onOpen={() => navigate("/creators/detail")}
-        />
-      ))}
+      {creators.map((creator, i) => {
+        const agency = creator.agencyId ? agencyById.get(creator.agencyId) : undefined;
+        return (
+          <CreatorCard
+            key={creator.id}
+            x={CARD_X[i]}
+            y={CARD_Y}
+            creator={creator}
+            agencyName={agency?.name ?? null}
+            agencyStars={agency ? starsFor(agency.id) : 0}
+            fee={feeFor(creator)}
+            discount={discountFor(creator)}
+            selected={selected.includes(creator.id)}
+            onToggle={() => toggle(creator.id)}
+            onOpen={() => navigate(`/creators/detail?id=${creator.id}`)}
+          />
+        );
+      })}
+      {creators.length === 0 && (
+        <span
+          className="absolute text-[13px] leading-[16px] text-ink/40"
+          style={{ left: CARD_X[0], top: CARD_Y + 16 }}
+        >
+          {isLoading ? "Loading creators…" : "No creators on this campaign yet"}
+        </span>
+      )}
 
       {/* bottom bulk-action bar */}
       <div className="absolute left-[414px] top-[887px] flex h-[65px] w-[612px] items-center rounded-[33px] bg-black pl-[27px]">
@@ -295,7 +403,7 @@ export default function BrandCampaignCreatorListPage() {
           <Check className="h-[15px] w-[15px] text-ink/70" strokeWidth={2.5} />
         </span>
         <span className="ml-[13px] whitespace-nowrap text-[16px] leading-none">
-          <span className="font-semibold text-white">1</span>
+          <span className="font-semibold text-white">{selected.length}</span>
           <span className="text-white/55"> of {creators.length} selected</span>
         </span>
         <span

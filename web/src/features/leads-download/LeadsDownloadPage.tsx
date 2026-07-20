@@ -1,7 +1,8 @@
 import type { ReactNode } from "react";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useLeads } from "@/api/hooks";
+import { useList, useReminders, useUsers } from "@/api/hooks";
+import type { Lead } from "@/api/hooks";
 import type { LucideIcon } from "lucide-react";
 import {
   Search,
@@ -54,15 +55,15 @@ function FilterChip({ children, active, onClick }: { children: ReactNode; active
 }
 
 /* ---- background lead card (dimmed silhouette behind the modal) ---- */
-function BgCard({ title, budget, deliver, when, contact, status, left, top }: {
-  title: string; budget: string; deliver: string; when: string; contact: string; status: string; left: number; top: number;
+function BgCard({ title, budget, date, deliver, when, contact, status, left, top }: {
+  title: string; budget: string; date: string; deliver: string; when: string; contact: string; status: string; left: number; top: number;
 }) {
   return (
     <div className="absolute h-[240px] w-[266px] rounded-[16px] bg-white p-[14px]" style={{ left, top }}>
       <div className="flex items-center gap-[8px]">
         <span className="h-[34px] w-[34px] rounded-full bg-[#EEE]" />
         <span className="text-[15px] text-ink">{title}</span>
-        <span className="ml-auto text-[10px] text-ink/50">12 July</span>
+        <span className="ml-auto text-[10px] text-ink/50">{date}</span>
       </div>
       <div className="mt-[6px] pl-[42px] text-[11px] text-ink/60">Budget {budget}</div>
       <div className="mt-[16px] flex items-center gap-[8px]">
@@ -110,11 +111,58 @@ function CheckPill({ label, checked, w, onClick }: { label: string; checked?: bo
   );
 }
 
+/* ------------------------------ formatting ----------------------------- */
+/** Lead row as returned by /leads — the list payload also carries the
+ *  scheduling/ownership columns the workspace cards read. */
+type LeadRow = Lead & { ownerId?: string | null; createdAt?: string; updatedAt?: string };
+
+const fmtDay = (iso?: string) =>
+  iso ? new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "long" }) : "";
+const fmtWhen = (iso?: string) => {
+  if (!iso) return "";
+  const d = new Date(iso);
+  const day = d.toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
+  const time = d.toLocaleTimeString("en-US", { hour: "numeric", hour12: true }).replace(/\s/g, "").toLowerCase();
+  return `${day} at ${time}`;
+};
+/** Mean response time for one owner's pipeline. There is no dedicated
+ *  first-touch column, so the createdAt → updatedAt gap on the leads that have
+ *  actually moved off NEW is the honest proxy for "how fast they act". */
+const respTime = (rows: LeadRow[]) => {
+  const gaps = rows
+    .filter((l) => l.status !== "NEW")
+    .map((l) => (l.createdAt && l.updatedAt ? new Date(l.updatedAt).getTime() - new Date(l.createdAt).getTime() : 0))
+    .filter((ms) => ms > 0);
+  if (!gaps.length) return "Response Time —";
+  const mins = gaps.reduce((a, b) => a + b, 0) / gaps.length / 60_000;
+  if (mins < 60) return `Response Time ${Math.max(1, Math.round(mins))} Min.`;
+  if (mins < 1440) return `Response Time ${Math.round(mins / 60)} Hrs.`;
+  return `Response Time ${Math.round(mins / 1440)} Days`;
+};
+const ago = (iso?: string) => {
+  if (!iso) return "";
+  const mins = Math.max(1, Math.round((Date.now() - new Date(iso).getTime()) / 60_000));
+  if (mins < 60) return `${mins}mins ago`;
+  const hrs = Math.round(mins / 60);
+  return hrs < 24 ? `${hrs}h ago` : `${Math.round(hrs / 24)}d ago`;
+};
+
 /* -------------------------------- page --------------------------------- */
 export default function LeadsDownloadPage() {
   const navigate = useNavigate();
-  const { data: leadsData } = useLeads();
+  const { data: leadsData } = useList<LeadRow>("leads");
+  const { data: usersData } = useUsers();
+  const { data: remindersData } = useReminders();
   const leads = leadsData ?? [];
+  const reminders = remindersData ?? [];
+  const people = (usersData ?? []).filter((u) => u.role === "SALES_EMPLOYEE").slice(0, 2);
+
+  const count = (s: string) => leads.filter((l) => l.status === s).length;
+  const converted = count("CONVERTED");
+  const contacted = count("CONTACTED");
+  const dead = count("DEAD");
+  const pct = (n: number) => (leads.length ? String(Math.round((n / leads.length) * 100)) : "0");
+
   const [dateRange, setDateRange] = useState("Last 30 Days");
   const [intentFilter, setIntentFilter] = useState("All");
   const [fileFormat, setFileFormat] = useState(".XLSX");
@@ -128,6 +176,13 @@ export default function LeadsDownloadPage() {
   });
   const toggleField = (label: string) =>
     setFields((prev) => ({ ...prev, [label]: !prev[label] }));
+
+  // the intent chips scope both the visible cards and the export count
+  const intentOf: Record<string, string> = { "High Intent": "HIGH", "Medium Intent": "MEDIUM", "Low Intent": "LOW" };
+  const selected =
+    intentFilter === "All" ? leads
+      : intentFilter === "Dead" ? leads.filter((l) => l.status === "DEAD")
+        : leads.filter((l) => l.intent === intentOf[intentFilter]);
 
   return (
     <>
@@ -143,9 +198,9 @@ export default function LeadsDownloadPage() {
         <Download className="h-[18px] w-[18px]" strokeWidth={1.8} />
       </button>
       <div className="absolute left-[900px] top-[158px] flex items-start gap-[34px]">
-        <StatPill n="18" badge="10" dir="up" label="Deals" />
-        <StatPill n="11" badge="5" dir="down" label="won" />
-        <StatPill n="11" badge="1" dir="down" label="lost" />
+        <StatPill n={String(leads.length)} badge={pct(leads.length - converted - dead)} dir="up" label="Deals" />
+        <StatPill n={String(converted)} badge={pct(converted)} dir="down" label="won" />
+        <StatPill n={String(dead)} badge={pct(dead)} dir="down" label="lost" />
       </div>
 
       {/* New Leads section header + filters */}
@@ -153,7 +208,7 @@ export default function LeadsDownloadPage() {
         New Leads
         <ChevronDown className="h-[26px] w-[26px]" strokeWidth={1.6} />
       </h2>
-      <span className="absolute left-[560px] top-[254px] text-[22px] font-light text-ink/70">{leads.length} Leads</span>
+      <span className="absolute left-[560px] top-[254px] text-[22px] font-light text-ink/70">{selected.length} Leads</span>
       <span onClick={() => navigate("/search")} className="absolute left-[655px] top-[247px] flex h-[45px] w-[45px] items-center justify-center rounded-full bg-white text-ink cursor-pointer">
         <Search className="h-[22px] w-[22px]" strokeWidth={1.7} />
       </span>
@@ -169,30 +224,44 @@ export default function LeadsDownloadPage() {
       </div>
 
       {/* bottom lead-card row (only card tops peek below the modal) */}
-      <BgCard left={886} top={762} title={leads[0]?.brandName ?? ""} budget={`₹${leads[0]?.money ?? ""}`} deliver="Deliverables Discuss" when="14 July 2025 at 1pm" contact={leads[0]?.contactPerson ?? ""} status={leads[0]?.status ?? ""} />
-      <BgCard left={1166} top={762} title={leads[1]?.brandName ?? ""} budget={`₹${leads[1]?.money ?? ""}`} deliver="Deliverables Discuss" when="19 July 2025 at 5pm" contact={leads[1]?.contactPerson ?? ""} status={leads[1]?.status ?? ""} />
+      {selected.slice(0, 2).map((l, k) => (
+        <BgCard
+          key={l.id}
+          left={k ? 1166 : 886}
+          top={762}
+          title={l.brandName}
+          budget={`₹${l.money ?? ""}`}
+          date={fmtDay(l.createdAt)}
+          deliver={reminders[k]?.title ?? ""}
+          when={fmtWhen(reminders[k]?.dueAt)}
+          contact={l.contactPerson ?? ""}
+          status={l.status}
+        />
+      ))}
 
-      {/* mid list card (Pooja Singh / Lisa Rai) */}
+      {/* mid list card (lead owners + their pipeline split) */}
       <div className="absolute left-[565px] top-[762px] h-[240px] w-[300px] rounded-[16px] bg-white p-[16px]">
-        {[
-          { i: "P", n: "Pooja Singh" },
-          { i: "L", n: "Lisa Rai" },
-        ].map((p, k) => (
-          <div key={k} className={k ? "mt-[26px]" : ""}>
-            <div className="flex items-center gap-[8px]">
-              <span className="flex h-[30px] w-[30px] items-center justify-center rounded-full bg-[#EEE] text-[12px] text-ink/70">{p.i}</span>
-              <div>
-                <div className="text-[13px] text-ink">{p.n}</div>
-                <div className="text-[9px] text-ink/50">Response Time 10 Min.</div>
+        {people.map((p, k) => {
+          const owned = leads.filter((l) => l.ownerId === p.id);
+          return (
+            <div key={p.id} className={k ? "mt-[26px]" : ""}>
+              <div className="flex items-center gap-[8px]">
+                <span className="flex h-[30px] w-[30px] items-center justify-center rounded-full bg-[#EEE] text-[12px] text-ink/70">{p.name.charAt(0)}</span>
+                <div>
+                  <div className="text-[13px] text-ink">{p.name}</div>
+                  <div className="text-[9px] text-ink/50">{respTime(owned)}</div>
+                </div>
+              </div>
+              <div className="mt-[8px] flex gap-[6px]">
+                {["NEW", "CONTACTED", "CONVERTED"].map((s) => (
+                  <span key={s} className="rounded-[6px] border border-black/10 px-[6px] py-[3px] text-[9px] text-ink/70">
+                    {owned.filter((l) => l.status === s).length} Leads
+                  </span>
+                ))}
               </div>
             </div>
-            <div className="mt-[8px] flex gap-[6px]">
-              {["2 Leads", "4 Leads", "7 Leads"].map((t) => (
-                <span key={t} className="rounded-[6px] border border-black/10 px-[6px] py-[3px] text-[9px] text-ink/70">{t}</span>
-              ))}
-            </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       {/* left summary card (Converted / Contacted) */}
@@ -200,17 +269,17 @@ export default function LeadsDownloadPage() {
         <div className="flex items-start justify-between">
           <span className="flex h-[34px] w-[34px] items-center justify-center rounded-full bg-white/60 text-[#1FB37A]">✈</span>
           <div className="text-right">
-            <span className="text-[26px] font-light text-ink">06</span>
+            <span className="text-[26px] font-light text-ink">{String(converted).padStart(2, "0")}</span>
             <span className="ml-[6px] text-[12px] text-ink/60">Converted</span>
           </div>
         </div>
-        <div className="mt-[10px] text-[26px] font-light text-ink">16<span className="ml-[6px] text-[12px] text-ink/60">Contacted</span></div>
-        {["Base Skincare", "Nike Skincare"].map((t) => (
-          <div key={t} className="mt-[12px] flex items-center gap-[8px] rounded-[10px] bg-white/60 px-[8px] py-[6px]">
+        <div className="mt-[10px] text-[26px] font-light text-ink">{String(contacted).padStart(2, "0")}<span className="ml-[6px] text-[12px] text-ink/60">Contacted</span></div>
+        {leads.slice(0, 2).map((l) => (
+          <div key={l.id} className="mt-[12px] flex items-center gap-[8px] rounded-[10px] bg-white/60 px-[8px] py-[6px]">
             <span className="h-[20px] w-[20px] rounded-full bg-white" />
             <div>
-              <div className="text-[8px] text-ink/40">10mins ago</div>
-              <div className="text-[11px] text-ink">{t}</div>
+              <div className="text-[8px] text-ink/40">{ago(l.createdAt)}</div>
+              <div className="text-[11px] text-ink">{l.brandName}</div>
             </div>
           </div>
         ))}
@@ -267,7 +336,7 @@ export default function LeadsDownloadPage() {
         <div className="absolute left-[32px] top-[446px] flex items-center gap-[9px] text-[16px] font-light text-[#6E6E70]">
           <Info className="h-[18px] w-[18px] text-[#9A9A9C]" strokeWidth={1.7} />
           <span>
-            You're about to download <span className="font-medium text-[#141416]">{leads.length} leads</span> from last 30 days
+            You're about to download <span className="font-medium text-[#141416]">{selected.length} leads</span> from {dateRange.toLowerCase()}
           </span>
         </div>
       </div>

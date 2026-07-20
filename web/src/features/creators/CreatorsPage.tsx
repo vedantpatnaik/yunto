@@ -61,9 +61,13 @@ function CheckBox({ on }: { on?: boolean }) {
   );
 }
 
-function CreatorCard({ c }: { c: Creator }) {
+function CreatorCard({ c, avgER, avgCpv }: { c: Creator; avgER: number; avgCpv: number }) {
   const navigate = useNavigate();
   const listed = c.listed ?? false;
+  // No "performance delta" / "pricing suggestion" columns exist on Creator — derived from
+  // this creator's engagement rate and CPV measured against the cohort averages.
+  const delta = avgER > 0 ? Math.round((c.engagementRate / avgER - 1) * 100) : 0;
+  const suggestion = c.cpv < avgCpv ? "Increase" : "Decrease";
   return (
     <div
       onClick={() => navigate(`/creators/detail?id=${c.id}`)}
@@ -122,10 +126,12 @@ function CreatorCard({ c }: { c: Creator }) {
         }}
       >
         <Activity className="h-[13px] w-[13px] text-[#FF4B55]" strokeWidth={2} />
-        <span className="ml-[3px] text-[10px] font-medium text-ink">+35% above avg</span>
+        <span className="ml-[3px] text-[10px] font-medium text-ink">
+          {delta > 0 ? "+" : ""}{delta}% {delta < 0 ? "below" : "above"} avg
+        </span>
         <IndianRupee className="ml-[10px] h-[12px] w-[12px] text-[#FF4B55]" strokeWidth={2} />
         <span className="ml-[4px] text-[10px] font-medium text-ink">Suggestion:</span>
-        <span className="ml-[3px] text-[10px] font-medium text-[#FF4B55]">Increase</span>
+        <span className="ml-[3px] text-[10px] font-medium text-[#FF4B55]">{suggestion}</span>
       </div>
 
       {/* footer: listed state + checkbox */}
@@ -147,8 +153,12 @@ function CreatorCard({ c }: { c: Creator }) {
 /* -------------------------------- page --------------------------------- */
 export default function CreatorsPage() {
   const navigate = useNavigate();
-  const { data: creators } = useCreators();
-  const cards = (creators ?? []).slice(0, 9);
+  const { data: creators, isLoading } = useCreators();
+  const all = creators ?? [];
+  const cards = all.slice(0, 9);
+  const avgER = all.length ? all.reduce((s, c) => s + c.engagementRate, 0) / all.length : 0;
+  const avgCpv = all.length ? all.reduce((s, c) => s + c.cpv, 0) / all.length : 0;
+  const listedCount = all.filter((c) => c.listed).length;
   const [service, setService] = useState<"Barter" | "Paid">("Paid");
   const [listedOn, setListedOn] = useState(false);
   const [genders, setGenders] = useState<{ Female: boolean; Male: boolean; Others: boolean }>({
@@ -192,7 +202,7 @@ export default function CreatorsPage() {
       {/* selected count */}
       <div className="absolute left-[761px] top-[158px] flex h-[48px] w-[72px] items-center justify-center gap-[3px] rounded-[24px] bg-white">
         <Users className="h-[22px] w-[22px] text-ink" strokeWidth={1.7} />
-        <span className="flex h-[14px] w-[14px] items-center justify-center rounded-full bg-[#20A271] text-[10px] font-normal text-white">4</span>
+        <span className="flex h-[14px] w-[14px] items-center justify-center rounded-full bg-[#20A271] text-[10px] font-normal text-white">{listedCount}</span>
       </div>
 
       {/* listed toggle */}
@@ -223,15 +233,19 @@ export default function CreatorsPage() {
         <span className="flex h-[15px] w-[15px] items-center justify-center rounded-[5px] border border-[#C9C9C9] bg-white">
           <Check className="h-[10px] w-[10px] text-black" strokeWidth={2.6} />
         </span>
-        <span className="text-[12px] font-light text-ink">1 selected</span>
+        <span className="text-[12px] font-light text-ink">{listedCount} selected</span>
       </div>
 
       {/* --------------------------- top creators --------------------------- */}
       <h2 className="absolute left-[276px] top-[310px] text-[20px] font-normal text-ink">Top Creators</h2>
       <div className="absolute left-[276px] top-[355px] grid grid-cols-3 gap-x-[5px] gap-y-[10px]">
-        {cards.map((c) => (
-          <CreatorCard key={c.id} c={c} />
-        ))}
+        {cards.length === 0 ? (
+          <div className="col-span-3 flex h-[193px] w-[808px] items-center justify-center text-[12px] font-light text-ink/50">
+            {isLoading ? "Loading creators…" : "No creators yet"}
+          </div>
+        ) : (
+          cards.map((c) => <CreatorCard key={c.id} c={c} avgER={avgER} avgCpv={avgCpv} />)
+        )}
       </div>
 
       {/* All Creators heading */}

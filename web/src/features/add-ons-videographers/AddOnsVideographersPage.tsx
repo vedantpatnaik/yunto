@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { ArrowLeft, Calendar, MapPin, Clock, Plus, Star } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { useCreators } from "@/api/hooks";
+import { useCreators, useCalendar, useCampaigns, type Creator } from "@/api/hooks";
 
 /**
  * Super Admin — Add-Ons / Videographers & Editors directory.
@@ -10,35 +10,39 @@ import { useCreators } from "@/api/hooks";
  * (node 4870:44625) is intentionally omitted; the underlying page is at full opacity.
  */
 
-// Fixed visual slot (position/tint/gradient + static copy). name/location/rating
-// are bound per-slot to a distinct real creator in the page component.
+// Fixed visual slot (position/tint/gradient only). Every piece of copy on the card
+// — name, location, rating, subtitle, rate, slots, expertise, past clients —
+// is bound per-slot to a distinct real creator in the page component.
 type Slot = {
   x: number;
   y: number;
   tint: string;
   grad: string;
-  subtitle: string;
-  rate: string;
+  role: string;
+  rateUnit: string;
 };
 
 type Person = Slot & {
   name: string;
   location: string;
   rating: string;
+  subtitle: string;
+  rate: string;
+  times: string[];
+  expertise: string[];
+  clients: string[];
 };
 
 const VIDEOGRAPHER_SLOTS: Slot[] = [
   {
     x: 277, y: 369, tint: "rgba(249,255,246,0.6)",
     grad: "linear-gradient(135deg,#D6E8C8,#A9C48F)",
-    subtitle: "Fashion & Lifestyle Videographer | 6 Yrs Exp.",
-    rate: "₹5000 / 2 Hrs",
+    role: "Videographer", rateUnit: "/ 2 Hrs",
   },
   {
     x: 694, y: 369, tint: "rgba(255,246,254,0.6)",
     grad: "linear-gradient(135deg,#F3D6EC,#C89FC0)",
-    subtitle: "Fashion & Lifestyle Videographer | 6 Yrs Exp.",
-    rate: "₹5000 / 2 Hrs",
+    role: "Videographer", rateUnit: "/ 2 Hrs",
   },
 ];
 
@@ -46,16 +50,34 @@ const EDITOR_SLOTS: Slot[] = [
   {
     x: 277, y: 828, tint: "rgba(253,246,255,0.6)",
     grad: "linear-gradient(135deg,#E0D2F0,#B8A0D8)",
-    subtitle: "Fashion & Lifestyle Editor | 4 Yrs Exp.",
-    rate: "₹1500 - 3000",
+    role: "Editor", rateUnit: "/ Edit",
   },
   {
     x: 694, y: 828, tint: "rgba(255,239,239,0.6)",
     grad: "linear-gradient(135deg,#F3D0D0,#D89898)",
-    subtitle: "Fashion & Lifestyle Editor | 4 Yrs Exp.",
-    rate: "₹1500 - 3000",
+    role: "Editor", rateUnit: "/ Edit",
   },
 ];
+
+/* ------------------------------ helpers -------------------------------- */
+const uniq = (a: string[]) => [...new Set(a.filter(Boolean))];
+const inr = (n: number) => `₹${Math.round(n).toLocaleString("en-IN")}`;
+
+/** Design chip widths are the floor; grow only when the real string is longer. */
+const chipW = (base: number, text: string) => Math.max(base, Math.round(text.length * 5.6) + 16);
+
+/** A booked calendar entry rendered as its 2-hour window, e.g. "18 Jul · 3-5pm". */
+function fmtWindow(iso: string) {
+  const d = new Date(iso);
+  const h = d.getHours();
+  const h12 = (n: number) => ((n + 11) % 12) + 1;
+  const day = d.toLocaleDateString("en-IN", { day: "2-digit", month: "short" });
+  return `${day} · ${h12(h)}-${h12(h + 2)}${h < 12 ? "am" : "pm"}`;
+}
+
+/** Calendar titles read "<Niche> <Format> — <Brand>". */
+const formatOf = (title: string) => title.split("—")[0].trim().split(" ").slice(-1)[0] ?? "";
+const brandOf = (title: string) => title.split("—")[1]?.trim() ?? "";
 
 /* ------------------------------ primitives ----------------------------- */
 function PillChip({ w, children }: { w: number; children: ReactNode }) {
@@ -66,6 +88,20 @@ function PillChip({ w, children }: { w: number; children: ReactNode }) {
     >
       {children}
     </span>
+  );
+}
+
+/** Renders a chip row, keeping the row's geometry when the record has no values. */
+function ChipRow({ items, widths }: { items: string[]; widths: number[] }) {
+  const shown = items.length ? items : ["—"];
+  return (
+    <>
+      {shown.map((t, i) => (
+        <PillChip key={`${i}-${t}`} w={chipW(widths[i] ?? widths[widths.length - 1], t)}>
+          {t}
+        </PillChip>
+      ))}
+    </>
   );
 }
 
@@ -170,9 +206,7 @@ function PersonCard({ p }: { p: Person }) {
           <Clock className="h-[14px] w-[14px] text-black" strokeWidth={1.5} />
         </span>
         <div className="absolute left-[38px] top-[9px] flex gap-[4px]">
-          <PillChip w={89}>09:00-11:00am</PillChip>
-          <PillChip w={90}>01:00-03:00pm</PillChip>
-          <PillChip w={90}>07:00-09:00pm</PillChip>
+          <ChipRow items={p.times} widths={[89, 90, 90]} />
         </div>
       </div>
 
@@ -180,9 +214,7 @@ function PersonCard({ p }: { p: Person }) {
       <div className="absolute left-[11px] top-[170px] h-[39px] w-[374px] rounded-[14px] border-[0.5px] border-[#D9D9D9] bg-white">
         <span className="absolute left-[7px] top-[9px] text-[14px] font-light leading-none text-ink/70">Expertise</span>
         <div className="absolute left-[82px] top-[8px] flex gap-[8px]">
-          <PillChip w={47}>Reels</PillChip>
-          <PillChip w={70}>BTS Shoots</PillChip>
-          <PillChip w={78}>Brand Shoots</PillChip>
+          <ChipRow items={p.expertise} widths={[47, 70, 78]} />
         </div>
       </div>
 
@@ -190,9 +222,7 @@ function PersonCard({ p }: { p: Person }) {
       <div className="absolute left-[11px] top-[215px] h-[39px] w-[374px] rounded-[14px] border-[0.5px] border-[#D9D9D9] bg-white">
         <span className="absolute left-[7px] top-[9px] text-[14px] font-light leading-none text-ink/70">Past Client</span>
         <div className="absolute left-[82px] top-[8px] flex gap-[8px]">
-          <PillChip w={47}>Nykaa</PillChip>
-          <PillChip w={70}>Mama earth</PillChip>
-          <PillChip w={78}>H&M</PillChip>
+          <ChipRow items={p.clients} widths={[47, 70, 78]} />
         </div>
       </div>
 
@@ -205,15 +235,48 @@ function PersonCard({ p }: { p: Person }) {
 /* -------------------------------- page --------------------------------- */
 export default function AddOnsVideographersPage() {
   const navigate = useNavigate();
-  const { data: creators } = useCreators();
+  const { data: creators, isLoading } = useCreators();
+  const { data: calendar } = useCalendar();
+  const { data: campaigns } = useCampaigns();
   const list = creators ?? [];
+  const cal = calendar ?? [];
+  const camps = campaigns ?? [];
 
-  const bind = (slot: Slot, creator: (typeof list)[number] | undefined): Person => ({
-    ...slot,
-    name: creator?.name ?? "",
-    location: creator?.location ?? "",
-    rating: creator ? creator.stars.toFixed(1) : "",
-  });
+  const bind = (slot: Slot, c: Creator | undefined): Person => {
+    if (!c) {
+      return {
+        ...slot,
+        name: isLoading ? "Loading…" : "No creator listed",
+        location: "",
+        rating: "—",
+        subtitle: isLoading ? "Fetching roster…" : `No ${slot.role.toLowerCase()} available`,
+        rate: "—",
+        times: [],
+        expertise: [],
+        clients: [],
+      };
+    }
+    // This creator's own booked calendar entries drive slots, expertise + past clients.
+    const booked = cal
+      .filter((k) => k.creatorId === c.id)
+      .sort((a, b) => a.scheduledAt.localeCompare(b.scheduledAt));
+    const agencyBrands = camps
+      .filter((m) => !!c.agencyId && m.agencyId === c.agencyId)
+      .map((m) => m.brandName);
+
+    return {
+      ...slot,
+      name: c.name,
+      location: c.location ?? "",
+      rating: c.stars.toFixed(1),
+      subtitle: `${c.niche ?? "Content"} ${slot.role} | ${c.leadsCount ?? 0} Projects`,
+      // cost-per-view × average views = what one deliverable from this creator costs.
+      rate: `${inr(c.cpv * c.avgViews)} ${slot.rateUnit}`,
+      times: booked.slice(0, 3).map((k) => fmtWindow(k.scheduledAt)),
+      expertise: uniq([c.niche ?? "", ...booked.map((k) => formatOf(k.title))]).slice(0, 3),
+      clients: uniq([...booked.map((k) => brandOf(k.title)), ...agencyBrands]).slice(0, 3),
+    };
+  };
 
   // Each slot draws a distinct real creator so no two cards repeat.
   const videographers: Person[] = VIDEOGRAPHER_SLOTS.map((slot, i) => bind(slot, list[i]));

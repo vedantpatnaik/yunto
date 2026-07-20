@@ -19,7 +19,11 @@ import {
   Smile,
   Paperclip,
 } from "lucide-react";
-import { usePolls } from "@/api/hooks";
+import { useList, useChannels, useUsers, useCampaigns, useCreators, useMe, type Poll, type Creator } from "@/api/hooks";
+
+const compactN = (n: number) =>
+  n >= 1_000_000 ? `${(n / 1_000_000).toFixed(n % 1_000_000 === 0 ? 0 : 1)}M`
+  : n >= 1_000 ? `${Math.round(n / 1_000)}k` : `${n}`;
 
 /**
  * Super Admin — Poll Result.
@@ -30,46 +34,49 @@ import { usePolls } from "@/api/hooks";
  */
 
 /* ------------------------------ background: channel list ---------------- */
+type Bind = "channel" | "user" | "campaign";
 type Row = {
   y: number;
   label: string;
   kind: "header" | "hash" | "add" | "dm";
+  /** rows whose label comes from live data; the literal below is only a layout placeholder */
+  bind?: Bind;
   active?: boolean;
   collapsed?: boolean;
   indent?: boolean;
-  badge?: string;
+  badge?: boolean;
   you?: boolean;
 };
 
 const ROWS: Row[] = [
   { y: 176, label: "Notifications", kind: "header" },
-  { y: 204, label: "Agency announcements", kind: "hash" },
-  { y: 232, label: "skincare-campaign-poll", kind: "hash" },
+  { y: 204, label: "", kind: "hash", bind: "channel" },
+  { y: 232, label: "", kind: "hash", bind: "channel" },
   { y: 260, label: "Add channels", kind: "add" },
   { y: 288, label: "Groups", kind: "header" },
-  { y: 316, label: "Welcome", kind: "hash" },
-  { y: 344, label: "General", kind: "hash", active: true },
-  { y: 372, label: "marketing", kind: "hash" },
-  { y: 400, label: "operations", kind: "hash" },
-  { y: 428, label: "sales", kind: "hash" },
+  { y: 316, label: "", kind: "hash", bind: "channel" },
+  { y: 344, label: "", kind: "hash", bind: "channel", active: true },
+  { y: 372, label: "", kind: "hash", bind: "channel" },
+  { y: 400, label: "", kind: "hash", bind: "channel" },
+  { y: 428, label: "", kind: "hash", bind: "channel" },
   { y: 456, label: "Add group", kind: "add" },
-  { y: 486, label: "Direct messages", kind: "header", collapsed: true, badge: "120" },
-  { y: 514, label: "Dev Singh", kind: "dm", you: true },
-  { y: 542, label: "Sanjay Sharma", kind: "dm", you: true },
-  { y: 570, label: "Pooja Singh", kind: "dm", you: true },
+  { y: 486, label: "Direct messages", kind: "header", collapsed: true, badge: true },
+  { y: 514, label: "", kind: "dm", bind: "user", you: true },
+  { y: 542, label: "", kind: "dm", bind: "user", you: true },
+  { y: 570, label: "", kind: "dm", bind: "user", you: true },
   { y: 598, label: "Add person", kind: "add" },
   { y: 626, label: "Campaigns", kind: "header" },
-  { y: 654, label: "Vishal Sharma", kind: "header" },
-  { y: 682, label: "Nike Diwali", kind: "header", indent: true },
+  { y: 654, label: "", kind: "header", bind: "user" },
+  { y: 682, label: "", kind: "header", bind: "campaign", indent: true },
   { y: 710, label: "Brand + Agencies", kind: "hash", indent: true },
   { y: 738, label: "Only Agencies", kind: "hash", indent: true },
   { y: 766, label: "Add group", kind: "add", indent: true },
-  { y: 794, label: "Ritika Verma", kind: "header", collapsed: true },
-  { y: 822, label: "Neha", kind: "header", collapsed: true },
-  { y: 850, label: "Ajay", kind: "header", collapsed: true },
+  { y: 794, label: "", kind: "header", bind: "user", collapsed: true },
+  { y: 822, label: "", kind: "header", bind: "user", collapsed: true },
+  { y: 850, label: "", kind: "header", bind: "user", collapsed: true },
 ];
 
-function ChannelRow({ row, active, onClick }: { row: Row; active: boolean; onClick?: () => void }) {
+function ChannelRow({ row, active, badgeCount, onClick }: { row: Row; active: boolean; badgeCount?: number; onClick?: () => void }) {
   const iconLeft = row.indent ? 33 : 12;
   const textLeft = row.indent ? 60 : row.kind === "hash" ? 38 : row.kind === "dm" ? 41 : row.kind === "add" ? 40 : 39;
   return (
@@ -110,9 +117,9 @@ function ChannelRow({ row, active, onClick }: { row: Row; active: boolean; onCli
         {row.label}
         {row.you && <span className="ml-[8px] font-normal text-white/70">you</span>}
       </span>
-      {row.badge && (
+      {row.badge && !!badgeCount && (
         <span className="absolute right-[9px] top-[2px] flex h-[24px] min-w-[24px] items-center justify-center rounded-full bg-[#E64E4E] px-[4px] text-[10px] font-medium text-white">
-          {row.badge}
+          {badgeCount}
         </span>
       )}
     </div>
@@ -143,7 +150,7 @@ function StatChip({ icon: Icon, iconClass, children, filled }: { icon: LucideIco
 }
 
 /* ------------------------------ modal: creator card --------------------- */
-function CreatorCard({ top }: { top: number }) {
+function CreatorCard({ top, creator }: { top: number; creator: Creator }) {
   const navigate = useNavigate();
   return (
     <div
@@ -157,13 +164,13 @@ function CreatorCard({ top }: { top: number }) {
       </div>
 
       {/* name + handle */}
-      <div className="absolute left-[67px] top-[9px] text-[19px] font-medium leading-[30px] text-black/90">Leena Sharma</div>
-      <div className="absolute left-[67px] top-[35px] font-inter text-[12.6px] font-normal text-black/70">@leenabliss</div>
+      <div className="absolute left-[67px] top-[9px] text-[19px] font-medium leading-[30px] text-black/90">{creator.name}</div>
+      <div className="absolute left-[67px] top-[35px] font-inter text-[12.6px] font-normal text-black/70">{creator.handle}</div>
 
       {/* location */}
       <div className="absolute left-[356px] top-[13px] flex h-[29px] items-center gap-[3px] rounded-[17px] border border-[#D9D9D9] bg-white/60 px-[9px] text-[14.7px] font-normal text-black">
         <span className="text-[13px] leading-none">📍</span>
-        Delhi
+        {creator.location ?? ""}
       </div>
 
       {/* close */}
@@ -173,13 +180,13 @@ function CreatorCard({ top }: { top: number }) {
 
       {/* stats */}
       <div className="absolute left-[13px] top-[81px] flex items-center gap-[6px]">
-        <StatChip icon={Users} iconClass="text-black">1.2M</StatChip>
-        <StatChip icon={Eye} iconClass="text-[#2CC37F]" filled>900k Avg. views</StatChip>
-        <StatChip icon={Heart} iconClass="text-[#FF4D8D]">4.5% ER</StatChip>
+        <StatChip icon={Users} iconClass="text-black">{compactN(creator.followers)}</StatChip>
+        <StatChip icon={Eye} iconClass="text-[#2CC37F]" filled>{compactN(creator.avgViews)} Avg. views</StatChip>
+        <StatChip icon={Heart} iconClass="text-[#FF4D8D]">{creator.engagementRate}% ER</StatChip>
       </div>
 
       {/* open arrow */}
-      <button type="button" onClick={() => navigate("/creators/detail")} className="absolute left-[442px] top-[83px] flex h-[28px] w-[28px] cursor-pointer items-center justify-center rounded-full border border-[#D9D9D9] bg-white">
+      <button type="button" onClick={() => navigate(`/creators/detail?id=${creator.id}`)} className="absolute left-[442px] top-[83px] flex h-[28px] w-[28px] cursor-pointer items-center justify-center rounded-full border border-[#D9D9D9] bg-white">
         <ArrowUpRight className="h-[16px] w-[16px] text-black" strokeWidth={1.8} />
       </button>
     </div>
@@ -189,12 +196,41 @@ function CreatorCard({ top }: { top: number }) {
 /* -------------------------------- page --------------------------------- */
 export default function PollResultPage() {
   const navigate = useNavigate();
-  const [activeChannel, setActiveChannel] = useState(() => ROWS.find((r) => r.active)?.label ?? "");
-  const { data: polls } = usePolls();
+  const [activeChannel, setActiveChannel] = useState("");
+  const { data: polls } = useList<Poll & { createdAt: string }>("polls");
+  const { data: channelsData } = useChannels();
+  const { data: usersData } = useUsers();
+  const { data: campaignsData } = useCampaigns();
+  const { data: creatorsData, isLoading: creatorsLoading } = useCreators();
+  const { data: me } = useMe();
+
+  const channels = channelsData ?? [];
+  const users = usersData ?? [];
+  const campaigns = campaignsData ?? [];
+  const creators = creatorsData ?? [];
+
   const poll = (polls ?? [])[0];
   const pollOptions = poll?.options ?? [];
   const pollResults = poll?.results ?? [];
   const totalVotes = pollResults.reduce((sum, n) => sum + n, 0);
+  const pollTime = poll?.createdAt
+    ? new Date(poll.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false })
+    : "";
+
+  /* sidebar rows: bound labels resolve positionally against the live lists */
+  const seen: Record<Bind, number> = { channel: 0, user: 0, campaign: 0 };
+  const rows = ROWS.map((r) => {
+    if (!r.bind) return r;
+    const i = seen[r.bind]++;
+    const name =
+      r.bind === "channel" ? channels[i]?.name : r.bind === "user" ? users[i]?.name : campaigns[i]?.name;
+    return { ...r, label: name ?? "" };
+  });
+  const channelName = activeChannel || rows.find((r) => r.active)?.label || "";
+
+  const firstName = (n?: string) => (n ?? "").split(" ")[0] ?? "";
+  const initial = (n?: string) => (n ? n.charAt(0).toUpperCase() : "");
+  const shownCreators = creators.slice(0, 3);
   return (
     <>
       {/* =========================== CHAT BACKGROUND ========================= */}
@@ -208,14 +244,17 @@ export default function PollResultPage() {
         <ChevronDown className="absolute left-[110px] top-[13px] h-[16px] w-[16px] text-white" strokeWidth={2} />
         {/* bottom user */}
         <span className="absolute left-[12px] top-[828px] h-[38px] w-[38px] rounded-full bg-gradient-to-br from-[#C8E6FF] to-[#C8B3ED]" />
-        <span className="absolute left-[55px] top-[832px] text-[12px] leading-[15px] text-white">Dev</span>
-        <span className="absolute left-[55px] top-[848px] text-[8px] leading-[13px] text-white/70">@dev</span>
+        <span className="absolute left-[55px] top-[832px] text-[12px] leading-[15px] text-white">{firstName(me?.name)}</span>
+        <span className="absolute left-[55px] top-[848px] text-[8px] leading-[13px] text-white/70">
+          {me?.email ? `@${me.email.split("@")[0]}` : ""}
+        </span>
       </div>
-      {ROWS.map((r) => (
+      {rows.map((r) => (
         <ChannelRow
-          key={`${r.y}-${r.label}`}
+          key={`${r.y}`}
           row={r}
-          active={r.kind === "hash" || r.kind === "dm" ? r.label === activeChannel : !!r.active}
+          badgeCount={users.length}
+          active={r.kind === "hash" || r.kind === "dm" ? (activeChannel ? r.label === activeChannel : !!r.active) : !!r.active}
           onClick={
             r.kind === "add"
               ? () => navigate("/chat/create-channel")
@@ -227,7 +266,7 @@ export default function PollResultPage() {
       ))}
 
       {/* header: channel title */}
-      <span className="absolute left-[511px] top-[134px] text-[16px] font-medium leading-[20px] text-[#1B1B1B]">#skincare-campaign-poll</span>
+      <span className="absolute left-[511px] top-[134px] text-[16px] font-medium leading-[20px] text-[#1B1B1B]">{channelName ? `#${channelName}` : ""}</span>
 
       {/* header: chips */}
       <HeaderChip icon={RotateCw} left={1078} width={87}>Refresh</HeaderChip>
@@ -240,17 +279,17 @@ export default function PollResultPage() {
       {/* header: member stack + count */}
       <div className="absolute left-[1176px] top-[128px] flex h-[32px] items-center rounded-[18px] border border-[#D9D9D9] bg-white px-[4px]">
         <span className="h-[25px] w-[25px] rounded-full bg-gradient-to-br from-[#C8E6FF] to-[#C8B3ED]" />
-        <span className="-ml-[8px] flex h-[25px] w-[25px] items-center justify-center rounded-full bg-[#FFF4AD] text-[15px] text-[#B49C01]">S</span>
-        <span className="-ml-[8px] flex h-[25px] w-[25px] items-center justify-center rounded-full bg-[#BCD4FD] text-[15px] text-[#1155C8]">P</span>
-        <span className="-ml-[8px] flex h-[25px] w-[25px] items-center justify-center rounded-full bg-[#EFBEFF] text-[15px] text-[#8701B4]">R</span>
-        <span className="-ml-[8px] flex h-[25px] w-[25px] items-center justify-center rounded-full bg-[#E5E5E5] text-[8.3px] text-black">+15</span>
+        <span className="-ml-[8px] flex h-[25px] w-[25px] items-center justify-center rounded-full bg-[#FFF4AD] text-[15px] text-[#B49C01]">{initial(users[1]?.name)}</span>
+        <span className="-ml-[8px] flex h-[25px] w-[25px] items-center justify-center rounded-full bg-[#BCD4FD] text-[15px] text-[#1155C8]">{initial(users[2]?.name)}</span>
+        <span className="-ml-[8px] flex h-[25px] w-[25px] items-center justify-center rounded-full bg-[#EFBEFF] text-[15px] text-[#8701B4]">{initial(users[3]?.name)}</span>
+        <span className="-ml-[8px] flex h-[25px] w-[25px] items-center justify-center rounded-full bg-[#E5E5E5] text-[8.3px] text-black">+{Math.max(users.length - 4, 0)}</span>
       </div>
-      <span className="absolute left-[1274px] top-[137px] text-[11px] font-medium text-[#2E2E2E]">20 Members</span>
+      <span className="absolute left-[1274px] top-[137px] text-[11px] font-medium text-[#2E2E2E]">{users.length} Members</span>
 
       {/* poll message in chat */}
       <span className="absolute left-[511px] top-[235px] h-[32px] w-[32px] rounded-full bg-gradient-to-br from-[#C8E6FF] to-[#C8B3ED]" />
-      <span className="absolute left-[551px] top-[235px] text-[13px] font-extrabold leading-[16px] text-[#1B1B1B]">Dev</span>
-      <span className="absolute left-[579px] top-[237px] text-[11px] font-medium text-[#2E2E2E]">11:55</span>
+      <span className="absolute left-[551px] top-[235px] text-[13px] font-extrabold leading-[16px] text-[#1B1B1B]">{firstName(me?.name)}</span>
+      <span className="absolute left-[579px] top-[237px] text-[11px] font-medium text-[#2E2E2E]">{pollTime}</span>
       <span className="absolute left-[612px] top-[238px] flex h-[13px] items-center rounded-[3px] bg-[#DFDFDF] px-[4px] text-[9px] font-medium text-[#2E2E2E]">POLL</span>
 
       {/* poll body */}
@@ -282,7 +321,7 @@ export default function PollResultPage() {
       {/* message input bar */}
       <div className="absolute left-[515px] top-[952px] flex h-[38px] w-[783px] items-center rounded-[4px] border border-[#E5E5E5] bg-white px-[10px]">
         <span className="mr-[8px] h-[20px] w-[1px] bg-[#4C4C4C]" />
-        <span className="text-[13px] font-medium text-[#2E2E2E]">Message #skincare-campaign-poll</span>
+        <span className="text-[13px] font-medium text-[#2E2E2E]">{channelName ? `Message #${channelName}` : "Message"}</span>
         <div className="ml-auto flex items-center gap-[14px] text-[#4C4C4C]">
           <AtSign className="h-[14px] w-[14px]" strokeWidth={1.6} />
           <Smile className="h-[14px] w-[14px]" strokeWidth={1.6} />
@@ -314,8 +353,11 @@ export default function PollResultPage() {
             <span className="-ml-[6px] h-[25px] w-[25px] rounded-full bg-gradient-to-br from-[#FFD6E7] to-[#C8B3ED]" />
             <span className="-ml-[6px] h-[25px] w-[25px] rounded-full bg-gradient-to-br from-[#FFE08A] to-[#F0A0C0]" />
             <span className="-ml-[6px] h-[25px] w-[25px] rounded-full bg-gradient-to-br from-[#C8B3ED] to-[#BCD4FD]" />
-            <span className="-ml-[6px] flex h-[25px] w-[25px] items-center justify-center rounded-full bg-[#E5E5E5] text-[8.3px] text-black">+5</span>
+            <span className="-ml-[6px] flex h-[25px] w-[25px] items-center justify-center rounded-full bg-[#E5E5E5] text-[8.3px] text-black">+{Math.max(creators.length - 4, 0)}</span>
           </div>
+          {!creatorsLoading && creators.length === 0 && (
+            <span className="absolute left-[20px] top-[60px] text-[16px] font-normal text-black/40">No interested creators yet</span>
+          )}
         </div>
 
         {/* creator cards (absolute in modal-canvas coordinates) */}
@@ -323,9 +365,9 @@ export default function PollResultPage() {
 
       {/* creator cards — placed on the canvas so their fixed coordinates map 1:1 */}
       <div className="pointer-events-none absolute inset-0 z-40">
-        <CreatorCard top={345} />
-        <CreatorCard top={496} />
-        <CreatorCard top={648} />
+        {shownCreators.map((c, i) => (
+          <CreatorCard key={c.id} top={[345, 496, 648][i]} creator={c} />
+        ))}
 
         {/* bottom actions */}
         <div onClick={() => navigate("/leads/create-paid")} className="pointer-events-auto absolute left-[521px] top-[825px] flex h-[48px] w-[226px] cursor-pointer items-center justify-center rounded-[24px] border border-[#EAEAEA] bg-white/95">

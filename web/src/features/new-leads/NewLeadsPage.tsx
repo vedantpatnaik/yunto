@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
 import {
   ChevronLeft,
@@ -19,7 +19,7 @@ import {
   Wallet,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { useLeads, type Lead } from "@/api/hooks";
+import { useLeads, useAgencies, useCreators, type Lead } from "@/api/hooks";
 
 /** 1_200_000 -> "1.2M", 900_000 -> "900k", 45 -> "45". */
 const compact = (n: number) =>
@@ -28,6 +28,22 @@ const compact = (n: number) =>
     : n >= 1_000
     ? `${Math.round(n / 1_000)}k`
     : String(n);
+
+const mean = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : 0);
+
+/** Lead rows carry agencyId on the wire (Prisma Lead.agencyId) even though the shared type omits it. */
+type LeadRow = Lead & { agencyId?: string | null };
+
+/** Roster averages of the creators the managing agency represents — the card's audience metrics. */
+interface Roster {
+  avgViews: number;
+  stars: number;
+  cpv: number;
+  location: string;
+}
+
+/** Intent drives the little completion ring next to the location pill. */
+const intentPct = (intent: string) => (intent === "HIGH" ? 100 : intent === "LOW" ? 25 : 50);
 
 /**
  * Super Admin — New Leads (Leads sub-flow).
@@ -75,7 +91,7 @@ function InternalManaged({ money }: { money: string }) {
   );
 }
 
-function AgencyManaged({ money }: { money: string }) {
+function AgencyManaged({ money, name, stars }: { money: string; name: string; stars: string }) {
   return (
     <>
       <div className="absolute left-[8px] top-[132px] h-[33px] w-[237px] rounded-[11px] bg-[rgba(104,1,254,0.06)]" />
@@ -83,10 +99,10 @@ function AgencyManaged({ money }: { money: string }) {
         <span className="text-[9px] leading-none text-white">-45% OFF</span>
       </div>
       <span className="absolute left-[13px] top-[137px] h-[24px] w-[24px] rounded-full bg-gradient-to-br from-[#FFD6E7] to-[#C8B3ED]" />
-      <div className="absolute left-[41px] top-[137px] text-[10.2px] leading-none text-ink/90">Stellar Talents</div>
+      <div className="absolute left-[41px] top-[137px] text-[10.2px] leading-none text-ink/90">{name}</div>
       <div className="absolute left-[41px] top-[149px] flex items-center gap-[3px]">
         <Star className="h-[11px] w-[11px] fill-[#FDD835] text-[#F4B400]" strokeWidth={1} />
-        <span className="text-[8px] font-light leading-none text-ink/60">4.8 Stars</span>
+        <span className="text-[8px] font-light leading-none text-ink/60">{stars} Stars</span>
       </div>
       <div className="absolute left-[163px] top-[136px] flex h-[25px] w-[75px] items-center gap-[3px] rounded-[8px] bg-white/70 pl-[6px]">
         <Wallet className="h-[13px] w-[13px] text-[#AA8F4D]" strokeWidth={1.6} />
@@ -97,8 +113,21 @@ function AgencyManaged({ money }: { money: string }) {
 }
 
 /* -------------------------------- card --------------------------------- */
-function CreatorCard({ lead, internal }: { lead: Lead; internal?: boolean }) {
+function CreatorCard({
+  lead,
+  agencyName,
+  roster,
+  selected,
+  onToggle,
+}: {
+  lead: LeadRow;
+  agencyName: string | null;
+  roster: Roster;
+  selected: boolean;
+  onToggle: (id: string) => void;
+}) {
   const navigate = useNavigate();
+  const stars = roster.stars.toFixed(1);
   return (
     <div
       onClick={() => navigate(`/leads/detail?id=${lead.id}`)}
@@ -113,14 +142,16 @@ function CreatorCard({ lead, internal }: { lead: Lead; internal?: boolean }) {
         <span className="relative h-[15px] w-[15px] rounded-full border border-[#79B282]">
           <span
             className="absolute inset-[1.5px] rounded-full"
-            style={{ background: "conic-gradient(#79B282 0 50%, transparent 50% 100%)" }}
+            style={{
+              background: `conic-gradient(#79B282 0 ${intentPct(lead.intent)}%, transparent ${intentPct(lead.intent)}% 100%)`,
+            }}
           />
         </span>
       </span>
       {/* location */}
       <span className="absolute left-[179px] top-[8px] flex h-[18px] items-center gap-[1px] rounded-[9px] bg-white px-[5px]">
         <span className="text-[8px] leading-none">📍</span>
-        <span className="text-[8px] leading-none text-ink">Delhi</span>
+        <span className="text-[8px] leading-none text-ink">{roster.location}</span>
       </span>
 
       {/* creator header */}
@@ -130,31 +161,75 @@ function CreatorCard({ lead, internal }: { lead: Lead; internal?: boolean }) {
 
       {/* stat row 1 */}
       <StatChip icon={Users} iconCls="text-ink/80" label={compact(lead.peopleCount)} pos="left-[10px] top-[51px]" />
-      <StatChip icon={Eye} iconCls="text-[#2CC37F]" label="900k Avg. views" pos="left-[69px] top-[51px]" />
+      <StatChip
+        icon={Eye}
+        iconCls="text-[#2CC37F]"
+        label={`${compact(Math.round(roster.avgViews))} Avg. views`}
+        pos="left-[69px] top-[51px]"
+      />
       <StatChip icon={Heart} iconCls="text-ink/70" label={lead.engagementRate ?? ""} pos="left-[173px] top-[51px]" />
       {/* stat row 2 */}
-      <StatChip icon={Star} iconCls="fill-[#FDD835] text-[#F4B400]" label="4.8 Stars" pos="left-[10px] top-[82px]" />
-      <StatChip icon={Eye} iconCls="text-[#2CC37F]" label="0.23p CPV" pos="left-[87px] top-[82px]" />
+      <StatChip icon={Star} iconCls="fill-[#FDD835] text-[#F4B400]" label={`${stars} Stars`} pos="left-[10px] top-[82px]" />
+      <StatChip icon={Eye} iconCls="text-[#2CC37F]" label={`${roster.cpv.toFixed(2)}p CPV`} pos="left-[87px] top-[82px]" />
       <StatChip icon={Sparkles} iconCls="text-[#603CFF]" label={lead.intent} pos="left-[173px] top-[82px]" />
 
       {/* managed by */}
       <div className="absolute left-[8px] top-[112px] text-[9.3px] leading-none text-ink/70">Managed by:</div>
-      {internal ? <InternalManaged money={lead.money ?? ""} /> : <AgencyManaged money={lead.money ?? ""} />}
+      {agencyName ? (
+        <AgencyManaged money={lead.money ?? ""} name={agencyName} stars={stars} />
+      ) : (
+        <InternalManaged money={lead.money ?? ""} />
+      )}
 
       {/* selection checkbox */}
-      <span className="absolute left-[240px] top-[167px] flex h-[15px] w-[15px] items-center justify-center rounded-[5px] border border-black/10 bg-white">
-        {internal && <Check className="h-[10px] w-[10px] text-ink" strokeWidth={2.5} />}
+      <span
+        onClick={(e) => {
+          e.stopPropagation();
+          onToggle(lead.id);
+        }}
+        className="absolute left-[240px] top-[167px] flex h-[15px] w-[15px] items-center justify-center rounded-[5px] border border-black/10 bg-white"
+      >
+        {selected && <Check className="h-[10px] w-[10px] text-ink" strokeWidth={2.5} />}
       </span>
     </div>
   );
 }
 
-function CardRow({ pos, leads }: { pos: string; leads: Lead[] }) {
+function CardRow({
+  pos,
+  leads,
+  loading,
+  agencyName,
+  rosterFor,
+  selected,
+  onToggle,
+}: {
+  pos: string;
+  leads: LeadRow[];
+  loading: boolean;
+  agencyName: (id?: string | null) => string | null;
+  rosterFor: (id?: string | null) => Roster;
+  selected: string[];
+  onToggle: (id: string) => void;
+}) {
   return (
     <div className={`absolute flex gap-[15px] ${pos}`}>
-      {leads.map((lead, i) => (
-        <CreatorCard key={lead.id} lead={lead} internal={i === 0} />
-      ))}
+      {leads.length === 0 ? (
+        <div className="flex h-[193px] w-[266px] shrink-0 items-center justify-center rounded-[12px] bg-[#F5F5F5] text-[12px] font-light text-ink/40">
+          {loading ? "Loading…" : "No new leads"}
+        </div>
+      ) : (
+        leads.map((lead) => (
+          <CreatorCard
+            key={lead.id}
+            lead={lead}
+            agencyName={agencyName(lead.agencyId)}
+            roster={rosterFor(lead.agencyId)}
+            selected={selected.includes(lead.id)}
+            onToggle={onToggle}
+          />
+        ))
+      )}
     </div>
   );
 }
@@ -162,8 +237,37 @@ function CardRow({ pos, leads }: { pos: string; leads: Lead[] }) {
 /* -------------------------------- page --------------------------------- */
 export default function NewLeadsPage() {
   const navigate = useNavigate();
-  const { data } = useLeads();
-  const newLeads = (data ?? []).filter((l) => l.status === "NEW").slice(0, 12);
+  const { data, isLoading } = useLeads();
+  const { data: agencyData } = useAgencies();
+  const { data: creatorData } = useCreators();
+  const [picked, setPicked] = useState<string[] | null>(null);
+
+  const newLeads = ((data ?? []) as LeadRow[]).filter((l) => l.status === "NEW").slice(0, 12);
+  const creators = creatorData ?? [];
+
+  const agencyName = (id?: string | null) => (agencyData ?? []).find((a) => a.id === id)?.name ?? null;
+
+  /** Audience metrics for a lead = the averages of the roster its managing agency represents. */
+  const rosterFor = (id?: string | null): Roster => {
+    const owned = id ? creators.filter((c) => c.agencyId === id) : [];
+    const pool = owned.length ? owned : creators;
+    const counts = new Map<string, number>();
+    for (const c of pool) if (c.location) counts.set(c.location, (counts.get(c.location) ?? 0) + 1);
+    return {
+      avgViews: mean(pool.map((c) => c.avgViews)),
+      stars: mean(pool.map((c) => c.stars)),
+      cpv: mean(pool.map((c) => c.cpv)),
+      location: [...counts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? "—",
+    };
+  };
+
+  // default selection mirrors the design's single-checked card; explicit once the user clicks
+  const selected = picked ?? newLeads.slice(0, 1).map((l) => l.id);
+  const toggle = (id: string) =>
+    setPicked(selected.includes(id) ? selected.filter((x) => x !== id) : [...selected, id]);
+
+  const rowProps = { loading: isLoading, agencyName, rosterFor, selected, onToggle: toggle };
+
   return (
     <>
       {/* back button */}
@@ -207,7 +311,9 @@ export default function NewLeadsPage() {
       <span className="absolute left-[1007px] top-[262px] flex h-[15px] w-[15px] items-center justify-center rounded-[5px] bg-white">
         <Check className="h-[11px] w-[11px] text-ink" strokeWidth={2.5} />
       </span>
-      <span className="absolute left-[1029px] top-[262px] text-[12px] font-light leading-[15px] text-ink">1 selected</span>
+      <span className="absolute left-[1029px] top-[262px] text-[12px] font-light leading-[15px] text-ink">
+        {selected.length} selected
+      </span>
 
       {/* toolbar — Share link */}
       <div
@@ -228,14 +334,14 @@ export default function NewLeadsPage() {
       </div>
 
       {/* Mega / Celebrity Creators — 2nd row (topmost visible, header scrolled off) */}
-      <CardRow pos="left-[277px] top-[330px]" leads={newLeads.slice(0, 4)} />
+      <CardRow pos="left-[277px] top-[330px]" leads={newLeads.slice(0, 4)} {...rowProps} />
 
       {/* Macro Creators section */}
       <h2 className="absolute left-[277px] top-[542px] text-[24px] font-normal leading-none text-ink">
         Macro Creators (250K – 1M)
       </h2>
-      <CardRow pos="left-[277px] top-[584px]" leads={newLeads.slice(4, 8)} />
-      <CardRow pos="left-[277px] top-[793px]" leads={newLeads.slice(8, 12)} />
+      <CardRow pos="left-[277px] top-[584px]" leads={newLeads.slice(4, 8)} {...rowProps} />
+      <CardRow pos="left-[277px] top-[793px]" leads={newLeads.slice(8, 12)} {...rowProps} />
     </>
   );
 }

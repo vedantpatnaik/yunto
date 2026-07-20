@@ -1,7 +1,17 @@
 import type { ReactNode } from "react";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useCreate } from "@/api/hooks";
+import {
+  useCreate,
+  useUsers,
+  useList,
+  useCampaigns,
+  useMe,
+  useAgencies,
+  useLeaves,
+  type Lead,
+  type User as TeamUser,
+} from "@/api/hooks";
 import type { LucideIcon } from "lucide-react";
 import {
   Sparkles,
@@ -143,6 +153,8 @@ function GlanceCard({
   membersIconColor,
   title,
   members,
+  active,
+  absent,
   activeLeft,
   absentLeft,
   arrowLeft,
@@ -153,6 +165,8 @@ function GlanceCard({
   membersIconColor: string;
   title: string;
   members: string;
+  active: number;
+  absent: number;
   activeLeft: number;
   absentLeft: number;
   arrowLeft: number;
@@ -175,8 +189,8 @@ function GlanceCard({
         <Users className="h-[10px] w-[10px]" style={{ color: membersIconColor }} strokeWidth={2.5} />
         <span className="text-[10px] font-light text-black/70">{members}</span>
       </div>
-      <DotPill left={activeLeft} active label="10 Active" width={68} />
-      <DotPill left={absentLeft} active={false} label="2 Absent" width={66} />
+      <DotPill left={activeLeft} active label={`${active} Active`} width={68} />
+      <DotPill left={absentLeft} active={false} label={`${absent} Absent`} width={66} />
       <span
         className="absolute top-[0px] flex h-[23px] w-[23px] items-center justify-center rounded-[11.5px] bg-white"
         style={{ left: arrowLeft }}
@@ -254,6 +268,12 @@ function MemberRow({
   avatarBg,
   avatarText,
   campaign,
+  newLeads,
+  contactedLeads,
+  convertedLeads,
+  status,
+  responseTime,
+  pager,
   onClick,
 }: {
   top: number;
@@ -262,6 +282,12 @@ function MemberRow({
   avatarBg: string;
   avatarText: string;
   campaign: string;
+  newLeads: number;
+  contactedLeads: number;
+  convertedLeads: number;
+  status: string;
+  responseTime: string;
+  pager: string;
   onClick?: () => void;
 }) {
   return (
@@ -284,17 +310,17 @@ function MemberRow({
         {name}
       </span>
       <span className="absolute left-[117px] top-[5px] flex h-[15px] w-[35px] items-center justify-center rounded-[24px] border border-black bg-white">
-        <span className="font-inter text-[8px] font-medium text-[#4CCC16]">Active</span>
+        <span className="font-inter text-[8px] font-medium text-[#4CCC16]">{status}</span>
       </span>
       {/* response time */}
       <span className="absolute left-[35px] top-[18px] font-inter text-[7px] font-normal leading-[15.7px] text-black/70">
-        Response Time: 10 Min.
+        {responseTime ? `Response Time: ${responseTime}` : ""}
       </span>
       {/* lead chips */}
       <div className="absolute left-[7px] top-[37px] h-[23px] w-[218px]">
-        <LeadChip left={0} icon={Mail} label="2 Leads" dark border="#2F2E2E" text="#FAFAFA" />
-        <LeadChip left={74} icon={MailWarning} label="4 Leads" border="#F59E0B" text="#222222" />
-        <LeadChip left={148} icon={MailCheck} label="7 Leads" border="#10B981" text="#222222" />
+        <LeadChip left={0} icon={Mail} label={`${newLeads} Leads`} dark border="#2F2E2E" text="#FAFAFA" />
+        <LeadChip left={74} icon={MailWarning} label={`${contactedLeads} Leads`} border="#F59E0B" text="#222222" />
+        <LeadChip left={148} icon={MailCheck} label={`${convertedLeads} Leads`} border="#10B981" text="#222222" />
       </div>
       {/* campaign card */}
       <div className="absolute left-[313px] top-[11px] h-[49px] w-[137px] rounded-[12px] border border-[#D6D6D6] bg-white">
@@ -310,7 +336,7 @@ function MemberRow({
       </div>
       {/* pager */}
       <div className="absolute left-[456px] top-[46px] flex items-center gap-[3px]">
-        <span className="text-[10px] font-light text-black">1/3</span>
+        <span className="text-[10px] font-light text-black">{pager}</span>
         <ArrowUpRight className="h-[10px] w-[10px] text-black" strokeWidth={1.8} />
       </div>
     </div>
@@ -341,6 +367,61 @@ export default function SettingsAddMembersPage() {
   const navigate = useNavigate();
   const create = useCreate("users");
   const [membersActive, setMembersActive] = useState(true);
+
+  // ---- live data ----
+  const { data: users = [] } = useUsers();
+  const { data: leads = [] } = useList<
+    Lead & { ownerId?: string; createdAt?: string; updatedAt?: string }
+  >("leads");
+  const { data: campaigns = [] } = useCampaigns();
+  const { data: agencies = [] } = useAgencies();
+  const { data: leaves = [] } = useLeaves();
+  const { data: me } = useMe();
+
+  const salesMembers = users.filter((u) => u.team?.name === "Sales");
+  const opsMembers = users.filter((u) => u.team?.name === "Operations");
+  const agency = agencies[0];
+  const meWithCode = me as (TeamUser & { agencyCode?: string | null }) | undefined;
+
+  const roleLabel = (role?: string) =>
+    role ? role.split("_").map((w) => w.charAt(0) + w.slice(1).toLowerCase()).join(" ") : "";
+
+  const leadsByStatus = (ownerId: string, status: string) =>
+    leads.filter((l) => l.ownerId === ownerId && l.status === status).length;
+
+  /**
+   * Presence. There is no /attendance endpoint (the Attendance model exists in Prisma but is
+   * not exposed in server/src/routes/index.ts), so "absent" is derived from the approved
+   * leave records that span today — the only honest presence signal the API serves.
+   */
+  const today = Date.now();
+  const onLeave = new Set(
+    leaves
+      .filter(
+        (lv) =>
+          lv.status === "APPROVED" && Date.parse(lv.from) <= today && Date.parse(lv.to) >= today,
+      )
+      .map((lv) => lv.userId),
+  );
+  const absentIn = (list: TeamUser[]) => list.filter((u) => onLeave.has(u.id)).length;
+
+  /** Mean time from lead creation to its first status change, for one owner. */
+  const responseTimeOf = (ownerId: string) => {
+    const worked = leads.filter(
+      (l) => l.ownerId === ownerId && l.status !== "NEW" && l.createdAt && l.updatedAt,
+    );
+    if (worked.length === 0) return "";
+    const avgMin =
+      worked.reduce((s, l) => s + (Date.parse(l.updatedAt!) - Date.parse(l.createdAt!)), 0) /
+      worked.length /
+      60_000;
+    if (avgMin < 60) return `${Math.max(1, Math.round(avgMin))} Min.`;
+    if (avgMin < 1440) return `${Math.round(avgMin / 60)} Hr.`;
+    return `${Math.round(avgMin / 1440)} Days`;
+  };
+
+  /** initials for the avatar stack / member rows */
+  const initialOf = (n?: string) => (n ? n.trim().charAt(0).toUpperCase() : "");
 
   // Add Member form state
   const [name, setName] = useState("");
@@ -420,8 +501,22 @@ export default function SettingsAddMembersPage() {
         <span className="text-[11.6px] font-light text-white">Member</span>
         <UserPlus className="h-[15px] w-[15px] text-white" strokeWidth={1.4} />
       </div>
-      <SmilePill left={664} top={306} width={91.5} active label="18 Active" border="#3A3A3A" />
-      <SmilePill left={764.5} top={306} width={93} active={false} label="4 Absent" border="#3A3A3A" />
+      <SmilePill
+        left={664}
+        top={306}
+        width={91.5}
+        active
+        label={`${users.length - absentIn(users)} Active`}
+        border="#3A3A3A"
+      />
+      <SmilePill
+        left={764.5}
+        top={306}
+        width={93}
+        active={false}
+        label={`${absentIn(users)} Absent`}
+        border="#3A3A3A"
+      />
 
       {/* Team Glance */}
       <span className="absolute left-[292px] top-[380px] flex h-[42px] w-[42px] items-center justify-center rounded-full border border-[#E8E8E8] bg-white">
@@ -430,7 +525,7 @@ export default function SettingsAddMembersPage() {
       <span className="absolute left-[342px] top-[380px] text-[24px] leading-[24px] text-[#111827]">Team Glance</span>
       <div className="absolute left-[342px] top-[405px] flex items-center gap-[5px]">
         <Users className="h-[16px] w-[16px] text-[#747FE2]" strokeWidth={2.2} />
-        <span className="text-[12px] text-black/70">22 Members</span>
+        <span className="text-[12px] text-black/70">{users.length} Members</span>
       </div>
 
       {/* Team Glance cards */}
@@ -439,7 +534,9 @@ export default function SettingsAddMembersPage() {
         iconBg="#FDFFBC"
         membersIconColor="#D3D918"
         title="Sales"
-        members="12 Members"
+        members={`${salesMembers.length} Members`}
+        active={salesMembers.length - absentIn(salesMembers)}
+        absent={absentIn(salesMembers)}
         activeLeft={159}
         absentLeft={221}
         arrowLeft={301}
@@ -450,7 +547,9 @@ export default function SettingsAddMembersPage() {
         iconBg="#ECC5F5"
         membersIconColor="#B56CC5"
         title="Operation"
-        members="10 Members"
+        members={`${opsMembers.length} Members`}
+        active={opsMembers.length - absentIn(opsMembers)}
+        absent={absentIn(opsMembers)}
         activeLeft={159}
         absentLeft={221}
         arrowLeft={301}
@@ -470,7 +569,7 @@ export default function SettingsAddMembersPage() {
         <span className="absolute left-[54px] top-[10px] text-[20px] leading-[24px] text-black/90">Sales</span>
         <div className="absolute left-[54px] top-[36px] flex items-center gap-[4px]">
           <Users className="h-[10px] w-[10px] text-[#D3D918]" strokeWidth={2.5} />
-          <span className="text-[10px] font-light text-black/70">12 Members</span>
+          <span className="text-[10px] font-light text-black/70">{salesMembers.length} Members</span>
         </div>
         <span
           className="absolute left-[596px] top-[1px] flex h-[30px] w-[30px] cursor-pointer items-center justify-center rounded-[15px] bg-white"
@@ -486,22 +585,26 @@ export default function SettingsAddMembersPage() {
               <Package className="h-[15px] w-[15px] text-black" strokeWidth={1.4} />
             </span>
             <span className="ml-[6px] text-[14px] text-[#242220]">Leads</span>
-            <span className="ml-[9px] text-[16px] text-black">105&nbsp;&nbsp;All</span>
+            <span className="ml-[9px] text-[16px] text-black">{leads.length}&nbsp;&nbsp;All</span>
           </div>
           <div className="absolute left-[208px] top-[13px] flex items-center gap-[6px]">
             <Mail className="h-[22px] w-[22px] text-[#5C9AFF]" strokeWidth={1.5} />
-            <span className="text-[15px] font-light text-black/80">28 Leads</span>
+            <span className="text-[15px] font-light text-black/80">
+              {leads.filter((l) => l.status === "NEW").length} Leads
+            </span>
           </div>
           <div className="absolute left-[328px] top-[13px] flex items-center gap-[5px]">
             <MailCheck className="h-[22px] w-[22px] text-[#52B594]" strokeWidth={1.5} />
-            <span className="text-[15px] font-light text-black/80">7 Leads</span>
+            <span className="text-[15px] font-light text-black/80">
+              {leads.filter((l) => l.status === "CONVERTED").length} Leads
+            </span>
           </div>
           <div
             className="absolute left-[492px] top-[8px] flex h-[35px] w-[88px] cursor-pointer items-center gap-[8px] rounded-[24px] border-[0.5px] border-[#CCCCCC] bg-white px-[8px]"
             onClick={() => navigate("/campaigns/assign")}
           >
             <span className="flex h-[20px] w-[20px] items-center justify-center rounded-full bg-[#FF2B2B] text-[10.3px] text-white">
-              1
+              {leads.filter((l) => !l.ownerId).length}
             </span>
             <span className="text-[14px] font-light text-black">Assign</span>
           </div>
@@ -512,11 +615,18 @@ export default function SettingsAddMembersPage() {
           <span className="absolute left-[10px] top-[11px] text-[20px] leading-[25px] text-black">Members</span>
           {/* avatar stack */}
           {[
-            { l: 142, bg: "#F4C1C1", fg: "#B93636", t: "R" },
-            { l: 162.7, bg: "#C2E9CF", fg: "#2A9A4F", t: "R" },
-            { l: 184.1, bg: "#A1BAE6", fg: "#2158BA", t: "S" },
-            { l: 199.1, bg: "#EFF5FF", fg: "#000000", t: "+9" },
-          ].map((a) => (
+            { l: 142, bg: "#F4C1C1", fg: "#B93636", t: initialOf(salesMembers[0]?.name) },
+            { l: 162.7, bg: "#C2E9CF", fg: "#2A9A4F", t: initialOf(salesMembers[1]?.name) },
+            { l: 184.1, bg: "#A1BAE6", fg: "#2158BA", t: initialOf(salesMembers[2]?.name) },
+            {
+              l: 199.1,
+              bg: "#EFF5FF",
+              fg: "#000000",
+              t: salesMembers.length > 3 ? `+${salesMembers.length - 3}` : "",
+            },
+          ]
+            .filter((a) => a.t)
+            .map((a) => (
             <span
               key={a.l}
               className="absolute top-[12px] flex h-[30px] w-[30px] items-center justify-center rounded-full border border-[#373636] text-[10.7px] font-medium"
@@ -546,8 +656,30 @@ export default function SettingsAddMembersPage() {
           <ChevronDown className="absolute left-[505px] top-[16px] h-[16px] w-[16px] text-black" strokeWidth={1.8} />
 
           {/* member rows */}
-          <MemberRow top={67} name="Sanjay Sharma" initial="R" avatarBg="#DFF7D8" avatarText="#2A9A4F" campaign="Base Skincare" onClick={() => navigate("/people")} />
-          <MemberRow top={144} name="Pooja Singh" initial="P" avatarBg="#F6FF86" avatarText="#939D0F" campaign="Nike Sneaker" onClick={() => navigate("/people")} />
+          {salesMembers.length === 0 ? (
+            <span className="absolute left-[10px] top-[67px] text-[12px] font-light text-black/40">
+              No members yet
+            </span>
+          ) : (
+            salesMembers.slice(0, 2).map((m, i) => (
+              <MemberRow
+                key={m.id}
+                top={i === 0 ? 67 : 144}
+                name={m.name}
+                initial={initialOf(m.name)}
+                avatarBg={i === 0 ? "#DFF7D8" : "#F6FF86"}
+                avatarText={i === 0 ? "#2A9A4F" : "#939D0F"}
+                campaign={campaigns[i]?.name ?? ""}
+                newLeads={leadsByStatus(m.id, "NEW")}
+                contactedLeads={leadsByStatus(m.id, "CONTACTED")}
+                convertedLeads={leadsByStatus(m.id, "CONVERTED")}
+                status={onLeave.has(m.id) ? "Absent" : "Active"}
+                responseTime={responseTimeOf(m.id)}
+                pager={campaigns.length > 0 ? `${i + 1}/${campaigns.length}` : ""}
+                onClick={() => navigate("/people")}
+              />
+            ))
+          )}
         </div>
       </div>
 
@@ -563,15 +695,17 @@ export default function SettingsAddMembersPage() {
       </span>
 
       <span className="absolute left-[1171px] top-[338px] w-[125px] text-center text-[20px] font-semibold leading-[24px] text-[#111827]">
-        Rohit Kumar
+        {me?.name ?? ""}
       </span>
       <span className="absolute left-[1171px] top-[361px] w-[125px] text-center text-[12px] font-normal leading-[16px] text-[#6B7280]">
-        Super Admin
+        {roleLabel(me?.role)}
       </span>
 
       {/* agency code pill */}
       <div className="absolute left-[1162px] top-[386px] flex h-[28px] w-[144px] items-center justify-center gap-[4px] rounded-[24px] border-[0.5px] border-[#D9D9D9] bg-white/50">
-        <span className="text-[10px] font-normal text-black/80">Agency Code&nbsp;&nbsp;55678</span>
+        <span className="text-[10px] font-normal text-black/80">
+          Agency Code&nbsp;&nbsp;{meWithCode?.agencyCode ?? ""}
+        </span>
         <Copy className="h-[12px] w-[12px] text-black" strokeWidth={1.4} />
       </div>
 
@@ -579,10 +713,11 @@ export default function SettingsAddMembersPage() {
       <span className="absolute left-[1062px] top-[433px] text-[14px] font-medium leading-[24px] text-black">
         Detailed Information
       </span>
-      <InfoRow top={469} icon={User} label="Full Name" value="Rohit Kumar" />
-      <InfoRow top={515} icon={Mail} label="Email Address" value="rohitkumar@gmail.com" />
-      <InfoRow top={561} icon={ClipboardList} label="Assign as" value="Manager" />
-      <InfoRow top={607} icon={Cake} label="Birth Date" value="01/01/2001" />
+      <InfoRow top={469} icon={User} label="Full Name" value={me?.name ?? ""} />
+      <InfoRow top={515} icon={Mail} label="Email Address" value={me?.email ?? ""} />
+      <InfoRow top={561} icon={ClipboardList} label="Assign as" value={roleLabel(me?.role)} />
+      {/* Birth Date has no column on User in the Prisma schema — render empty rather than invent one. */}
+      <InfoRow top={607} icon={Cake} label="Birth Date" value="" />
 
       {/* Agency Information */}
       <span className="absolute left-[1062px] top-[677px] text-[14px] font-medium leading-[24px] text-black">
@@ -592,10 +727,11 @@ export default function SettingsAddMembersPage() {
       <span className="absolute left-[1255px] top-[775px] flex h-[20px] w-[20px] items-center justify-center rounded-[12px] bg-white">
         <Pencil className="h-[9px] w-[9px] text-black" strokeWidth={1.6} />
       </span>
-      <InfoRow top={810} icon={User} label="Agency Name" value="Stellar Talents" />
-      <InfoRow top={856} icon={Mail} label="Email Address" value="rohitkumar@gmail.com" />
-      <InfoRow top={902} icon={Phone} label="Contact Number" value="98888453309" />
-      <InfoRow top={948} icon={Globe} label="Agency Website" value="www.stellartalent.com" />
+      <InfoRow top={810} icon={User} label="Agency Name" value={agency?.name ?? ""} />
+      <InfoRow top={856} icon={Mail} label="Email Address" value={me?.email ?? ""} />
+      <InfoRow top={902} icon={Phone} label="Contact Number" value={me?.phone ?? ""} />
+      {/* Agency has no website column in the Prisma schema — render empty rather than invent one. */}
+      <InfoRow top={948} icon={Globe} label="Agency Website" value="" />
 
       {/* ===================== Add Member modal (on top) ===================== */}
       <div className="absolute left-[413px] top-[107px] h-[579px] w-[614px] rounded-[24px] bg-white shadow-[0_20px_60px_rgba(0,0,0,0.18)]">

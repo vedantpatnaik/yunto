@@ -1,7 +1,14 @@
 import type { ReactNode } from "react";
 import { ChevronLeft, Calendar, MapPin, Clock, Plus, Star } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { useCreators, type Creator } from "@/api/hooks";
+import {
+  useList,
+  useCampaigns,
+  useCalendar,
+  type Creator,
+  type Campaign,
+  type CalendarItem,
+} from "@/api/hooks";
 
 /**
  * Super Admin — Add-Ons / Editors directory.
@@ -26,7 +33,13 @@ type Person = Slot & {
   rating: string;
   subtitle: string;
   rate: string;
+  slots: string[];      // availability windows — from the creator's scheduled content
+  expertise: string[];  // niche / platform / reach
+  clients: string[];    // brands their agency has run campaigns for
 };
+
+/** /creators returns the full Prisma row, so `platform` + `blacklisted` ride along. */
+type DirectoryCreator = Creator & { platform?: string; blacklisted?: boolean };
 
 const VIDEOGRAPHER_SLOTS: Slot[] = [
   {
@@ -54,8 +67,53 @@ const EDITOR_SLOTS: Slot[] = [
   },
 ];
 
+/* --------------------------- derivation helpers ------------------------- */
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+/** A scheduled shoot rendered as the 2-hour booking window the card shows. */
+function slotLabel(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "—";
+  const h = d.getHours();
+  const h12 = (n: number) => (n % 12 === 0 ? 12 : n % 12);
+  return `${d.getDate()} ${MONTHS[d.getMonth()]} ${h12(h)}-${h12((h + 2) % 24)}${h < 12 ? "am" : "pm"}`;
+}
+
+function compactViews(n: number): string {
+  return n >= 1_000_000 ? `${(n / 1_000_000).toFixed(1)}M views` : `${Math.round(n / 1_000)}K views`;
+}
+
+/** INSTAGRAM -> Instagram */
+function titleCase(s: string): string {
+  return s.charAt(0).toUpperCase() + s.slice(1).toLowerCase();
+}
+
+/** Keep derived text inside the fixed-width Figma chips. */
+function clip(s: string, max: number): string {
+  return s.length > max ? `${s.slice(0, max - 1)}…` : s;
+}
+
 // Merge a fixed visual slot with a distinct real creator so every card differs.
-function bindPerson(slot: Slot, c: Creator): Person {
+function bindPerson(
+  slot: Slot,
+  c: DirectoryCreator | undefined,
+  campaigns: Campaign[],
+  calendar: CalendarItem[],
+  loading: boolean
+): Person {
+  if (!c) {
+    return {
+      ...slot,
+      name: loading ? "…" : "—",
+      location: "",
+      rating: loading ? "…" : "—",
+      subtitle: loading ? "Loading creators…" : `No ${slot.role.toLowerCase()}s listed`,
+      rate: loading ? "…" : "—",
+      slots: [],
+      expertise: [],
+      clients: [],
+    };
+  }
   return {
     ...slot,
     name: c.name,
@@ -63,6 +121,20 @@ function bindPerson(slot: Slot, c: Creator): Person {
     rating: c.stars.toFixed(1),
     subtitle: `${c.niche ?? ""} ${slot.role} | ${c.engagementRate.toFixed(1)}% ER`,
     rate: `₹${c.cpv.toFixed(2)} / view`,
+    slots: calendar
+      .filter((k) => k.creatorId === c.id)
+      .sort((a, b) => a.scheduledAt.localeCompare(b.scheduledAt))
+      .slice(0, 3)
+      .map((k) => slotLabel(k.scheduledAt)),
+    expertise: [
+      clip(c.niche ?? "General", 9),
+      clip(c.platform ? titleCase(c.platform) : "Creator", 11),
+      compactViews(c.avgViews),
+    ],
+    clients: campaigns
+      .filter((x) => !!c.agencyId && x.agencyId === c.agencyId)
+      .slice(0, 3)
+      .map((x) => clip(x.brandName, 12)),
   };
 }
 
@@ -75,6 +147,21 @@ function PillChip({ w, children }: { w: number; children: ReactNode }) {
     >
       {children}
     </span>
+  );
+}
+
+/** Renders up to 3 derived chips into the Figma-fixed chip widths; a single
+ *  placeholder chip keeps the bar's geometry when a record has nothing to show. */
+function ChipSet({ items, widths }: { items: string[]; widths: [number, number, number] }) {
+  if (items.length === 0) return <PillChip w={widths[0]}>—</PillChip>;
+  return (
+    <>
+      {items.slice(0, 3).map((t, i) => (
+        <PillChip key={`${t}-${i}`} w={widths[i]}>
+          {t}
+        </PillChip>
+      ))}
+    </>
   );
 }
 
@@ -180,9 +267,7 @@ function PersonCard({ p }: { p: Person }) {
           <Clock className="h-[14px] w-[14px] text-black" strokeWidth={1.5} />
         </span>
         <div className="absolute left-[38px] top-[9px] flex gap-[4px]">
-          <PillChip w={89}>09:00-11:00am</PillChip>
-          <PillChip w={90}>01:00-03:00pm</PillChip>
-          <PillChip w={90}>07:00-09:00pm</PillChip>
+          <ChipSet items={p.slots} widths={[89, 90, 90]} />
         </div>
       </div>
 
@@ -190,9 +275,7 @@ function PersonCard({ p }: { p: Person }) {
       <div className="absolute left-[11px] top-[170px] h-[39px] w-[374px] rounded-[14px] border-[0.5px] border-[#D9D9D9] bg-white">
         <span className="absolute left-[7px] top-[9px] text-[14px] font-light leading-none text-ink/70">Expertise</span>
         <div className="absolute left-[82px] top-[8px] flex gap-[8px]">
-          <PillChip w={47}>Reels</PillChip>
-          <PillChip w={70}>BTS Shoots</PillChip>
-          <PillChip w={78}>Brand Shoots</PillChip>
+          <ChipSet items={p.expertise} widths={[47, 70, 78]} />
         </div>
       </div>
 
@@ -200,9 +283,7 @@ function PersonCard({ p }: { p: Person }) {
       <div className="absolute left-[11px] top-[215px] h-[39px] w-[374px] rounded-[14px] border-[0.5px] border-[#D9D9D9] bg-white">
         <span className="absolute left-[7px] top-[9px] text-[14px] font-light leading-none text-ink/70">Past Client</span>
         <div className="absolute left-[82px] top-[8px] flex gap-[8px]">
-          <PillChip w={47}>Nykaa</PillChip>
-          <PillChip w={70}>Mama earth</PillChip>
-          <PillChip w={78}>H&M</PillChip>
+          <ChipSet items={p.clients} widths={[47, 70, 78]} />
         </div>
       </div>
 
@@ -215,13 +296,22 @@ function PersonCard({ p }: { p: Person }) {
 /* -------------------------------- page --------------------------------- */
 export default function AddOnsEditorsPage() {
   const navigate = useNavigate();
-  const creators = useCreators().data ?? [];
-  const videographers = creators
-    .slice(0, VIDEOGRAPHER_SLOTS.length)
-    .map((c, i) => bindPerson(VIDEOGRAPHER_SLOTS[i], c));
-  const editors = creators
-    .slice(VIDEOGRAPHER_SLOTS.length, VIDEOGRAPHER_SLOTS.length + EDITOR_SLOTS.length)
-    .map((c, i) => bindPerson(EDITOR_SLOTS[i], c));
+  const { data: creatorData, isLoading } = useList<DirectoryCreator>("creators");
+  const campaigns = useCampaigns().data ?? [];
+  const calendar = useCalendar().data ?? [];
+
+  // An add-ons directory only offers creators that are listed and not blacklisted;
+  // fall back to the full roster if nothing is flagged listed.
+  const all = creatorData ?? [];
+  const bookable = all.filter((c) => c.listed && !c.blacklisted);
+  const pool = bookable.length > 0 ? bookable : all;
+
+  const videographers = VIDEOGRAPHER_SLOTS.map((s, i) =>
+    bindPerson(s, pool[i], campaigns, calendar, isLoading)
+  );
+  const editors = EDITOR_SLOTS.map((s, i) =>
+    bindPerson(s, pool[VIDEOGRAPHER_SLOTS.length + i], campaigns, calendar, isLoading)
+  );
   return (
     <>
       {/* full-bleed frame gradient (paints behind AppShell sidebar/topbar) —

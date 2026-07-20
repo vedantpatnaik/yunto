@@ -91,15 +91,28 @@ export function useRemove(resource: string) {
 }
 
 // ---- dashboard aggregate stats (live from /stats/dashboard) ----
+export type OverviewKey = "activeAgencies" | "activeCreators" | "monthlyRevenue" | "activeLeads" | "activeCampaigns" | "pendingPayouts";
 export interface DashboardStats {
-  overview: { activeAgencies: number; activeCreators: number; monthlyRevenue: number; activeLeads: number; activeCampaigns: number; pendingPayouts: number };
-  topCreators: { name: string; handle: string; followers: number; avgViews: number; leadsCount: number }[];
-  topAgencies: { name: string; description: string; creatorsCount: number; earnings: number; campaignsCount: number }[];
+  period: string;
+  months: number;
+  overview: Record<OverviewKey, number>;
+  trends: Record<OverviewKey, number>;
+  topCreators: { id: string; name: string; handle: string; followers: number; avgViews: number; leadsCount: number }[];
+  topAgencies: { id: string; name: string; description: string; creatorsCount: number; earnings: number; campaignsCount: number }[];
   agenciesTotal: number;
   revenue: { month: string; value: number }[];
   leadProgress: { total: number; new: number; contacted: number; converted: number };
   campaignProgress: { total: number; active: number; completed: number; draft: number };
-  topPerforming: { name: string; earnings: number }[];
+  topPerforming: { id: string; name: string; earnings: number }[];
 }
-export const useDashboard = () =>
-  useQuery({ queryKey: ["dashboard"], queryFn: () => api<DashboardStats>("/stats/dashboard"), staleTime: 30_000 });
+/** Dashboard aggregates for a given leaderboard window + revenue range. */
+export const useDashboard = (period: "D" | "W" | "M" = "M", months = 5) =>
+  useQuery({
+    queryKey: ["dashboard", period, months],
+    queryFn: () => api<DashboardStats>(`/stats/dashboard?period=${period}&months=${months}`),
+    staleTime: 30_000,
+  });
+
+// ---- dashboard sticky notes ----
+export interface Note { id: string; body: string; color: string; pinned: boolean; createdAt: string; updatedAt: string }
+export const useNotes = () => useList<Note>("notes");

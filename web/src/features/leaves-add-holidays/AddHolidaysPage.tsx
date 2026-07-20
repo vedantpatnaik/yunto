@@ -17,7 +17,8 @@ import {
   Info,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { useCreate, useMe } from "@/api/hooks";
+import type { User } from "@/api/hooks";
+import { useCreate, useLeaves, useList, useMe, useReminders } from "@/api/hooks";
 
 /**
  * Super Admin — People / Leaves · "Add Holidays".
@@ -175,6 +176,36 @@ const DAYS: number[][] = [
   [29, 30, 31, 1, 2, 3, 4],
 ];
 
+/** Fixed chip slots on the grid — palette + coordinates are design, letters come from live leaves. */
+const CHIP_SLOTS = [
+  { x: 640, y: 535, bg: "#C6A6DF", color: "#6000AA" },
+  { x: 750, y: 637, bg: "#C4F1D2", color: "#007726" },
+  { x: 624, y: 830, bg: "#FFE3CF", color: "#DB6714" },
+  { x: 640, y: 830, bg: "#D4CFFF", color: "#1A0C9A" },
+];
+
+/** Fixed row slots for the Upcoming Events panel — palette + coordinates are design. */
+const EVENT_SLOTS = [
+  { cardY: 531, cakeY: 550, labelY: 545, dotY: 563, buntingY: 532, dateY: 550, bg: "#C6A6DF", color: "#6000AA" },
+  { cardY: 605, cakeY: 624, labelY: 619, dotY: 637, buntingY: 606, dateY: 624, bg: "#DDF7FF", color: "#0F7D9E" },
+];
+
+const pad2 = (n: number) => String(n).padStart(2, "0");
+const dmy = (d: Date) => `${pad2(d.getDate())}/${pad2(d.getMonth() + 1)}/${String(d.getFullYear()).slice(-2)}`;
+const dmyFull = (d: Date) => `${pad2(d.getDate())}/${pad2(d.getMonth() + 1)}/${d.getFullYear()}`;
+const hasType = (t: string, k: string) => t.toLowerCase().includes(k);
+const initial = (name?: string) => (name ?? "?").charAt(0).toUpperCase();
+
+/** Next yearly recurrence of a roster date (join anniversary), from today forward. */
+function nextAnniversary(iso: string): Date {
+  const src = new Date(iso);
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const next = new Date(now.getFullYear(), src.getMonth(), src.getDate());
+  if (next < today) next.setFullYear(now.getFullYear() + 1);
+  return next;
+}
+
 function Cake({ x, y }: { x: number; y: number }) {
   return (
     <div
@@ -264,8 +295,61 @@ export default function AddHolidaysPage() {
   const navigate = useNavigate();
   const create = useCreate("reminders");
   const { data: me } = useMe();
+  const { data: leaves } = useLeaves();
+  // /users returns createdAt alongside the sanitized profile — used for anniversaries.
+  const { data: users } = useList<User & { createdAt: string }>("users");
+  const { data: reminders } = useReminders();
   const [holidayName, setHolidayName] = useState("");
   const [date, setDate] = useState("");
+
+  /* ---- live derivations (design geometry untouched) ---- */
+  const userById = new Map((users ?? []).map((u) => [u.id, u] as const));
+  const headcount = (users ?? []).length;
+  // Leaves that still count against the roster, soonest first.
+  const openLeaves = (leaves ?? [])
+    .filter((lv) => lv.status !== "REJECTED")
+    .sort((a, b) => +new Date(a.from) - +new Date(b.from));
+  const wfhCount = openLeaves.filter((lv) => hasType(lv.type, "wfh")).length;
+  const halfCount = openLeaves.filter((lv) => hasType(lv.type, "half")).length;
+  const absentCount = openLeaves.length - wfhCount - halfCount;
+  const presentCount = Math.max(headcount - openLeaves.length, 0);
+
+  // Leave balance pills — the signed-in user's leaves, by type.
+  const myLeaves = (leaves ?? []).filter((lv) => lv.userId === me?.id);
+  const casualTaken = myLeaves.filter((lv) => hasType(lv.type, "casual") || hasType(lv.type, "causal")).length;
+  const sickTaken = myLeaves.filter((lv) => hasType(lv.type, "sick")).length;
+
+  // Calendar chips — one per person on leave, into the fixed design slots.
+  const chips = openLeaves
+    .slice(0, CHIP_SLOTS.length)
+    .map((lv, i) => ({ ...CHIP_SLOTS[i], id: lv.id, letter: initial(userById.get(lv.userId)?.name) }));
+
+  // "On leave" panel — the design shows a single row.
+  const nextLeave = openLeaves[0];
+  const nextLeaveUser = nextLeave ? userById.get(nextLeave.userId) : undefined;
+  // No manager relation in the schema — the reporting manager is the manager-role
+  // member of that person's own team.
+  const nextLeaveManager = nextLeaveUser
+    ? (users ?? []).find(
+        (u) =>
+          u.id !== nextLeaveUser.id &&
+          !!u.team?.id &&
+          u.team.id === nextLeaveUser.team?.id &&
+          u.role.includes("MANAGER"),
+      )
+    : undefined;
+
+  // "Upcoming Events" panel — soonest roster anniversaries, into the fixed design slots.
+  const events = (users ?? [])
+    .map((u) => ({ user: u, on: nextAnniversary(u.createdAt) }))
+    .sort((a, b) => +a.on - +b.on)
+    .slice(0, EVENT_SLOTS.length)
+    .map((e, i) => ({ ...EVENT_SLOTS[i], ...e }));
+
+  // "Holidays" panel — holidays are stored as reminders (same resource this modal writes to).
+  const nextHoliday = (reminders ?? [])
+    .slice()
+    .sort((a, b) => +new Date(a.dueAt) - +new Date(b.dueAt))[0];
 
   async function handleSave() {
     const parsed = date ? new Date(date) : null;
@@ -314,15 +398,15 @@ export default function AddHolidaysPage() {
           className="absolute flex items-center justify-center rounded-full text-[10px] font-normal text-white"
           style={{ left: 46, top: 17, width: 14, height: 14, background: "#20A271" }}
         >
-          4
+          {headcount}
         </span>
       </div>
 
       {/* ===== top-right stat pills ===== */}
-      <StatPill numX={810} badgeX={871} labelX={855} num="18" badgeBg="#DCFF68" dir="up" icon={Users} label="Present" />
-      <StatPill numX={938} badgeX={999} labelX={983} num="2" badgeBg="#FFB0B1" dir="down" icon={UserX} label="Absent" />
-      <StatPill numX={1066} badgeX={1127} labelX={1111} num="0" badgeBg="#DCFF68" dir="up" icon={House} label="WFH" />
-      <StatPill numX={1194} badgeX={1255} labelX={1239} num="1" badgeBg="#DCFF68" dir="up" badgeText="1" label="Half Day" />
+      <StatPill numX={810} badgeX={871} labelX={855} num={String(presentCount)} badgeBg="#DCFF68" dir="up" icon={Users} label="Present" />
+      <StatPill numX={938} badgeX={999} labelX={983} num={String(absentCount)} badgeBg="#FFB0B1" dir="down" icon={UserX} label="Absent" />
+      <StatPill numX={1066} badgeX={1127} labelX={1111} num={String(wfhCount)} badgeBg="#DCFF68" dir="up" icon={House} label="WFH" />
+      <StatPill numX={1194} badgeX={1255} labelX={1239} num={String(halfCount)} badgeBg="#DCFF68" dir="up" badgeText={String(halfCount)} label="Half Day" />
 
       {/* ===== date pill ===== */}
       <div className="absolute rounded-[18px] bg-white" style={{ left: 1299, top: 153, width: 90, height: 32 }}>
@@ -333,7 +417,7 @@ export default function AddHolidaysPage() {
           <Calendar className="h-[14px] w-[14px] text-ink" strokeWidth={1.6} />
         </div>
         <span className="absolute text-[12px] font-light leading-none text-ink/90" style={{ left: 30, top: 10 }}>
-          30/09/25
+          {dmy(new Date())}
         </span>
       </div>
 
@@ -399,7 +483,7 @@ export default function AddHolidaysPage() {
           className="absolute flex items-center justify-center rounded-full border border-[#731FB4]"
           style={{ left: 7, top: 10, width: 42, height: 42 }}
         >
-          <span className="text-[14px] font-normal leading-none text-[#6000AA]">02</span>
+          <span className="text-[14px] font-normal leading-none text-[#6000AA]">{pad2(casualTaken)}</span>
         </div>
         <span className="absolute text-[14px] font-normal leading-none text-ink/90" style={{ left: 54, top: 24 }}>
           Causal Leave
@@ -411,7 +495,7 @@ export default function AddHolidaysPage() {
           className="absolute flex items-center justify-center rounded-full border border-[#6CA478]"
           style={{ left: 7, top: 10, width: 42, height: 42 }}
         >
-          <span className="text-[14px] font-normal leading-none text-[#6CA478]">01</span>
+          <span className="text-[14px] font-normal leading-none text-[#6CA478]">{pad2(sickTaken)}</span>
         </div>
         <span className="absolute text-[14px] font-normal leading-none text-ink/90" style={{ left: 54, top: 24 }}>
           Sick Leave
@@ -463,8 +547,9 @@ export default function AddHolidaysPage() {
         }),
       )}
       {/* grid decorations */}
-      <DayChip x={640} y={535} bg="#C6A6DF" letter="T" color="#6000AA" />
-      <DayChip x={750} y={637} bg="#C4F1D2" letter="S" color="#007726" />
+      {chips.map((ch) => (
+        <DayChip key={ch.id} x={ch.x} y={ch.y} bg={ch.bg} letter={ch.letter} color={ch.color} />
+      ))}
       <Cake x={430} y={691} />
       <Cake x={322} y={789} />
       {/* Holiday pill on day 24 */}
@@ -475,8 +560,6 @@ export default function AddHolidaysPage() {
         <span className="h-[8px] w-[8px] rounded-full" style={{ background: "#88DFA9" }} />
         <span className="text-[10px] font-normal leading-none text-ink/80">Holiday</span>
       </div>
-      <DayChip x={624} y={830} bg="#FFE3CF" letter="P" color="#DB6714" />
-      <DayChip x={640} y={830} bg="#D4CFFF" letter="K" color="#1A0C9A" />
 
       {/* ================= right panels ================= */}
       {/* --- On leave --- */}
@@ -490,25 +573,41 @@ export default function AddHolidaysPage() {
       {/* Today divider */}
       <Txt l={1025} t={262} s={12} lh={16} cls="font-normal text-ink/70">Today</Txt>
       <div className="absolute bg-black/10" style={{ left: 1066, top: 271, width: 92, height: 1 }} />
-      {/* Tanvi Sharma leave card */}
-      <div className="absolute rounded-[32px] bg-white" style={{ left: 1025, top: 293, width: 318, height: 62 }} />
-      <div
-        className="absolute flex items-center justify-center rounded-full"
-        style={{ left: 1032, top: 303, width: 42, height: 42, background: "#C6A6DF" }}
-      >
-        <span className="text-[14px] font-normal leading-none text-[#6000AA]">T</span>
-      </div>
-      <Txt l={1079} t={304} s={14} lh={18} cls="font-normal text-ink/90">Tanvi Sharma</Txt>
-      <Txt l={1181} t={306} s={10} lh={13} cls="font-light text-ink/70">Operations</Txt>
-      <Txt l={1079} t={325} s={10} lh={12} cls="font-light text-ink/70">Rep. Manager: Vishal Sharma</Txt>
-      <Txt l={1167} t={331} s={10} lh={13} cls="font-light text-ink/70">Sick Leave</Txt>
-      <div
-        className="absolute flex items-center gap-[4px] rounded-[7px] bg-white pl-[6px]"
-        style={{ left: 1231, top: 325, width: 87, height: 23 }}
-      >
-        <span className="text-[10px] leading-none text-red-600">📄</span>
-        <span className="text-[10px] font-light leading-none text-ink/70">Medical..pdf</span>
-      </div>
+      {/* leave card — first open leave */}
+      {nextLeave ? (
+        <>
+          <div className="absolute rounded-[32px] bg-white" style={{ left: 1025, top: 293, width: 318, height: 62 }} />
+          <div
+            className="absolute flex items-center justify-center rounded-full"
+            style={{ left: 1032, top: 303, width: 42, height: 42, background: "#C6A6DF" }}
+          >
+            <span className="text-[14px] font-normal leading-none text-[#6000AA]">
+              {initial(nextLeaveUser?.name)}
+            </span>
+          </div>
+          <Txt l={1079} t={304} s={14} lh={18} cls="font-normal text-ink/90">{nextLeaveUser?.name ?? ""}</Txt>
+          <Txt l={1181} t={306} s={10} lh={13} cls="font-light text-ink/70">{nextLeaveUser?.team?.name ?? ""}</Txt>
+          {nextLeaveManager && (
+            <Txt l={1079} t={325} s={10} lh={12} cls="font-light text-ink/70">
+              {`Rep. Manager: ${nextLeaveManager.name}`}
+            </Txt>
+          )}
+          <Txt l={1167} t={331} s={10} lh={13} cls="font-light text-ink/70">{`${nextLeave.type} Leave`}</Txt>
+          {nextLeave.reason && (
+            <div
+              className="absolute flex items-center gap-[4px] overflow-hidden rounded-[7px] bg-white pl-[6px]"
+              style={{ left: 1231, top: 325, width: 87, height: 23 }}
+            >
+              <span className="text-[10px] leading-none text-red-600">📄</span>
+              <span className="truncate text-[10px] font-light leading-none text-ink/70">
+                {nextLeave.reason}
+              </span>
+            </div>
+          )}
+        </>
+      ) : (
+        <Txt l={1079} t={314} s={12} lh={16} cls="font-light text-ink/50">No one on leave</Txt>
+      )}
 
       {/* --- Upcoming Events --- */}
       <div
@@ -518,32 +617,28 @@ export default function AddHolidaysPage() {
       <Txt l={1025} t={484} s={12} lh={24} cls="font-normal text-ink">Upcoming Events</Txt>
       <MonthPill x={1263} y={476} />
       <div className="absolute rounded-[12px] bg-white" style={{ left: 1025, top: 515, width: 327, height: 188 }} />
-      {/* birthday card 1 */}
-      <div className="absolute rounded-[32px] bg-white" style={{ left: 1025, top: 531, width: 326, height: 62 }} />
-      <div className="absolute flex items-center justify-center text-[20px] leading-none" style={{ left: 1037, top: 550, width: 24, height: 24 }}>🎂</div>
-      <Txt l={1071} t={545} s={12} lh={16} cls="font-light text-ink/70">Happy birthday</Txt>
-      <div
-        className="absolute flex items-center justify-center rounded-full"
-        style={{ left: 1071, top: 563, width: 16, height: 16, background: "#C6A6DF" }}
-      >
-        <span className="text-[8px] font-normal leading-none text-[#6000AA]">T</span>
-      </div>
-      <Txt l={1092} t={563} s={14} lh={16} cls="font-normal text-ink">Tanvi Sharma</Txt>
-      <Bunting x={1167} y={532} />
-      <Txt l={1269} t={550} s={12} lh={16} cls="font-light text-ink/70">16/09/2025</Txt>
-      {/* birthday card 2 */}
-      <div className="absolute rounded-[32px] bg-white" style={{ left: 1025, top: 605, width: 326, height: 62 }} />
-      <div className="absolute flex items-center justify-center text-[20px] leading-none" style={{ left: 1037, top: 624, width: 24, height: 24 }}>🎂</div>
-      <Txt l={1071} t={619} s={12} lh={16} cls="font-light text-ink/70">Happy birthday</Txt>
-      <div
-        className="absolute flex items-center justify-center rounded-full"
-        style={{ left: 1071, top: 637, width: 16, height: 16, background: "#DDF7FF" }}
-      >
-        <span className="text-[8px] font-normal leading-none text-[#0F7D9E]">P</span>
-      </div>
-      <Txt l={1092} t={637} s={14} lh={16} cls="font-normal text-ink">Pooja Sharma</Txt>
-      <Bunting x={1167} y={606} />
-      <Txt l={1269} t={624} s={12} lh={16} cls="font-light text-ink/70">22/09/2025</Txt>
+      {/* anniversary cards — one per upcoming roster milestone */}
+      {events.map((ev) => (
+        <div key={ev.user.id}>
+          <div className="absolute rounded-[32px] bg-white" style={{ left: 1025, top: ev.cardY, width: 326, height: 62 }} />
+          <div className="absolute flex items-center justify-center text-[20px] leading-none" style={{ left: 1037, top: ev.cakeY, width: 24, height: 24 }}>🎂</div>
+          <Txt l={1071} t={ev.labelY} s={12} lh={16} cls="font-light text-ink/70">Work anniversary</Txt>
+          <div
+            className="absolute flex items-center justify-center rounded-full"
+            style={{ left: 1071, top: ev.dotY, width: 16, height: 16, background: ev.bg }}
+          >
+            <span className="text-[8px] font-normal leading-none" style={{ color: ev.color }}>
+              {initial(ev.user.name)}
+            </span>
+          </div>
+          <Txt l={1092} t={ev.dotY} s={14} lh={16} cls="font-normal text-ink">{ev.user.name}</Txt>
+          <Bunting x={1167} y={ev.buntingY} />
+          <Txt l={1269} t={ev.dateY} s={12} lh={16} cls="font-light text-ink/70">{dmyFull(ev.on)}</Txt>
+        </div>
+      ))}
+      {events.length === 0 && (
+        <Txt l={1071} t={545} s={12} lh={16} cls="font-light text-ink/50">No upcoming events</Txt>
+      )}
 
       {/* --- Holidays --- */}
       <div
@@ -553,11 +648,19 @@ export default function AddHolidaysPage() {
       <Txt l={1024} t={739} s={12} lh={24} cls="font-normal text-ink">Holidays</Txt>
       <MonthPill x={1262} y={731} />
       <div className="absolute rounded-[12px] bg-white" style={{ left: 1024, top: 770, width: 327, height: 188 }} />
-      <Txt l={1024} t={770} s={12} lh={16} cls="font-normal text-ink/70">24/09/25</Txt>
+      <Txt l={1024} t={770} s={12} lh={16} cls="font-normal text-ink/70">
+        {nextHoliday ? dmy(new Date(nextHoliday.dueAt)) : ""}
+      </Txt>
       <div className="absolute bg-black/10" style={{ left: 1086, top: 779, width: 92, height: 1 }} />
-      <div className="absolute rounded-[32px] bg-white" style={{ left: 1024, top: 801, width: 318, height: 62 }} />
-      <div className="absolute rounded-full" style={{ left: 1031, top: 811, width: 42, height: 42, background: "#88DFA9" }} />
-      <Txt l={1079} t={823} s={14} lh={24} cls="font-normal text-ink/90">Holiday</Txt>
+      {nextHoliday ? (
+        <>
+          <div className="absolute rounded-[32px] bg-white" style={{ left: 1024, top: 801, width: 318, height: 62 }} />
+          <div className="absolute rounded-full" style={{ left: 1031, top: 811, width: 42, height: 42, background: "#88DFA9" }} />
+          <Txt l={1079} t={823} s={14} lh={24} cls="font-normal text-ink/90">{nextHoliday.title}</Txt>
+        </>
+      ) : (
+        <Txt l={1079} t={823} s={12} lh={16} cls="font-light text-ink/50">No holidays yet</Txt>
+      )}
 
       {/* ================= dim scrim + modal ================= */}
       <div className="absolute inset-0 z-50" style={{ background: "rgba(0,0,0,0.5)" }} />

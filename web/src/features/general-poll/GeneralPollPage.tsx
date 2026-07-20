@@ -1,6 +1,6 @@
 import type { CSSProperties, ReactNode } from "react";
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   Hash,
   ChevronDown,
@@ -14,7 +14,8 @@ import {
   Paperclip,
   BarChart2,
 } from "lucide-react";
-import { usePolls } from "@/api/hooks";
+import type { Poll } from "@/api/hooks";
+import { usePolls, useChannels, useUsers, useCampaigns, useMe, useCreate, useUpdate } from "@/api/hooks";
 
 /**
  * Super Admin — General Poll (create-poll dialog over #skincare-campaign-poll chat).
@@ -193,6 +194,7 @@ function StatusDot({ l, t }: { l: number; t: number }) {
 }
 
 /* -------------------------------- data --------------------------------- */
+/* static section headings (not record data) — the name rows below them are live */
 const SECTIONS: {
   top: number;
   label: string;
@@ -200,27 +202,29 @@ const SECTIONS: {
   plus?: boolean;
   userAdd?: boolean;
   indent?: number;
+  route?: string;
 }[] = [
   { top: 176, label: "Notifications", dir: "down", plus: true },
   { top: 288, label: "Groups", dir: "down", userAdd: true },
-  { top: 626, label: "Campaigns", dir: "down", plus: true },
-  { top: 654, label: "Vishal Sharma", dir: "down" },
-  { top: 682, label: "Nike Diwali", dir: "down", indent: 21 },
-  { top: 794, label: "Ritika Verma", dir: "right" },
-  { top: 822, label: "Neha", dir: "right" },
-  { top: 850, label: "Ajay", dir: "right" },
+  { top: 626, label: "Campaigns", dir: "down", plus: true, route: "/campaigns" },
 ];
 
-const CHANNELS: { top: number; label: string; active?: boolean; indent?: number }[] = [
-  { top: 204, label: "Agency announcements" },
-  { top: 232, label: "skincare-campaign-poll" },
-  { top: 316, label: "Welcome" },
-  { top: 344, label: "General", active: true },
-  { top: 372, label: "marketing" },
-  { top: 400, label: "operations" },
-  { top: 428, label: "sales" },
-  { top: 710, label: "Brand + Agencies", indent: 21 },
-  { top: 738, label: "Only Agencies", indent: 20 },
+/* layout slots for the live name rows under "Campaigns" (campaign contact + campaign),
+   and the person rows under the lower "Add group" — labels bind to real records. */
+const CAMPAIGN_ROW_TOPS = { contact: 654, campaign: 682 };
+const PERSON_ROW_TOPS = [794, 822, 850];
+
+/* channel-row layout slots; labels bind to live useChannels() data (positional) */
+const CHANNELS: { top: number; active?: boolean; indent?: number }[] = [
+  { top: 204 },
+  { top: 232 },
+  { top: 316 },
+  { top: 344, active: true },
+  { top: 372 },
+  { top: 400 },
+  { top: 428 },
+  { top: 710, indent: 21 },
+  { top: 738, indent: 20 },
 ];
 
 const ADDS: { top: number; label: string; indent?: number }[] = [
@@ -230,27 +234,25 @@ const ADDS: { top: number; label: string; indent?: number }[] = [
   { top: 766, label: "Add group", indent: 18 },
 ];
 
-/* section-header rows that map to a real destination (headers with no target stay inert) */
-const SECTION_ROUTES: Record<string, string> = {
-  Campaigns: "/campaigns",
-  "Vishal Sharma": "/campaigns/detail",
-  "Nike Diwali": "/campaigns/detail",
-  "Ritika Verma": "/chat",
-  Neha: "/chat",
-  Ajay: "/chat",
-};
-
-/** one poll option input row (gray field + label) — repeated markup, now data-driven */
-function OptionRow({ top, label }: { top: number; label: string }) {
+/** one poll option input row (gray field + controlled text input) */
+function OptionRow({ top, value, onChange }: { top: number; value: string; onChange: (v: string) => void }) {
   return (
     <>
       <Abs l={378} t={top} w={682} h={46} className="rounded-[12px]" style={{ background: "#FAFAFA" }} />
-      <Abs l={393} t={top + 9} className="text-[16px] font-light leading-[26px] text-black">
-        {label}
+      <Abs l={393} t={top + 9} w={652}>
+        <input
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder="Add"
+          className="w-full bg-transparent text-[16px] font-light leading-[26px] text-black outline-none"
+        />
       </Abs>
     </>
   );
 }
+
+/** first letter of a name, for the letter avatars */
+const initial = (name?: string) => (name ?? "").charAt(0).toUpperCase();
 
 /* fixed option-field positions the design shows (three rows) */
 const OPTION_TOPS = [616, 668, 720];
@@ -258,12 +260,65 @@ const OPTION_TOPS = [616, 668, 720];
 /* -------------------------------- page --------------------------------- */
 export default function GeneralPollPage() {
   const navigate = useNavigate();
+  const [params] = useSearchParams();
+  const editId = params.get("id");
+
+  const { data: polls = [] } = usePolls();
+  const { data: channels = [] } = useChannels();
+  const { data: users = [] } = useUsers();
+  const { data: campaigns = [] } = useCampaigns();
+  const { data: me } = useMe();
+  const create = useCreate<Poll>("polls");
+  const update = useUpdate<Poll>("polls");
+
   const [pollType, setPollType] = useState<"general" | "campaign">("general");
-  const { data } = usePolls();
-  // General-poll modal binds to the general poll (fallback: first poll available).
-  const poll = (data ?? []).find((p) => p.kind === "general") ?? (data ?? [])[0];
-  const question = poll?.question ?? "Ask a question";
-  const optionRows = OPTION_TOPS.map((top, i) => ({ top, label: poll?.options[i] ?? "Add" }));
+  const [question, setQuestion] = useState("");
+  const [options, setOptions] = useState<string[]>(OPTION_TOPS.map(() => ""));
+
+  // ?id= edits an existing poll; otherwise the dialog composes a brand-new one.
+  useEffect(() => {
+    const p = polls.find((x) => x.id === editId);
+    if (!p) return;
+    setPollType(p.kind === "CAMPAIGN" ? "campaign" : "general");
+    setQuestion(p.question);
+    setOptions(OPTION_TOPS.map((_, i) => p.options[i] ?? ""));
+  }, [editId, polls]);
+
+  const save = () => {
+    const data: Partial<Poll> = {
+      kind: pollType === "campaign" ? "CAMPAIGN" : "GENERAL",
+      question,
+      options: options.filter((o) => o.trim() !== ""),
+    };
+    const opts = { onSuccess: () => navigate("/polls/result") };
+    if (editId) update.mutate({ id: editId, data }, opts);
+    else create.mutate(data, opts);
+  };
+
+  // the highlighted sidebar row names the channel the modal is opened over
+  const activeChannel = channels[CHANNELS.findIndex((c) => c.active)]?.name ?? "";
+
+  // live sidebar name rows: the first campaign (its contact person + its name) and the
+  // people below "Add group" — taken past the three shown in Direct messages so no name repeats.
+  const campaign = campaigns[0];
+  const groupPeople = users.slice(3, 3 + PERSON_ROW_TOPS.length);
+  const NAME_ROWS: {
+    top: number;
+    label: string;
+    dir: "down" | "right";
+    indent?: number;
+    route: string;
+  }[] = [
+    { top: CAMPAIGN_ROW_TOPS.contact, label: campaign?.contactPerson ?? "", dir: "down", route: "/campaigns/detail" },
+    { top: CAMPAIGN_ROW_TOPS.campaign, label: campaign?.name ?? "", dir: "down", indent: 21, route: "/campaigns/detail" },
+    ...PERSON_ROW_TOPS.map((top, i) => ({
+      top,
+      label: groupPeople[i]?.name ?? "",
+      dir: "right" as const,
+      route: "/chat",
+    })),
+  ];
+
   return (
     <>
       {/* ================= page background (Figma frame 4756:12622 fill) ================= */}
@@ -299,15 +354,19 @@ export default function GeneralPollPage() {
         <ChevronDown className="h-[14px] w-[14px]" style={{ color: WHITE70 }} strokeWidth={2.2} />
       </Abs>
 
-      {/* section headers */}
-      {SECTIONS.map((s) => {
-        const route = SECTION_ROUTES[s.label];
-        return <SectionRow key={`sec-${s.top}`} {...s} onClick={route ? () => navigate(route) : undefined} />;
-      })}
+      {/* section headers (static headings) */}
+      {SECTIONS.map(({ route, ...s }) => (
+        <SectionRow key={`sec-${s.top}`} {...s} onClick={route ? () => navigate(route) : undefined} />
+      ))}
 
-      {/* channel rows */}
-      {CHANNELS.map((c) => (
-        <ChannelRow key={`ch-${c.top}`} {...c} onClick={() => navigate("/chat")} />
+      {/* live name rows — campaign contact / campaign / group people */}
+      {NAME_ROWS.map(({ route, ...r }) => (
+        <SectionRow key={`name-${r.top}`} {...r} onClick={() => navigate(route)} />
+      ))}
+
+      {/* channel rows — real channels mapped onto the design's row slots */}
+      {channels.slice(0, CHANNELS.length).map((ch, i) => (
+        <ChannelRow key={ch.id} {...CHANNELS[i]} label={ch.name} onClick={() => navigate("/chat")} />
       ))}
 
       {/* add rows */}
@@ -323,7 +382,7 @@ export default function GeneralPollPage() {
         Direct messages
       </Abs>
       <Abs l={453} t={488} w={24} h={24} className="flex items-center justify-center rounded-full" style={{ background: "#E64E4E" }}>
-        <span className="text-[10.3px] font-medium text-white">120</span>
+        <span className="text-[10.3px] font-medium text-white">{users.length}</span>
       </Abs>
 
       {/* ---- DM rows ---- */}
@@ -331,44 +390,44 @@ export default function GeneralPollPage() {
       <Abs l={254} t={517.5} w={20} h={20} className="rounded-full" style={{ background: "linear-gradient(135deg,#F4B0C4,#B58BE0)" }} />
       <StatusDot l={268} t={531.5} />
       <Abs l={283} t={520.5} className="text-[15px] leading-[15px]" style={{ color: WHITE70 }}>
-        Dev Singh
+        {users[0]?.name ?? ""}
       </Abs>
       <Abs l={358} t={520.5} className="text-[15px] leading-[15px]" style={{ color: WHITE70 }}>
-        you
+        {users[0] && users[0].id === me?.id ? "you" : ""}
       </Abs>
 
-      {/* Sanjay Sharma */}
-      <LetterAvatar l={254} t={545.5} size={20} letter="S" bg="#FFF4AD" color="#B49C01" font={12} />
+      {/* second member */}
+      <LetterAvatar l={254} t={545.5} size={20} letter={initial(users[1]?.name)} bg="#FFF4AD" color="#B49C01" font={12} />
       <StatusDot l={268} t={559.5} />
       <Abs l={283} t={548.5} className="text-[15px] leading-[15px]" style={{ color: WHITE70 }}>
-        Sanjay Sharma
+        {users[1]?.name ?? ""}
       </Abs>
       <Abs l={390} t={548.5} className="text-[15px] leading-[15px]" style={{ color: WHITE70 }}>
-        you
+        {users[1] && users[1].id === me?.id ? "you" : ""}
       </Abs>
 
-      {/* Pooja Singh */}
-      <LetterAvatar l={254} t={573.5} size={20} letter="P" bg="#BCD4FD" color="#1155C8" font={12} />
+      {/* third member */}
+      <LetterAvatar l={254} t={573.5} size={20} letter={initial(users[2]?.name)} bg="#BCD4FD" color="#1155C8" font={12} />
       <StatusDot l={268} t={587.5} />
       <Abs l={283} t={576.5} className="text-[15px] leading-[15px]" style={{ color: WHITE70 }}>
-        Pooja Singh
+        {users[2]?.name ?? ""}
       </Abs>
       <Abs l={390} t={576.5} className="text-[15px] leading-[15px]" style={{ color: WHITE70 }}>
-        you
+        {users[2] && users[2].id === me?.id ? "you" : ""}
       </Abs>
 
       {/* ---- bottom user profile ---- */}
       <Abs l={254} t={948} w={38} h={38} className="rounded-full" style={{ background: "linear-gradient(135deg,#C8E6FF,#C8B3ED)" }} />
       <Abs l={297} t={952.5} className="text-[12px] leading-[15px] text-white">
-        Dev
+        {me?.name?.split(" ")[0] ?? ""}
       </Abs>
       <Abs l={297} t={968.5} className="text-[8px] leading-[13px]" style={{ color: WHITE70 }}>
-        @dev
+        @{(me?.name?.split(" ")[0] ?? "").toLowerCase()}
       </Abs>
 
       {/* ================= message header ================= */}
       <Abs l={511} t={134.5} className="text-[16px] font-medium leading-[20px] text-[#1B1B1B]">
-        #skincare-campaign-poll
+        #{activeChannel}
       </Abs>
 
       {/* member avatar stack (white pill) */}
@@ -381,10 +440,10 @@ export default function GeneralPollPage() {
         style={{ boxShadow: "inset 0 0 0 1px #EDEDED, 0 1px 3px rgba(0,0,0,0.06)" }}
       />
       <Abs l={1254} t={132} w={25} h={25} className="rounded-full" style={{ background: "linear-gradient(135deg,#FFE1B0,#E58BB0)", boxShadow: "0 0 0 2px #fff" }} />
-      <LetterAvatar l={1270.9} t={132} size={25} letter="S" bg="#FFF4AD" color="#B49C01" font={15} ring />
-      <LetterAvatar l={1287.9} t={132} size={25} letter="P" bg="#BCD4FD" color="#1155C8" font={15} ring />
-      <LetterAvatar l={1300.3} t={132} size={25} letter="R" bg="#EFBEFF" color="#8701B4" font={15} ring />
-      <LetterAvatar l={1317} t={132} size={25} letter="+15" bg="#E5E5E5" color="#000000" font={8.3} ring />
+      <LetterAvatar l={1270.9} t={132} size={25} letter={initial(users[1]?.name)} bg="#FFF4AD" color="#B49C01" font={15} ring />
+      <LetterAvatar l={1287.9} t={132} size={25} letter={initial(users[2]?.name)} bg="#BCD4FD" color="#1155C8" font={15} ring />
+      <LetterAvatar l={1300.3} t={132} size={25} letter={initial(users[3]?.name)} bg="#EFBEFF" color="#8701B4" font={15} ring />
+      <LetterAvatar l={1317} t={132} size={25} letter={`+${Math.max(users.length - 4, 0)}`} bg="#E5E5E5" color="#000000" font={8.3} ring />
 
       {/* header divider */}
       <Abs l={497} t={169} w={863} h={1} style={{ background: "#EDEDED" }} />
@@ -393,7 +452,7 @@ export default function GeneralPollPage() {
       <Abs l={515} t={952} w={783} h={38} className="rounded-[4px] bg-white" style={{ outline: "1px solid #E3E3E3" }} />
       <Abs l={525} t={961} w={1} h={20} style={{ background: "#4C4C4C" }} />
       <Abs l={526} t={963} className="text-[13px] font-medium leading-[16px] text-[#2E2E2E]">
-        Message #skincare-campaign-poll
+        Message #{activeChannel}
       </Abs>
       {/* input tools */}
       <Abs l={1159} t={964} w={14} h={14}>
@@ -434,7 +493,7 @@ export default function GeneralPollPage() {
         h={48}
         className="flex items-center justify-center rounded-[24px] cursor-pointer"
         style={{ background: "rgba(0,0,0,0.95)" }}
-        onClick={() => navigate("/polls/result")}
+        onClick={save}
       >
         <span className="text-[20px] font-medium text-white">Create Poll</span>
       </Abs>
@@ -495,16 +554,26 @@ export default function GeneralPollPage() {
         Question
       </Abs>
       <Abs l={378} t={515} w={682} h={46} className="rounded-[12px]" style={{ background: "#FAFAFA" }} />
-      <Abs l={393} t={524} className="text-[18px] font-light leading-[26px] text-black">
-        {question}
+      <Abs l={393} t={524} w={652}>
+        <input
+          value={question}
+          onChange={(e) => setQuestion(e.target.value)}
+          placeholder="Ask a question"
+          className="w-full bg-transparent text-[18px] font-light leading-[26px] text-black outline-none"
+        />
       </Abs>
 
       {/* Options */}
       <Abs l={378} t={579} className="text-[20px] font-normal leading-[31px] text-black">
         Options
       </Abs>
-      {optionRows.map((r) => (
-        <OptionRow key={r.top} {...r} />
+      {OPTION_TOPS.map((top, i) => (
+        <OptionRow
+          key={top}
+          top={top}
+          value={options[i] ?? ""}
+          onChange={(v) => setOptions((prev) => prev.map((o, j) => (j === i ? v : o)))}
+        />
       ))}
     </>
   );

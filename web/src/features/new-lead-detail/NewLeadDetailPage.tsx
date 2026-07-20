@@ -17,7 +17,16 @@ import {
   Aperture,
 } from "lucide-react";
 import whatsapp from "@/assets/icons/whatsapp.svg";
-import { useLeads, useConvertLead } from "@/api/hooks";
+import {
+  useList,
+  useConvertLead,
+  useUsers,
+  useInvoices,
+  useReminders,
+  useNotes,
+  useCalendar,
+} from "@/api/hooks";
+import type { Lead } from "@/api/hooks";
 
 /**
  * Super Admin — New Lead detail.
@@ -132,6 +141,17 @@ function SectionCard({
   );
 }
 
+/* The list payload carries scalars beyond the shared Lead interface. */
+type LeadRow = Lead & {
+  createdAt?: string;
+  source?: string | null;
+  ownerId?: string | null;
+  dealType?: string;
+  channel?: string | null;
+};
+
+const inr = (n: number) => `₹${n.toLocaleString("en-IN")}`;
+
 /* -------------------------------- page --------------------------------- */
 export default function NewLeadDetailPage() {
   const navigate = useNavigate();
@@ -139,10 +159,46 @@ export default function NewLeadDetailPage() {
   const [sp] = useSearchParams();
   const id = sp.get("id");
   const convert = useConvertLead();
-  const { data } = useLeads();
+  const { data } = useList<LeadRow>("leads");
   const leads = data ?? [];
   const newLeads = leads.filter((l) => l.status === "NEW");
   const lead = leads.find((l) => l.id === id) ?? newLeads[0];
+
+  // owner of the lead — drives the "Assigned to" block
+  const owner = useUsers().data?.find((u) => u.id === lead?.ownerId);
+
+  // payment summary — the invoice raised against this lead's brand
+  const invoice = useInvoices().data?.find((iv) => iv.brandName === lead?.brandName);
+  const feePct = invoice && invoice.budget ? Math.round((invoice.agencyFee / invoice.budget) * 100) : 0;
+
+  // follow-up + notes panels
+  const reminder = useReminders().data?.find((r) => !r.done);
+  const due = reminder ? new Date(reminder.dueAt) : null;
+  const note = useNotes().data?.[0];
+
+  const created = lead?.createdAt ? new Date(lead.createdAt) : null;
+
+  // Message card — Lead has no brief column, so the body is composed from this
+  // lead's own stored fields rather than a frozen sentence.
+  const brief = lead
+    ? [
+        `${lead.brandName} — ${lead.dealType === "BARTER" ? "barter" : "paid"} collab`,
+        `${lead.peopleCount} creators`,
+        lead.money ? `₹${lead.money} budget` : null,
+        `${lead.intent.toLowerCase()} intent`,
+        lead.channel ?? lead.source ?? null,
+      ]
+        .filter(Boolean)
+        .join(" · ")
+    : "";
+
+  // Deliverables — there is no Deliverable model; the scheduled content rows
+  // for this lead's brand are the only real record of what gets delivered.
+  const content = useCalendar().data ?? [];
+  const forBrand = lead ? content.filter((c) => c.title.includes(lead.brandName)) : [];
+  const reels = forBrand.filter((c) => /reel/i.test(c.title)).length;
+  const stories = forBrand.filter((c) => /stor/i.test(c.title)).length;
+
   return (
     <>
       {/* ============ card backgrounds ============ */}
@@ -177,11 +233,11 @@ export default function NewLeadDetailPage() {
       {/* ============ main container content ============ */}
       {/* Assigned to / Rahul */}
       <span className="absolute left-[279px] top-[378px] flex h-[45px] w-[45px] items-center justify-center rounded-full bg-[#F4C1C1] text-[15px] text-[#B93636]">
-        R
+        {owner?.name.charAt(0) ?? ""}
       </span>
       <div className="absolute left-[332px] top-[379px]">
         <div className="text-[12px] leading-[13px] text-black/70">Assigned to</div>
-        <div className="mt-[6px] text-[24px] leading-none text-black/90">Rahul</div>
+        <div className="mt-[6px] text-[24px] leading-none text-black/90">{owner?.name ?? ""}</div>
       </div>
       <span
         onClick={() => navigate("/people/assign-creators")}
@@ -204,7 +260,9 @@ export default function NewLeadDetailPage() {
 
       {/* info chips row */}
       <div className="absolute left-[278px] top-[314px] flex items-center gap-[9px]">
-        <Chip>12 July</Chip>
+        <Chip>
+          {created ? created.toLocaleDateString("en-GB", { day: "numeric", month: "long" }) : ""}
+        </Chip>
         <Chip>{lead ? `${lead.peopleCount} Creators` : ""}</Chip>
         <Chip>{lead?.engagementRate ?? ""}</Chip>
         <Chip>{`Budget ₹${lead?.money ?? ""}`}</Chip>
@@ -246,7 +304,7 @@ export default function NewLeadDetailPage() {
         x={808}
         w={274}
         label="Lead Source"
-        name="Leena Sharma"
+        name={lead?.source ?? ""}
         actions={
           <>
             <CircleIcon
@@ -273,7 +331,7 @@ export default function NewLeadDetailPage() {
       <SectionCard x={278} title="Message" addX={502}>
         <div className="absolute left-[290px] top-[480px] h-[130px] w-[236px] rounded-[12px] bg-white" />
         <p className="absolute left-[296px] top-[486px] w-[219px] text-[12px] font-light leading-[20px] text-black/60">
-          We are launching a new skincare product
+          {brief}
         </p>
       </SectionCard>
 
@@ -286,11 +344,11 @@ export default function NewLeadDetailPage() {
           <div className="flex flex-col gap-[3px]">
             <span className="flex items-center gap-[5px] text-[12px] font-light leading-[9px] text-black/60">
               <Video className="h-[12px] w-[12px] text-black/70" strokeWidth={1.6} />
-              1 Collab Reel
+              {reels} Collab Reel{reels === 1 ? "" : "s"}
             </span>
             <span className="flex items-center gap-[5px] text-[12px] font-light leading-[9px] text-black/60">
               <Aperture className="h-[12px] w-[12px] text-black/70" strokeWidth={1.6} />
-              2 Stories
+              {stories} Stor{stories === 1 ? "y" : "ies"}
             </span>
           </div>
         </div>
@@ -304,7 +362,7 @@ export default function NewLeadDetailPage() {
           <span className="h-px flex-1 bg-black/15" />
         </div>
         <p className="absolute left-[842px] top-[512px] w-[226px] text-[12px] font-light leading-[20px] text-black/60">
-          here comes your note
+          {note?.body ?? ""}
         </p>
       </SectionCard>
 
@@ -329,20 +387,26 @@ export default function NewLeadDetailPage() {
         <span className="h-px flex-1 bg-black/15" />
       </div>
       {/* follow-up item */}
-      <div
-        onClick={() => navigate("/reminders")}
-        className="absolute left-[1122px] top-[371px] flex h-[52px] w-[38px] cursor-pointer flex-col items-center justify-center rounded-[18px] bg-[#D8DDFF] text-center text-[15px] font-light leading-[16px] text-black"
-      >
-        <span>20</span>
-        <span>Fri</span>
-      </div>
-      <div className="absolute left-[1166px] top-[376px] w-[166px]">
-        <div className="text-[16px] leading-none text-black">Follow - Up Scheduled</div>
-        <div className="mt-[8px] flex items-center gap-[4px]">
-          <span className="h-[14px] w-[14px] rounded-full bg-gradient-to-br from-[#FFD6E7] to-[#C8B3ED]" />
-          <span className="text-[10.2px] leading-none text-black/90">{lead?.contactPerson ?? ""}</span>
-        </div>
-      </div>
+      {reminder && due && (
+        <>
+          <div
+            onClick={() => navigate("/reminders")}
+            className="absolute left-[1122px] top-[371px] flex h-[52px] w-[38px] cursor-pointer flex-col items-center justify-center rounded-[18px] bg-[#D8DDFF] text-center text-[15px] font-light leading-[16px] text-black"
+          >
+            <span>{due.getDate()}</span>
+            <span>{due.toLocaleDateString("en-US", { weekday: "short" })}</span>
+          </div>
+          <div className="absolute left-[1166px] top-[376px] w-[166px]">
+            <div className="text-[16px] leading-none text-black">{reminder.title}</div>
+            <div className="mt-[8px] flex items-center gap-[4px]">
+              <span className="h-[14px] w-[14px] rounded-full bg-gradient-to-br from-[#FFD6E7] to-[#C8B3ED]" />
+              <span className="text-[10.2px] leading-none text-black/90">
+                {lead?.contactPerson ?? ""}
+              </span>
+            </div>
+          </div>
+        </>
+      )}
 
       {/* ============ Payment Summary card ============ */}
       <span className="absolute left-[1121px] top-[566px] text-[12px] leading-[24px] text-black">
@@ -371,7 +435,7 @@ export default function NewLeadDetailPage() {
           Invoice
         </span>
         <span className="absolute left-1/2 top-[19px] -translate-x-1/2 whitespace-nowrap font-mono text-[12.6px] font-bold text-black underline decoration-dashed underline-offset-2">
-          Generate invoice
+          {invoice ? invoice.number : "Generate invoice"}
         </span>
       </div>
       {/* divider */}
@@ -394,21 +458,25 @@ export default function NewLeadDetailPage() {
         </span>
         <span className="ml-[9px] text-[12px] leading-none text-black">Added</span>
         <span className="ml-[13px] flex h-[22px] items-center gap-[4px] rounded-[24px] bg-white pl-[4px]">
-          <span className="text-[12px] leading-none text-black/60">00%</span>
+          <span className="text-[12px] leading-none text-black/60">
+            {String(feePct).padStart(2, "0")}%
+          </span>
           <span className="flex h-[16px] w-[16px] items-center justify-center rounded-full bg-[#ECEAEA]">
             <Pencil className="h-[7px] w-[7px] text-black" strokeWidth={1.6} />
           </span>
         </span>
       </div>
       <span className="absolute left-[1313px] top-[826px] text-[12px] font-medium leading-[20px] text-black/50">
-        ₹00.000
+        {invoice ? inr(invoice.agencyFee) : "₹0"}
       </span>
       {/* divider */}
       <div className="absolute left-[1133px] top-[876px] h-px w-[246px] bg-black/10" />
       {/* Estimate Payout */}
       <div className="absolute left-[1133px] top-[892px] flex w-[246px] items-center justify-between">
         <span className="text-[13px] font-medium leading-[20px] text-black">Estimate Payout</span>
-        <span className="text-[15px] font-semibold leading-[20px] text-[#76D097]">₹2,70,000</span>
+        <span className="text-[15px] font-semibold leading-[20px] text-[#76D097]">
+          {invoice ? inr(invoice.payout) : "₹0"}
+        </span>
       </div>
 
       {/* ============ Creators card ============ */}

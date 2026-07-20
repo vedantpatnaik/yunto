@@ -40,6 +40,7 @@ model User {
 
   leads        Lead[]
   reminders    Reminder[]
+  notes        Note[]
   messages     Message[]
   leaves       Leave[]
   attendance   Attendance[]
@@ -258,6 +259,18 @@ model Reminder {
   owner     User?    @relation(fields: [ownerId], references: [id])
   done      Boolean  @default(false)
   createdAt DateTime @default(now())
+}
+
+/// Sticky notes pinned to the dashboard. Free-form, colour-coded, per-user.
+model Note {
+  id        String   @id @default(cuid())
+  body      String
+  color     String   @default("yellow")
+  pinned    Boolean  @default(false)
+  ownerId   String?
+  owner     User?    @relation(fields: [ownerId], references: [id])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 // ----------------------------- People / HR ------------------------------

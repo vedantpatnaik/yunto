@@ -33,6 +33,7 @@ const resources: [string, any][] = [
   ["leaves", prisma.leave],
   ["channels", prisma.chatChannel],
   ["calendar", prisma.calendarContent],
+  ["notes", prisma.note],
 ];
 
 for (const [path, model] of resources) {

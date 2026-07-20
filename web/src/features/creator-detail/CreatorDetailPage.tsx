@@ -22,7 +22,7 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { useCreators, useUpdate } from "@/api/hooks";
+import { useCreators, useMe, useUpdate, type User } from "@/api/hooks";
 import whatsapp from "@/assets/icons/whatsapp.svg";
 
 const compactN = (n: number) =>
@@ -136,13 +136,40 @@ function RateRow({
 /* -------------------------------- page --------------------------------- */
 export default function CreatorDetailPage() {
   const navigate = useNavigate();
-  const [unlisted, setUnlisted] = useState(false);
+  const [unlistOverride, setUnlistOverride] = useState<boolean | null>(null);
   const [menuOpen, setMenuOpen] = useState(true);
   const [sp] = useSearchParams();
   const id = sp.get("id");
-  const { data } = useCreators();
+  const { data, isLoading } = useCreators();
   const updateCreator = useUpdate("creators");
   const item = (data ?? []).find((x) => x.id === id) ?? (data ?? [])[0];
+  const unlisted = unlistOverride ?? (item ? item.listed === false : false);
+
+  // Creator has no rate-card columns, so commercials are derived from the
+  // record's real economics (cpv x avg views) and weighted per format.
+  // Market rate is the same base against the cohort's average CPV.
+  const avgCpv = (data ?? []).length
+    ? (data ?? []).reduce((s, x) => s + x.cpv, 0) / (data ?? []).length
+    : 0;
+  const base = item ? item.cpv * item.avgViews : 0;
+  const marketBase = item ? avgCpv * item.avgViews : 0;
+  const rupee = (n: number) => `₹${Math.max(0, Math.round(n / 500) * 500).toLocaleString("en-IN")}`;
+  /** Per-format weights: a dedicated video costs more than a story. */
+  const RATE_W: Record<string, number> = {
+    Reel: 1, Post: 0.7, Story: 0.4, Integrated: 1, Dedicated: 1.65, Short: 0.8,
+  };
+  const rateFor = (fmt: string) => rupee(base * (RATE_W[fmt] ?? 1));
+  const marketFor = (fmt: string) => rupee(marketBase * (RATE_W[fmt] ?? 1));
+  /** Flag formats the creator prices below the market average. */
+  const underMarket = (fmt: string) => marketBase * (RATE_W[fmt] ?? 1) > base * (RATE_W[fmt] ?? 1);
+  // agencyCode exists on the Prisma User model but not on the exported hook type
+  const me = useMe().data as (User & { agencyCode?: string }) | undefined;
+  const roleLabel = (me?.role ?? "")
+    .toLowerCase()
+    .split("_")
+    .filter(Boolean)
+    .map((w) => w[0].toUpperCase() + w.slice(1))
+    .join(" ");
   return (
     <>
       {/* faint outlined content panel (Figma Subtract, hairline) */}
@@ -165,16 +192,19 @@ export default function CreatorDetailPage() {
 
       {/* tags */}
       <div className="absolute left-[284px] top-[307px] flex h-[30px] items-center gap-[8px]">
-        <span className="flex h-[30px] items-center rounded-[36px] bg-white px-[9px] text-[12px] font-light text-[#121212]">Beauty</span>
-        <span className="flex h-[30px] items-center rounded-[36px] bg-white px-[9px] text-[12px] font-light text-[#121212]">Lifestyle</span>
-        <span className="flex h-[30px] items-center gap-[2px] rounded-[36px] bg-white px-[7px] text-[10.2px] font-normal text-black">
-          <span className="text-[10px]">📍</span>{item?.location ?? "Delhi"}
-        </span>
+        {item?.niche && (
+          <span className="flex h-[30px] items-center rounded-[36px] bg-white px-[9px] text-[12px] font-light text-[#121212]">{item.niche}</span>
+        )}
+        {item?.location && (
+          <span className="flex h-[30px] items-center gap-[2px] rounded-[36px] bg-white px-[7px] text-[10.2px] font-normal text-black">
+            <span className="text-[10px]">📍</span>{item.location}
+          </span>
+        )}
       </div>
 
       {/* creator identity */}
       <div className="absolute left-[284px] top-[371px] h-[45px] w-[45px] rounded-full border border-black/10 bg-gradient-to-br from-[#C8E6FF] to-[#C8B3ED]" />
-      <span className="absolute left-[341px] top-[372px] text-[17.4px] font-normal leading-none text-ink/90">{item?.name ?? ""}</span>
+      <span className="absolute left-[341px] top-[372px] text-[17.4px] font-normal leading-none text-ink/90">{item?.name ?? (isLoading ? "" : "No creator found")}</span>
       <span className="absolute left-[341px] top-[396px] text-[11.6px] font-normal leading-none text-ink/70">{item?.handle ?? ""}</span>
       <span className="absolute left-[318px] top-[394px] text-[15px] leading-none">🔥</span>
 
@@ -188,8 +218,8 @@ export default function CreatorDetailPage() {
       <div
         onClick={() => {
           const next = !unlisted;
-          setUnlisted(next);
-          if (id) updateCreator.mutate({ id, data: { listed: !next } });
+          setUnlistOverride(next);
+          if (item) updateCreator.mutate({ id: item.id, data: { listed: !next } });
         }}
         className="absolute left-[651px] top-[299px] flex h-[45px] w-[124px] cursor-pointer items-center justify-between rounded-[19.5px] bg-white pl-[9px] pr-[10px]"
       >
@@ -268,9 +298,9 @@ export default function CreatorDetailPage() {
         <span className="text-[8.2px] font-medium leading-none text-black">+35% above avg</span>
       </div>
       <span className="absolute left-[288px] top-[701px] text-[9.3px] font-normal leading-none text-ink/90">Commercials</span>
-      <RateRow boxLeft={288} boxTop={717} type="Reel" typeX={303} typeSize={14} creatorX={370} rate="₹30,000" taxX={425} marketX={469} market="₹35,000" increaseX={299} />
-      <RateRow boxLeft={288} boxTop={771} type="Post" typeX={303} typeSize={14} creatorX={370} rate="₹30,000" taxX={425} marketX={469} market="₹35,000" />
-      <RateRow boxLeft={286} boxTop={825} type="Story" typeX={301} typeSize={14} creatorX={368} rate="₹30,000" taxX={423} marketX={467} market="₹35,000" increaseX={300} />
+      <RateRow boxLeft={288} boxTop={717} type="Reel" typeX={303} typeSize={14} creatorX={370} rate={rateFor("Reel")} taxX={425} marketX={469} market={marketFor("Reel")} increaseX={underMarket("Reel") ? 299 : undefined} />
+      <RateRow boxLeft={288} boxTop={771} type="Post" typeX={303} typeSize={14} creatorX={370} rate={rateFor("Post")} taxX={425} marketX={469} market={marketFor("Post")} increaseX={underMarket("Post") ? 299 : undefined} />
+      <RateRow boxLeft={286} boxTop={825} type="Story" typeX={301} typeSize={14} creatorX={368} rate={rateFor("Story")} taxX={423} marketX={467} market={marketFor("Story")} increaseX={underMarket("Story") ? 300 : undefined} />
 
       {/* YouTube commercial card */}
       <div className="absolute left-[554px] top-[647px] h-[240px] w-[266px] rounded-[12px] bg-[#F5F5F5]" />
@@ -282,9 +312,9 @@ export default function CreatorDetailPage() {
       </span>
       <span className="absolute left-[605px] top-[665px] text-[14px] font-normal leading-none text-ink/90">YouTube</span>
       <span className="absolute left-[564px] top-[701px] text-[9.3px] font-normal leading-none text-ink/90">Commercials</span>
-      <RateRow boxLeft={564} boxTop={717} type="Integrated" typeX={572} typeSize={10.2} creatorX={653} rate="₹30,000" taxX={709} marketX={745} market="₹35,000" />
-      <RateRow boxLeft={564} boxTop={773} type="Dedicated" typeX={572} typeSize={10.2} creatorX={655} rate="₹50,000" taxX={710} marketX={745} market="₹60,000" />
-      <RateRow boxLeft={564} boxTop={829} type="Short" typeX={577} typeSize={10.2} creatorX={655} rate="₹25,000" taxX={710} marketX={745} market="₹30,000" increaseX={579} />
+      <RateRow boxLeft={564} boxTop={717} type="Integrated" typeX={572} typeSize={10.2} creatorX={653} rate={rateFor("Integrated")} taxX={709} marketX={745} market={marketFor("Integrated")} increaseX={underMarket("Integrated") ? 579 : undefined} />
+      <RateRow boxLeft={564} boxTop={773} type="Dedicated" typeX={572} typeSize={10.2} creatorX={655} rate={rateFor("Dedicated")} taxX={710} marketX={745} market={marketFor("Dedicated")} increaseX={underMarket("Dedicated") ? 579 : undefined} />
+      <RateRow boxLeft={564} boxTop={829} type="Short" typeX={577} typeSize={10.2} creatorX={655} rate={rateFor("Short")} taxX={710} marketX={745} market={marketFor("Short")} increaseX={underMarket("Short") ? 579 : undefined} />
 
       {/* ========================== ADDRESS ========================== */}
       <span className="absolute left-[988px] top-[513px] text-[24px] font-normal leading-none text-slate900">Address</span>
@@ -311,7 +341,7 @@ export default function CreatorDetailPage() {
       <div className="absolute left-[277px] top-[953px] h-[115px] w-[659px] rounded-[24px] bg-white" />
       <StatBlock icon={Users} color="#4880D4" value={item ? compactN(item.followers) : ""} label="Followers" left={320} top={965} />
       <StatBlock icon={MessageCircle} color="#E1AE22" value="900" label="Avg. Comments" left={481} top={965} />
-      <StatBlock icon={Eye} color="#2CC37F" value="3.5 %" label="Avg. Engagement" left={642} top={965} />
+      <StatBlock icon={Eye} color="#2CC37F" value={item ? `${item.engagementRate.toFixed(1)} %` : ""} label="Avg. Engagement" left={642} top={965} />
       <StatBlock icon={Heart} color="#F8348C" value="12k" label="Avg. Likes" left={803} top={965} />
 
       {/* ======================= YOUTUBE STATS ======================= */}
@@ -325,7 +355,7 @@ export default function CreatorDetailPage() {
       {/* ==================== REMOVE CREATOR MENU ==================== */}
       {menuOpen && (
         <div className="absolute left-[787px] top-[177px] w-[169px] rounded-[10px] bg-white shadow-[0_8px_24px_rgba(0,0,0,0.12)]">
-          <div onClick={() => { if (id) updateCreator.mutate({ id, data: { blacklisted: true } }); navigate("/creators"); }} className="flex h-[43px] cursor-pointer items-center border-b border-black/10 px-[13px] text-[15px] font-light text-black">Remove Creator</div>
+          <div onClick={() => { if (item) updateCreator.mutate({ id: item.id, data: { blacklisted: true } }); navigate("/creators"); }} className="flex h-[43px] cursor-pointer items-center border-b border-black/10 px-[13px] text-[15px] font-light text-black">Remove Creator</div>
           <div onClick={() => setMenuOpen(false)} className="flex h-[43px] cursor-pointer items-center px-[13px] text-[15px] font-light text-black">Option</div>
         </div>
       )}
@@ -338,10 +368,10 @@ export default function CreatorDetailPage() {
       <div className="absolute left-[1041px] top-[66px] z-30 h-[299px] w-[309px] rounded-[12px] bg-white shadow-[0_16px_48px_rgba(0,0,0,0.24)]">
         <div className="absolute left-[114px] top-[26px] h-[82px] w-[82px] rounded-full border border-black/10 bg-gradient-to-br from-[#FFE7B8] to-[#F6B9A0]" />
         <span className="absolute left-[146px] top-[31px] text-[17px] leading-none">👑</span>
-        <div className="absolute left-[87px] top-[120px] w-[135px] text-center text-[20px] font-semibold leading-none text-slate900">Shubham Arya</div>
-        <div className="absolute left-[87px] top-[145px] w-[135px] text-center text-[12px] font-normal leading-none text-[#6B7280]">Admin</div>
+        <div className="absolute left-[87px] top-[120px] w-[135px] text-center text-[20px] font-semibold leading-none text-slate900">{me?.name ?? ""}</div>
+        <div className="absolute left-[87px] top-[145px] w-[135px] text-center text-[12px] font-normal leading-none text-[#6B7280]">{roleLabel}</div>
         <div className="absolute left-[83px] top-[168px] flex h-[28px] w-[144px] items-center justify-center gap-[4px] rounded-[24px] border border-black/5 bg-white/50 shadow-[0_1px_3px_rgba(0,0,0,0.08)]">
-          <span className="text-[10px] font-normal text-black/80">Agency Code&nbsp;&nbsp;55678</span>
+          <span className="text-[10px] font-normal text-black/80">Agency Code&nbsp;&nbsp;{me?.agencyCode ?? ""}</span>
           <Copy className="h-[12px] w-[12px] text-black" strokeWidth={1.6} />
         </div>
         <div className="absolute left-[11px] top-[217px] flex h-[56px] w-[288px] items-center gap-[8px] rounded-[28px] bg-white pl-[16px]">
