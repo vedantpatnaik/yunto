@@ -52,3 +52,9 @@ packages/backend/prisma/*.db-journal
 .claude/
 .cursor/
 .mcp.json
+
+# deploy secrets / local state
+deploy/.env
+deploy/.aws-account
+*.pem
+deploy/.instance-*

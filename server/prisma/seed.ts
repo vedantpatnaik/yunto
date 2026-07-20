@@ -155,10 +155,14 @@ async function main() {
   // --- invoices (12) ---
   const ipay = ["PAID", "UNPAID", "UNPAID", "PAID", "OVERDUE"] as const;
   for (let i = 0; i < 12; i++) {
+    // The UI renders these three under "Sub Total" / "GST" / "Total Amount",
+    // so they must actually reconcile. GST is the standard Indian 18%.
+    const budget = 150_000 + ((i * 40_000) % 400_000);
+    const agencyFee = Math.round(budget * 0.18);
     await prisma.invoice.create({ data: {
       number: `INV-2025-${(45 + i).toString().padStart(3, "0")}`, brandName: rc(brands, i),
-      campaignId: rc(campaigns, i).id, budget: 150_000 + ((i * 40_000) % 400_000),
-      agencyFee: 25_000 + ((i * 5_000) % 40_000), payout: 120_000 + ((i * 35_000) % 350_000),
+      campaignId: rc(campaigns, i).id, budget,
+      agencyFee, payout: budget + agencyFee,
       dealType: i % 3 ? "PAID" : "BARTER", status: ipay[i % ipay.length],
     } });
   }

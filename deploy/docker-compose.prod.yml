@@ -1,0 +1,61 @@
+# Yunto production stack — one box, three containers.
+#   nginx :80  → serves the built SPA, proxies /api to the API container
+#   api        → Node + Express + Prisma
+#   db         → Postgres 16, volume-backed
+#
+# Bring up with:  docker compose -f docker-compose.prod.yml up -d --build
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-yunto}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: ${POSTGRES_DB:-yunto}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-yunto}"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    # Not published to the host: only reachable on the compose network.
+    expose:
+      - "5432"
+
+  api:
+    build:
+      context: ../server
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-yunto}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-yunto}?schema=public
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in .env}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-7d}
+      CORS_ORIGIN: ${CORS_ORIGIN:?set CORS_ORIGIN in .env}
+      SEED_ON_BOOT: ${SEED_ON_BOOT:-false}
+      HOST: 0.0.0.0
+      PORT: 3001
+    expose:
+      - "3001"
+
+  web:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    depends_on:
+      - api
+    ports:
+      # 80 in production; override (e.g. WEB_PORT=8080) to test locally
+      # alongside anything already bound to port 80.
+      - "${WEB_PORT:-80}:80"
+    volumes:
+      # The SPA is built on the host (or in CI) and mounted in — keeps the
+      # image generic and makes redeploying the frontend a file copy.
+      - ../web/dist:/usr/share/nginx/html:ro
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+
+volumes:
+  pgdata:

@@ -11,5 +11,8 @@ export default defineConfig({
   },
   server: {
     port: 5173,
+    // Bind all interfaces so the app is reachable from a phone on the same
+    // Wi-Fi (http://<your-lan-ip>:5173) for on-device demos.
+    host: true,
   },
 });

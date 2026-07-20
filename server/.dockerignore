@@ -1,0 +1,15 @@
+# Never copy the host's node_modules into the image: esbuild/prisma ship
+# platform-native binaries, and macOS builds crash on linux at runtime.
+node_modules
+npm-debug.log
+
+# Secrets and local state
+.env
+.env.*
+!.env.example
+
+# Build artefacts and noise
+dist
+*.tsbuildinfo
+.DS_Store
+docker-compose.yml
