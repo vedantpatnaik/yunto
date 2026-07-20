@@ -1,0 +1,23 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --radius: 24px;
+  }
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+  body {
+    @apply font-sans text-ink antialiased;
+    /* Page background gradient — Figma frame 7917:13074 fill */
+    background: linear-gradient(135deg, #d8d2ff 0%, #faf7ff 52%, #e1e1e1 100%);
+    background-attachment: fixed;
+  }
+  * {
+    -webkit-font-smoothing: antialiased;
+  }
+}

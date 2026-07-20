@@ -1,0 +1,328 @@
+// Yunto platform — data model. Entities traced to the Figma admin design.
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ----------------------------- Users / RBAC -----------------------------
+enum Role {
+  SUPER_ADMIN
+  SALES_MANAGER
+  SALES_EMPLOYEE
+  OPS_MANAGER
+  OPS_EMPLOYEE
+}
+
+enum TeamKind {
+  SALES
+  OPERATIONS
+}
+
+model User {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  phone        String?   @unique
+  passwordHash String
+  name         String
+  avatarUrl    String?
+  role         Role      @default(SALES_EMPLOYEE)
+  agencyCode   String?
+  teamId       String?
+  team         Team?     @relation(fields: [teamId], references: [id])
+  targetMonthly Int?
+  targetYearly  Int?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  leads        Lead[]
+  reminders    Reminder[]
+  messages     Message[]
+  leaves       Leave[]
+  attendance   Attendance[]
+}
+
+model Team {
+  id        String    @id @default(cuid())
+  name      String
+  kind      TeamKind
+  members   User[]
+  createdAt DateTime  @default(now())
+}
+
+// ------------------------------- Agencies -------------------------------
+model Agency {
+  id            String     @id @default(cuid())
+  name          String
+  description   String?
+  logoUrl       String?
+  creatorsCount Int        @default(0)
+  earnings      Int        @default(0)
+  campaignsCount Int       @default(0)
+  createdAt     DateTime   @default(now())
+
+  creators      Creator[]
+  leads         Lead[]
+  campaigns     Campaign[]
+}
+
+// ------------------------------- Creators -------------------------------
+enum Platform {
+  INSTAGRAM
+  YOUTUBE
+  TIKTOK
+}
+
+model Creator {
+  id           String    @id @default(cuid())
+  name         String
+  handle       String
+  avatarUrl    String?
+  followers    Int       @default(0)
+  avgViews     Int       @default(0)
+  engagementRate Float   @default(0)
+  stars        Float     @default(0)
+  cpv          Float     @default(0)
+  leadsCount   Int       @default(0)
+  matchPct     Int       @default(0)
+  location     String?
+  gender       String?
+  niche        String?
+  platform     Platform  @default(INSTAGRAM)
+  listed       Boolean   @default(false)
+  blacklisted  Boolean   @default(false)
+  agencyId     String?
+  agency       Agency?   @relation(fields: [agencyId], references: [id])
+  createdAt    DateTime  @default(now())
+
+  campaignLinks CampaignCreator[]
+  calendar      CalendarContent[]
+}
+
+// --------------------------------- Leads --------------------------------
+enum LeadStatus {
+  NEW
+  CONTACTED
+  CONVERTED
+  CONNECTED
+  DEAD
+}
+
+enum LeadIntent {
+  HIGH
+  MEDIUM
+  LOW
+}
+
+enum DealType {
+  PAID
+  BARTER
+}
+
+model Lead {
+  id            String     @id @default(cuid())
+  brandName     String
+  agencyId      String?
+  agency        Agency?    @relation(fields: [agencyId], references: [id])
+  contactPerson String?
+  personRole    String?
+  money         String?
+  engagementRate String?
+  peopleCount   Int        @default(0)
+  status        LeadStatus @default(NEW)
+  intent        LeadIntent @default(MEDIUM)
+  dealType      DealType   @default(PAID)
+  channel       String?
+  source        String?
+  ownerId       String?
+  owner         User?      @relation(fields: [ownerId], references: [id])
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+}
+
+// ------------------------------- Campaigns ------------------------------
+enum CampaignStatus {
+  DRAFT
+  ACTIVE
+  DONE
+}
+
+model Campaign {
+  id         String            @id @default(cuid())
+  name       String
+  brandName  String
+  agencyId   String?
+  agency     Agency?           @relation(fields: [agencyId], references: [id])
+  status     CampaignStatus    @default(ACTIVE)
+  progress   Int               @default(0)
+  budget     Int               @default(0)
+  engagementRate String?
+  contactPerson String?
+  peopleCount   Int             @default(0)
+  website       String?
+  timeline      String?
+  createdAt  DateTime          @default(now())
+
+  creators   CampaignCreator[]
+  invoices   Invoice[]
+  contracts  Contract[]
+}
+
+model CampaignCreator {
+  campaignId String
+  campaign   Campaign @relation(fields: [campaignId], references: [id])
+  creatorId  String
+  creator    Creator  @relation(fields: [creatorId], references: [id])
+  rating     Float?
+  done       Boolean  @default(false)
+
+  @@id([campaignId, creatorId])
+}
+
+// -------------------------------- Contacts ------------------------------
+model Contact {
+  id        String   @id @default(cuid())
+  name      String
+  company   String?
+  email     String?
+  phone     String?
+  budget    Int?
+  source    String?
+  role      String?
+  avatarUrl String?
+  createdAt DateTime @default(now())
+}
+
+// ------------------------------- Contracts ------------------------------
+enum ContractKind {
+  CAMPAIGN
+  CREATOR
+}
+
+model Contract {
+  id         String       @id @default(cuid())
+  kind       ContractKind
+  title      String
+  campaignId String?
+  campaign   Campaign?    @relation(fields: [campaignId], references: [id])
+  amount     Int?
+  status     String       @default("draft")
+  createdAt  DateTime     @default(now())
+}
+
+// -------------------------------- Invoices ------------------------------
+enum PaymentStatus {
+  PAID
+  UNPAID
+  OVERDUE
+}
+
+model Invoice {
+  id         String        @id @default(cuid())
+  number     String        @unique
+  brandName  String
+  campaignId String?
+  campaign   Campaign?     @relation(fields: [campaignId], references: [id])
+  budget     Int           @default(0)
+  agencyFee  Int           @default(0)
+  payout     Int           @default(0)
+  dealType   DealType      @default(PAID)
+  status     PaymentStatus @default(UNPAID)
+  createdAt  DateTime      @default(now())
+}
+
+// --------------------------------- Polls --------------------------------
+enum PollKind {
+  GENERAL
+  CAMPAIGN
+}
+
+model Poll {
+  id        String   @id @default(cuid())
+  kind      PollKind @default(GENERAL)
+  question  String
+  options   Json
+  results   Json?
+  createdAt DateTime @default(now())
+}
+
+// ------------------------------- Reminders ------------------------------
+model Reminder {
+  id        String   @id @default(cuid())
+  title     String
+  dueAt     DateTime
+  ownerId   String?
+  owner     User?    @relation(fields: [ownerId], references: [id])
+  done      Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
+
+// ----------------------------- People / HR ------------------------------
+enum LeaveStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model Leave {
+  id        String      @id @default(cuid())
+  userId    String
+  user      User        @relation(fields: [userId], references: [id])
+  type      String
+  from      DateTime
+  to        DateTime
+  reason    String?
+  status    LeaveStatus @default(PENDING)
+  createdAt DateTime    @default(now())
+}
+
+model Attendance {
+  id       String   @id @default(cuid())
+  userId   String
+  user     User     @relation(fields: [userId], references: [id])
+  date     DateTime
+  present  Boolean  @default(true)
+  loginAt  DateTime?
+
+  @@unique([userId, date])
+}
+
+// --------------------------------- Chat ---------------------------------
+enum ChannelKind {
+  TEAM
+  INFLUENCER
+  BRAND
+  CAMPAIGN
+}
+
+model ChatChannel {
+  id        String      @id @default(cuid())
+  name      String
+  kind      ChannelKind @default(TEAM)
+  createdAt DateTime    @default(now())
+  messages  Message[]
+}
+
+model Message {
+  id        String      @id @default(cuid())
+  channelId String
+  channel   ChatChannel @relation(fields: [channelId], references: [id])
+  authorId  String?
+  author    User?       @relation(fields: [authorId], references: [id])
+  body      String
+  createdAt DateTime    @default(now())
+}
+
+// ------------------------------- Calendar -------------------------------
+model CalendarContent {
+  id        String   @id @default(cuid())
+  creatorId String
+  creator   Creator  @relation(fields: [creatorId], references: [id])
+  title     String
+  scheduledAt DateTime
+  status    String   @default("scheduled")
+  createdAt DateTime @default(now())
+}
