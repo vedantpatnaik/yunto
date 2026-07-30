@@ -31,11 +31,22 @@ function tsxFiles(dir) {
   return out;
 }
 
-// Routes are the file paths under app/(app), plus the two top-level screens.
+// Route groups — the "(name)" segment is stripped from the URL by expo-router,
+// so (app) and (agency) share one namespace and CAN collide.
+const GROUPS = ["(app)", "(agency)"];
 const routes = new Set(["/", "/login"]);
-for (const f of tsxFiles(GROUP)) {
-  routes.add("/" + path.relative(GROUP, f).replace(/\.tsx$/, "").split(path.sep).join("/"));
+const owners = new Map(); // url -> [group, …], to catch two files claiming one URL
+
+for (const g of GROUPS) {
+  const base = path.join(APP, g);
+  for (const f of tsxFiles(base)) {
+    const url = "/" + path.relative(base, f).replace(/\.tsx$/, "").split(path.sep).join("/");
+    routes.add(url);
+    owners.set(url, [...(owners.get(url) ?? []), g]);
+  }
 }
+
+const collisions = [...owners.entries()].filter(([, gs]) => gs.length > 1);
 
 const NAV = /router\.(?:push|replace|navigate)\(\s*[`"']([^`"')]+)[`"']/g;
 const broken = [];
@@ -53,7 +64,11 @@ for (const f of tsxFiles(APP)) {
   }
 }
 
-console.log(`${routes.size} routes | ${broken.length} broken | ${dynamic.length} dynamic`);
+console.log(`${routes.size} routes | ${broken.length} broken | ${dynamic.length} dynamic | ${collisions.length} collisions`);
+if (collisions.length) {
+  console.log("\nCOLLISIONS — two files claim the same URL (route groups are stripped):");
+  for (const [url, gs] of collisions) console.log(`  ${url} <- ${gs.join(", ")}`);
+}
 if (dynamic.length) {
   console.log("\ndynamic targets (need a [param] route):");
   for (const d of dynamic) console.log(`  ${d.rel}:${d.line} -> ${d.raw}`);
@@ -62,4 +77,4 @@ if (broken.length) {
   console.log("\nBROKEN — these taps will do nothing:");
   for (const b of broken) console.log(`  ${b.rel}:${b.line} -> ${b.raw}`);
 }
-process.exit(broken.length ? 1 : 0);
+process.exit(broken.length || collisions.length ? 1 : 0);

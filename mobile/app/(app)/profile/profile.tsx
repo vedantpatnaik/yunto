@@ -504,7 +504,7 @@ export default function Profile() {
       </Txt>
 
       {/* ============================== logout ============================== */}
-      <Pressable onPress={() => router.push("/profile/log-out")} style={styles.logout}>
+      <Pressable onPress={() => router.push("/system/log-out")} style={styles.logout}>
         <Txt
           y={8}
           w={50.63}

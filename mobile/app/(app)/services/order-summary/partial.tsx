@@ -115,7 +115,7 @@ export default function OrderSummaryPartial() {
 
       {/* ------------------- Empty slot left by the videographer -------------- */}
       <Pressable
-        onPress={() => router.push("/services/services/videographers" as never)}
+        onPress={() => router.push("/services/videographers" as never)}
         style={({ pressed }) => [styles.emptySlot, pressed && styles.pressed]}
       >
         <Abs x={109.72} y={118.86} w={32} h={32} radius={16} bg={colors.white} center>

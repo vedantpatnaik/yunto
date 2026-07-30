@@ -1127,7 +1127,7 @@ export default function HomeDashboard() {
               icon={<Feather name="video" size={22} color={INK} />}
               title="Videographers & Editors"
               subtitle="Find your creative experts"
-              onPress={() => router.push("/services/services/videographers")}
+              onPress={() => router.push("/services/videographers")}
             />
 
             <Pressable
@@ -1304,7 +1304,7 @@ export default function HomeDashboard() {
           Leads
         </Txt>
 
-        <Pressable onPress={() => router.push("/planner" as never)} style={[styles.tabItem, { left: 221.12 }]}>
+        <Pressable onPress={() => router.push("/planner/planner-month" as never)} style={[styles.tabItem, { left: 221.12 }]}>
           <Feather name="calendar" size={20} color="#9a8ea3" />
         </Pressable>
         <Txt x={216.12} y={51.5} w={44} size={12} weight="medium" font="inter" color="#9a8ea3" lineHeight={11} align="center">
