@@ -106,9 +106,29 @@ export const FLOWS: GeneratedFlow[] = [
     "title": "Home",
     "screens": [
       {
+        "slug": "home-admin",
+        "path": "/home/home-admin",
+        "title": "Home Admin"
+      },
+      {
         "slug": "home-dashboard",
         "path": "/home/home-dashboard",
         "title": "Home Dashboard"
+      },
+      {
+        "slug": "home-operations",
+        "path": "/home/home-operations",
+        "title": "Home Operations"
+      },
+      {
+        "slug": "home-sales",
+        "path": "/home/home-sales",
+        "title": "Home Sales"
+      },
+      {
+        "slug": "home-set-target-sheet",
+        "path": "/home/home-set-target-sheet",
+        "title": "Home Set Target Sheet"
       },
       {
         "slug": "set-revenue-target",
@@ -122,6 +142,11 @@ export const FLOWS: GeneratedFlow[] = [
     "title": "Leads",
     "screens": [
       {
+        "slug": "lead-added-success",
+        "path": "/leads/lead-added-success",
+        "title": "Lead Added Success"
+      },
+      {
         "slug": "lead-detail",
         "path": "/leads/lead-detail",
         "title": "Lead Detail"
@@ -132,9 +157,24 @@ export const FLOWS: GeneratedFlow[] = [
         "title": "Lead Detail Deliverables Sheet"
       },
       {
+        "slug": "lead-detail-info",
+        "path": "/leads/lead-detail-info",
+        "title": "Lead Detail Info"
+      },
+      {
         "slug": "lead-detail-mark-closed",
         "path": "/leads/lead-detail-mark-closed",
         "title": "Lead Detail Mark Closed"
+      },
+      {
+        "slug": "lead-detail-notes",
+        "path": "/leads/lead-detail-notes",
+        "title": "Lead Detail Notes"
+      },
+      {
+        "slug": "lead-distribution",
+        "path": "/leads/lead-distribution",
+        "title": "Lead Distribution"
       },
       {
         "slug": "lead-history",
@@ -155,6 +195,11 @@ export const FLOWS: GeneratedFlow[] = [
         "slug": "leads",
         "path": "/leads/leads",
         "title": "Leads"
+      },
+      {
+        "slug": "leads-list",
+        "path": "/leads/leads-list",
+        "title": "Leads List"
       }
     ]
   },
@@ -214,6 +259,11 @@ export const FLOWS: GeneratedFlow[] = [
     "title": "Payments",
     "screens": [
       {
+        "slug": "add-payment-reminder",
+        "path": "/payments/add-payment-reminder",
+        "title": "Add Payment Reminder"
+      },
+      {
         "slug": "invoice-create",
         "path": "/payments/invoice-create",
         "title": "Invoice Create"
@@ -234,14 +284,39 @@ export const FLOWS: GeneratedFlow[] = [
         "title": "Invoice Hub"
       },
       {
+        "slug": "invoice-reminders",
+        "path": "/payments/invoice-reminders",
+        "title": "Invoice Reminders"
+      },
+      {
         "slug": "invoice-your-details",
         "path": "/payments/invoice-your-details",
         "title": "Invoice Your Details"
       },
       {
+        "slug": "lead-payment-summary",
+        "path": "/payments/lead-payment-summary",
+        "title": "Lead Payment Summary"
+      },
+      {
+        "slug": "payment-followup-timeline",
+        "path": "/payments/payment-followup-timeline",
+        "title": "Payment Followup Timeline"
+      },
+      {
+        "slug": "payments-notifications",
+        "path": "/payments/payments-notifications",
+        "title": "Payments Notifications"
+      },
+      {
         "slug": "payout-bank-details",
         "path": "/payments/payout-bank-details",
         "title": "Payout Bank Details"
+      },
+      {
+        "slug": "set-revenue-target",
+        "path": "/payments/set-revenue-target",
+        "title": "Set Revenue Target"
       }
     ]
   },
@@ -249,6 +324,16 @@ export const FLOWS: GeneratedFlow[] = [
     "flow": "people",
     "title": "People",
     "screens": [
+      {
+        "slug": "assign-creators",
+        "path": "/people/assign-creators",
+        "title": "Assign Creators"
+      },
+      {
+        "slug": "lead-distribution",
+        "path": "/people/lead-distribution",
+        "title": "Lead Distribution"
+      },
       {
         "slug": "leaves",
         "path": "/people/leaves",
@@ -258,6 +343,11 @@ export const FLOWS: GeneratedFlow[] = [
         "slug": "manage-teams",
         "path": "/people/manage-teams",
         "title": "Manage Teams"
+      },
+      {
+        "slug": "people-overview",
+        "path": "/people/people-overview",
+        "title": "People Overview"
       },
       {
         "slug": "person-attendance",
@@ -288,6 +378,11 @@ export const FLOWS: GeneratedFlow[] = [
         "slug": "team-management-hub",
         "path": "/people/team-management-hub",
         "title": "Team Management Hub"
+      },
+      {
+        "slug": "team-member-detail",
+        "path": "/people/team-member-detail",
+        "title": "Team Member Detail"
       },
       {
         "slug": "team-roster",
@@ -573,4 +668,4 @@ export const FLOWS: GeneratedFlow[] = [
   }
 ];
 
-export const TOTAL_SCREENS = 96;
+export const TOTAL_SCREENS = 115;

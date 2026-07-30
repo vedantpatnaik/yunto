@@ -324,7 +324,11 @@ export default function TeamMemberDetail() {
 
   /** The member this page is about — the routed one, else the signed-in operator. */
   const member = useMemo(
-    () => users.find((u) => u.id === memberId) ?? users.find((u) => u.id === me?.id) ?? users.find((u) => u.team),
+    () => users.find((u) => u.id === memberId) ??
+      // Only fall back to the signed-in operator if they are actually on a team —
+      // a SUPER_ADMIN is not, and defaulting to them renders "No team, 0 Members".
+      users.find((u) => u.id === me?.id && u.team) ??
+      users.find((u) => u.team),
     [users, memberId, me],
   );
 

@@ -93,13 +93,18 @@ const httpServer = createServer((req, res) => {
   }
 
   // App route: serve the shell, re-read so a rebuilt bundle is picked up.
+  // Read BEFORE writing headers — writing them first and then failing means the
+  // error path tries to write headers twice (ERR_HTTP_HEADERS_SENT).
+  let shell;
   try {
-    res.writeHead(200, { "Content-Type": "text/html" });
-    res.end(fs.readFileSync(path.join(OUT, "index.html")));
+    shell = fs.readFileSync(path.join(OUT, "index.html"));
   } catch {
     res.writeHead(500, { "Content-Type": "text/plain" });
     res.end("index.html missing — the export did not complete");
+    return;
   }
+  res.writeHead(200, { "Content-Type": "text/html" });
+  res.end(shell);
 });
 await new Promise((r) => httpServer.listen(PORT, r));
 const stop = () => { try { httpServer.close(); } catch {} };
@@ -121,33 +126,61 @@ const ctx = await browser.newContext({ viewport: { width: 390, height: 844 } });
 await ctx.addInitScript((t) => { if (t) localStorage.setItem("yunto_token", t); }, token);
 if (SHOTS) fs.mkdirSync(path.join(ROOT, ".render"), { recursive: true });
 
-const page = await ctx.newPage();
 const problems = [];
 let errors = [];
-page.on("pageerror", (e) => errors.push(`JS: ${e.message.slice(0, 110)}`));
-page.on("console", (m) => {
-  if (m.type() !== "error") return;
-  const t = m.text();
-  // A blocked request is NOT noise to swallow: it means the screen rendered
-  // with no data, which looks identical to a screen that renders correctly.
-  // The API origin must allow-list this harness (see server CORS_ORIGIN).
-  if (/CORS|Access-Control/i.test(t)) {
-    errors.push("API blocked by CORS — add this origin to the server allowlist");
-    return;
-  }
-  if (/Failed to load resource|ERR_FAILED/i.test(t)) return;
-  errors.push(`console: ${t.slice(0, 110)}`);
-});
+
+/** Bound per page, since a crashed page is replaced by a fresh one mid-run. */
+function attachListeners(p) {
+  p.on("pageerror", (e) => errors.push(`JS: ${e.message.slice(0, 110)}`));
+  p.on("console", (m) => {
+    if (m.type() !== "error") return;
+    const t = m.text();
+    // A blocked request is NOT noise to swallow: it means the screen rendered
+    // with no data, which looks identical to a screen that renders correctly.
+    // The API origin must allow-list this harness (see server CORS_ORIGIN).
+    if (/CORS|Access-Control/i.test(t)) {
+      errors.push("API blocked by CORS — add this origin to the server allowlist");
+      return;
+    }
+    if (/Failed to load resource|ERR_FAILED/i.test(t)) return;
+    errors.push(`console: ${t.slice(0, 110)}`);
+  });
+}
+
+let page = null;
 
 // Confirm the API is reachable before judging any screen, so an unreachable
 // backend is reported once rather than as N misleading "renders fine" passes.
 const apiOk = await fetch(`${API}/health`.replace("/api/health", "/health")).then((r) => r.ok).catch(() => false);
 if (!apiOk) console.warn(`! API not reachable at ${API} — data-driven screens will look empty`);
 
+/** Chromium can be OOM-killed when the machine is busy; rebuild and continue. */
+async function ensurePage() {
+  if (page && !page.isClosed()) return page;
+  page = await ctx.newPage();
+  attachListeners(page);
+  return page;
+}
+
 for (const route of list) {
   errors = [];
-  await page.goto(`http://localhost:${PORT}${route}`, { waitUntil: "networkidle", timeout: 30000 });
-  await page.waitForTimeout(900);
+  try {
+    page = await ensurePage();
+    await page.goto(`http://localhost:${PORT}${route}`, { waitUntil: "networkidle", timeout: 30000 });
+    await page.waitForTimeout(900);
+  } catch (e) {
+    // A closed target means the browser died, not that the screen is broken —
+    // retry once on a fresh page before judging the route.
+    if (/closed|crashed/i.test(String(e))) {
+      page = await ensurePage();
+      await page.goto(`http://localhost:${PORT}${route}`, { waitUntil: "networkidle", timeout: 30000 });
+      await page.waitForTimeout(900);
+    } else {
+      problems.push({ route, issues: [`navigation failed: ${String(e).slice(0, 80)}`] });
+      console.log(`FAIL ${route.padEnd(46)} navigation failed`);
+      continue;
+    }
+  }
 
   const info = await page.evaluate(() => ({
     len: document.body.innerText.trim().length,

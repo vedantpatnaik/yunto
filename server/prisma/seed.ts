@@ -202,9 +202,21 @@ async function main() {
       from: daysAhead(i + 1), to: daysAhead(i + 2), reason: "Personal", status: lstat[i % lstat.length],
     } });
   }
+  // Attendance is one row per user per DAY (@@unique([userId, date])), so the
+  // date column must be the day at midnight. Storing a full timestamp gives
+  // every row a distinct instant, which defeats the unique constraint and makes
+  // "who was in on day X" impossible to answer — a per-team head count then
+  // matches at most one row.
+  const midnight = (d: number) => {
+    const t = daysAgo(d);
+    return new Date(Date.UTC(t.getUTCFullYear(), t.getUTCMonth(), t.getUTCDate()));
+  };
   for (const u of employees) {
     for (let d = 1; d <= 5; d++) {
-      await prisma.attendance.create({ data: { userId: u.id, date: daysAgo(d), present: d % 4 !== 0, loginAt: d % 4 !== 0 ? daysAgo(d) : null } });
+      const present = d % 4 !== 0;
+      await prisma.attendance.create({
+        data: { userId: u.id, date: midnight(d), present, loginAt: present ? daysAgo(d) : null },
+      });
     }
   }
 

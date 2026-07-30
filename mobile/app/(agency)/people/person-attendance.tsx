@@ -163,7 +163,9 @@ export default function PersonAttendance() {
 
   /** The person this tab is about; without a param, the first staff member. */
   const person: User | undefined = useMemo(
-    () => users.find((u) => u.id === id) ?? users[0],
+    // users[0] is the SUPER_ADMIN, who belongs to no team — a person page
+    // defaulting to them renders an empty roster. Prefer a real team member.
+    () => users.find((u) => u.id === id) ?? users.find((u) => u.team) ?? users[0],
     [users, id],
   );
 

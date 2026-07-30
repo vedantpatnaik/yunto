@@ -178,7 +178,9 @@ export default function PersonProfile() {
 
   /** The record this screen is about — the id we were pushed with, else the first person. */
   const person = useMemo<Person | undefined>(
-    () => (id ? users.find((u) => u.id === id) : undefined) ?? users[0],
+    // users[0] is the SUPER_ADMIN, who belongs to no team — a person page
+    // defaulting to them renders an empty roster. Prefer a real team member.
+    () => (id ? users.find((u) => u.id === id) : undefined) ?? users.find((u) => u.team) ?? users[0],
     [users, id],
   );
 
