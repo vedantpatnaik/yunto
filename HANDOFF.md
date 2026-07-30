@@ -135,6 +135,27 @@ change plus a `pg_dump | psql`. Say the word and it takes minutes.
 
 ---
 
+## Verification (what was actually checked, not assumed)
+
+- **71/71 admin routes** still render after the RBAC and validation changes — 0 JS
+  errors, 0 failed API calls, 0 blank pages.
+- **RBAC proven with a real employee account**, not just the SUPER_ADMIN that bypasses every
+  check: `rohan@yunto.com` (SALES_EMPLOYEE) can apply for leave (201) and create leads (201),
+  is correctly denied invoice writes (403), and still reads invoices (200).
+- **Every generated native screen renders** — `npm run render-check` in `mobile/` exports the
+  app via react-native-web and loads each route in a phone viewport, failing on runtime
+  errors, blank output, or a silent bounce to `/login`.
+- **Backups verified end to end**: the systemd service runs, dumps, uploads to S3, exits clean.
+
+Three bugs were caught this way that type-checking could not have found:
+
+1. The server **crashed at boot** — the uploads work added `@aws-sdk/client-s3` to
+   `package.json` without installing it. `tsc` was clean.
+2. RBAC gave `leaves` write access to managers only, but both apply-leave screens POST as the
+   employee — every non-admin would have hit **403** applying for leave.
+3. `crudRouter` hardcoded `orderBy: { createdAt: "desc" }`, and `Attendance` has no
+   `createdAt`. Exposing it would have thrown on the first request.
+
 ## Decisions needed
 
 1. **Cut over to RDS?** Recommended — the current setup has no backups. Needs ~5 minutes of

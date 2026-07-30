@@ -13,11 +13,16 @@ SSH="ssh -i $KEY -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o 
 
 echo "▸ target: $IP"
 
-# --- wait for cloud-init to finish installing docker ------------------------
-echo "▸ waiting for bootstrap (docker install)…"
+# --- wait for the host to be able to build and run containers ---------------
+# Probe the actual capability rather than a marker file: cloud-init writes
+# /tmp/bootstrap-done, but systemd-tmpfiles clears /tmp on a schedule, so the
+# marker disappears on a long-lived instance and every later deploy would hang.
+echo "▸ waiting for docker + buildx…"
 for i in $(seq 1 60); do
-  if $SSH 'test -f /tmp/bootstrap-done' 2>/dev/null; then echo "▸ bootstrap complete"; break; fi
-  [ "$i" = 60 ] && { echo "✗ bootstrap timed out"; exit 1; }
+  if $SSH 'docker info >/dev/null 2>&1 && docker buildx version >/dev/null 2>&1 && docker compose version >/dev/null 2>&1' 2>/dev/null; then
+    echo "▸ host ready"; break
+  fi
+  [ "$i" = 60 ] && { echo "✗ host never became ready (docker/buildx/compose missing)"; exit 1; }
   sleep 10
 done
 
