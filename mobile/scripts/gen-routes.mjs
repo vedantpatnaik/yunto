@@ -17,22 +17,45 @@ const OUT = path.join(ROOT, "src", "generated", "routes.ts");
 /** "lead-detail-self" -> "Lead Detail Self" */
 const title = (s) => s.split("-").filter(Boolean).map((w) => w[0].toUpperCase() + w.slice(1)).join(" ");
 
-const flows = [];
-if (fs.existsSync(APP)) {
-  for (const flow of fs.readdirSync(APP).sort()) {
-    const dir = path.join(APP, flow);
-    if (!fs.statSync(dir).isDirectory()) continue;
-    const screens = fs
-      .readdirSync(dir)
-      .filter((f) => f.endsWith(".tsx") && !f.startsWith("_"))
-      .sort()
-      .map((f) => {
-        const slug = f.replace(/\.tsx$/, "");
-        return { slug, path: `/${flow}/${slug}`, title: title(slug) };
-      });
-    if (screens.length) flows.push({ flow, title: title(flow), screens });
+/** All .tsx under a directory, recursively — screens nest (profile/personal-information/…). */
+function walk(dir) {
+  const out = [];
+  for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+    const p = path.join(dir, e.name);
+    if (e.isDirectory()) out.push(...walk(p));
+    else if (e.name.endsWith(".tsx") && !e.name.startsWith("_")) out.push(p);
+  }
+  return out;
+}
+
+/** Both app groups are real route trees: (app) is the influencer app, (agency) the operator app. */
+const GROUPS = [
+  { dir: path.join(ROOT, "app", "(app)"), prefix: "" },
+  { dir: path.join(ROOT, "app", "(agency)"), prefix: "" },
+];
+
+const byFlow = new Map();
+for (const g of GROUPS) {
+  if (!fs.existsSync(g.dir)) continue;
+  for (const file of walk(g.dir)) {
+    const rel = path.relative(g.dir, file).replace(/\.tsx$/, "").split(path.sep).join("/");
+    const flow = rel.split("/")[0];
+    // Dynamic segments cannot be linked without a param, so skip them here.
+    if (rel.includes("[")) continue;
+    const slug = rel.split("/").slice(1).join("/") || flow;
+    const entry = { slug, path: `/${rel}`, title: title(slug.split("/").pop() ?? slug) };
+    if (!byFlow.has(flow)) byFlow.set(flow, []);
+    byFlow.get(flow).push(entry);
   }
 }
+
+const flows = [...byFlow.entries()]
+  .sort(([a], [b]) => a.localeCompare(b))
+  .map(([flow, screens]) => ({
+    flow,
+    title: title(flow),
+    screens: screens.sort((a, b) => a.path.localeCompare(b.path)),
+  }));
 
 const total = flows.reduce((s, f) => s + f.screens.length, 0);
 fs.mkdirSync(path.dirname(OUT), { recursive: true });

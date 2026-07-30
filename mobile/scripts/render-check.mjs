@@ -21,21 +21,30 @@ const PORT = 8099;
 const SHOTS = process.argv.includes("--shots");
 const API = process.env.EXPO_PUBLIC_API_URL ?? "http://localhost:3001/api";
 
-/** Every generated route: app/(app)/<flow>/<screen>.tsx -> /<flow>/<screen> */
+/**
+ * Every generated route across both app groups. Screens nest several levels
+ * deep (profile/personal-information/…, services/editors/[id]/…), so this must
+ * recurse — a flat scan silently skipped them and reported a clean pass.
+ * Dynamic segments are excluded: they need a concrete param to be meaningful.
+ */
 function routes() {
-  const base = path.join(ROOT, "app", "(app)");
-  if (!fs.existsSync(base)) return [];
   const out = [];
-  for (const flow of fs.readdirSync(base)) {
-    const dir = path.join(base, flow);
-    if (!fs.statSync(dir).isDirectory()) continue;
-    for (const f of fs.readdirSync(dir)) {
-      if (f.endsWith(".tsx") && !f.startsWith("_")) {
-        out.push(`/${flow}/${f.replace(/\.tsx$/, "")}`);
+  for (const group of ["(app)", "(agency)"]) {
+    const base = path.join(ROOT, "app", group);
+    if (!fs.existsSync(base)) continue;
+    const walk = (dir) => {
+      for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+        const p = path.join(dir, e.name);
+        if (e.isDirectory()) walk(p);
+        else if (e.name.endsWith(".tsx") && !e.name.startsWith("_")) {
+          const rel = path.relative(base, p).replace(/\.tsx$/, "").split(path.sep).join("/");
+          if (!rel.includes("[")) out.push(`/${rel}`);
+        }
       }
-    }
+    };
+    walk(base);
   }
-  return out.sort();
+  return [...new Set(out)].sort();
 }
 
 const list = routes();
@@ -57,24 +66,40 @@ const MIME = {
   ".json": "application/json", ".png": "image/png", ".jpg": "image/jpeg",
   ".svg": "image/svg+xml", ".ico": "image/x-icon", ".ttf": "font/ttf", ".woff2": "font/woff2",
 };
-// Held in memory so a concurrent export cleaning the output directory cannot
-// take the server down mid-run.
-const SHELL = fs.readFileSync(path.join(OUT, "index.html"));
+/** A request for a build artefact, as opposed to an app route. */
+const isAsset = (u) => u.startsWith("/_expo/") || /\.[a-z0-9]+$/i.test(u);
+
 const httpServer = createServer((req, res) => {
   const url = decodeURIComponent((req.url || "/").split("?")[0]);
   const file = path.join(OUT, url);
-  // Anything that is not an existing file is an app route -> serve the shell.
-  let isFile = false;
-  try { isFile = fs.statSync(file).isFile(); } catch { isFile = false; }
-  if (!isFile) {
-    res.writeHead(200, { "Content-Type": "text/html" });
-    res.end(SHELL);
+  let exists = false;
+  try { exists = fs.statSync(file).isFile(); } catch { exists = false; }
+
+  if (exists) {
+    res.writeHead(200, { "Content-Type": MIME[path.extname(file)] ?? "application/octet-stream" });
+    const stream = fs.createReadStream(file);
+    stream.on("error", () => { res.destroy(); });
+    stream.pipe(res);
     return;
   }
-  res.writeHead(200, { "Content-Type": MIME[path.extname(file)] ?? "application/octet-stream" });
-  const stream = fs.createReadStream(file);
-  stream.on("error", () => { res.writeHead(404); res.end(); });
-  stream.pipe(res);
+
+  // A missing asset must 404. Serving the HTML shell in its place makes the
+  // browser parse HTML as JavaScript and report "Unexpected token '<'" on every
+  // single route — which looks like a mass app failure rather than one stale file.
+  if (isAsset(url)) {
+    res.writeHead(404, { "Content-Type": "text/plain" });
+    res.end("not found");
+    return;
+  }
+
+  // App route: serve the shell, re-read so a rebuilt bundle is picked up.
+  try {
+    res.writeHead(200, { "Content-Type": "text/html" });
+    res.end(fs.readFileSync(path.join(OUT, "index.html")));
+  } catch {
+    res.writeHead(500, { "Content-Type": "text/plain" });
+    res.end("index.html missing — the export did not complete");
+  }
 });
 await new Promise((r) => httpServer.listen(PORT, r));
 const stop = () => { try { httpServer.close(); } catch {} };

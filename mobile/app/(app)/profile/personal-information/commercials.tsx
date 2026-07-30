@@ -1,5 +1,5 @@
 import type { ComponentProps } from "react";
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import { Pressable, StyleSheet, TextInput, View } from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -430,7 +430,7 @@ export default function PersonalInformationCommercials() {
 
       {/* ------------------------ per-platform groups ----------------------- */}
       {PLATFORMS.map((platform) => (
-        <View key={platform.key}>
+        <Fragment key={platform.key}>
           {/* Overlay+Shadow — 44x44 r14 glass tile carrying the platform glyph. */}
           <Abs
             x={FIELD_X}
@@ -468,7 +468,7 @@ export default function PersonalInformationCommercials() {
           </Txt>
 
           {platform.deliverables.map((d) => (
-            <View key={d.key}>
+            <Fragment key={d.key}>
               {/* Label — Inter 600 13 / 15.73, indented 4pt inside the group. */}
               <Txt
                 x={CAPTION_X}
@@ -508,9 +508,9 @@ export default function PersonalInformationCommercials() {
                   { left: FIELD_TEXT_X, top: d.fieldY + FIELD_TEXT_DY, width: FIELD_INNER_W },
                 ]}
               />
-            </View>
+            </Fragment>
           ))}
-        </View>
+        </Fragment>
       ))}
 
       {/* ------------------------------- CTA -------------------------------- */}

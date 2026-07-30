@@ -28,14 +28,14 @@ export const FLOWS: GeneratedFlow[] = [
         "title": "All Requests"
       },
       {
-        "slug": "campaign-brief-workspace-drawer",
-        "path": "/campaigns/campaign-brief-workspace-drawer",
-        "title": "Campaign Brief Workspace Drawer"
-      },
-      {
         "slug": "campaign-brief",
         "path": "/campaigns/campaign-brief",
         "title": "Campaign Brief"
+      },
+      {
+        "slug": "campaign-brief-workspace-drawer",
+        "path": "/campaigns/campaign-brief-workspace-drawer",
+        "title": "Campaign Brief Workspace Drawer"
       },
       {
         "slug": "invoice-select-campaign",
@@ -64,14 +64,14 @@ export const FLOWS: GeneratedFlow[] = [
         "title": "Content Idea Detail"
       },
       {
-        "slug": "content-itinerary-set-date",
-        "path": "/content/content-itinerary-set-date",
-        "title": "Content Itinerary Set Date"
-      },
-      {
         "slug": "content-itinerary",
         "path": "/content/content-itinerary",
         "title": "Content Itinerary"
+      },
+      {
+        "slug": "content-itinerary-set-date",
+        "path": "/content/content-itinerary-set-date",
+        "title": "Content Itinerary Set Date"
       },
       {
         "slug": "plan-generator",
@@ -82,6 +82,22 @@ export const FLOWS: GeneratedFlow[] = [
         "slug": "plan-select-dates",
         "path": "/content/plan-select-dates",
         "title": "Plan Select Dates"
+      }
+    ]
+  },
+  {
+    "flow": "filters",
+    "title": "Filters",
+    "screens": [
+      {
+        "slug": "creators-filter-sheet",
+        "path": "/filters/creators-filter-sheet",
+        "title": "Creators Filter Sheet"
+      },
+      {
+        "slug": "creators-sort-sheet",
+        "path": "/filters/creators-sort-sheet",
+        "title": "Creators Sort Sheet"
       }
     ]
   },
@@ -106,6 +122,11 @@ export const FLOWS: GeneratedFlow[] = [
     "title": "Leads",
     "screens": [
       {
+        "slug": "lead-detail",
+        "path": "/leads/lead-detail",
+        "title": "Lead Detail"
+      },
+      {
         "slug": "lead-detail-deliverables-sheet",
         "path": "/leads/lead-detail-deliverables-sheet",
         "title": "Lead Detail Deliverables Sheet"
@@ -116,24 +137,19 @@ export const FLOWS: GeneratedFlow[] = [
         "title": "Lead Detail Mark Closed"
       },
       {
-        "slug": "lead-detail",
-        "path": "/leads/lead-detail",
-        "title": "Lead Detail"
-      },
-      {
         "slug": "lead-history",
         "path": "/leads/lead-history",
         "title": "Lead History"
       },
       {
-        "slug": "lead-notes-schedule-follow-up",
-        "path": "/leads/lead-notes-schedule-follow-up",
-        "title": "Lead Notes Schedule Follow Up"
-      },
-      {
         "slug": "lead-notes",
         "path": "/leads/lead-notes",
         "title": "Lead Notes"
+      },
+      {
+        "slug": "lead-notes-schedule-follow-up",
+        "path": "/leads/lead-notes-schedule-follow-up",
+        "title": "Lead Notes Schedule Follow Up"
       },
       {
         "slug": "leads",
@@ -198,14 +214,14 @@ export const FLOWS: GeneratedFlow[] = [
     "title": "Payments",
     "screens": [
       {
-        "slug": "invoice-create-select-campaign",
-        "path": "/payments/invoice-create-select-campaign",
-        "title": "Invoice Create Select Campaign"
-      },
-      {
         "slug": "invoice-create",
         "path": "/payments/invoice-create",
         "title": "Invoice Create"
+      },
+      {
+        "slug": "invoice-create-select-campaign",
+        "path": "/payments/invoice-create-select-campaign",
+        "title": "Invoice Create Select Campaign"
       },
       {
         "slug": "invoice-history",
@@ -230,13 +246,160 @@ export const FLOWS: GeneratedFlow[] = [
     ]
   },
   {
+    "flow": "people",
+    "title": "People",
+    "screens": [
+      {
+        "slug": "leaves",
+        "path": "/people/leaves",
+        "title": "Leaves"
+      },
+      {
+        "slug": "manage-teams",
+        "path": "/people/manage-teams",
+        "title": "Manage Teams"
+      },
+      {
+        "slug": "person-attendance",
+        "path": "/people/person-attendance",
+        "title": "Person Attendance"
+      },
+      {
+        "slug": "person-profile",
+        "path": "/people/person-profile",
+        "title": "Person Profile"
+      },
+      {
+        "slug": "team-actions-menu",
+        "path": "/people/team-actions-menu",
+        "title": "Team Actions Menu"
+      },
+      {
+        "slug": "team-add-member",
+        "path": "/people/team-add-member",
+        "title": "Team Add Member"
+      },
+      {
+        "slug": "team-detail",
+        "path": "/people/team-detail",
+        "title": "Team Detail"
+      },
+      {
+        "slug": "team-management-hub",
+        "path": "/people/team-management-hub",
+        "title": "Team Management Hub"
+      },
+      {
+        "slug": "team-roster",
+        "path": "/people/team-roster",
+        "title": "Team Roster"
+      }
+    ]
+  },
+  {
+    "flow": "planner",
+    "title": "Planner",
+    "screens": [
+      {
+        "slug": "add-to-calendar-date",
+        "path": "/planner/add-to-calendar-date",
+        "title": "Add To Calendar Date"
+      },
+      {
+        "slug": "add-to-calendar-platform-picker",
+        "path": "/planner/add-to-calendar-platform-picker",
+        "title": "Add To Calendar Platform Picker"
+      },
+      {
+        "slug": "collab-days-auto-setup",
+        "path": "/planner/collab-days-auto-setup",
+        "title": "Collab Days Auto Setup"
+      },
+      {
+        "slug": "collab-days-review",
+        "path": "/planner/collab-days-review",
+        "title": "Collab Days Review"
+      },
+      {
+        "slug": "collab-days-select",
+        "path": "/planner/collab-days-select",
+        "title": "Collab Days Select"
+      },
+      {
+        "slug": "content-delivery-timeline",
+        "path": "/planner/content-delivery-timeline",
+        "title": "Content Delivery Timeline"
+      },
+      {
+        "slug": "planner-day-conflict",
+        "path": "/planner/planner-day-conflict",
+        "title": "Planner Day Conflict"
+      },
+      {
+        "slug": "planner-day-editor",
+        "path": "/planner/planner-day-editor",
+        "title": "Planner Day Editor"
+      },
+      {
+        "slug": "planner-day-editor-collab",
+        "path": "/planner/planner-day-editor-collab",
+        "title": "Planner Day Editor Collab"
+      },
+      {
+        "slug": "planner-month",
+        "path": "/planner/planner-month",
+        "title": "Planner Month"
+      },
+      {
+        "slug": "planner-options-menu",
+        "path": "/planner/planner-options-menu",
+        "title": "Planner Options Menu"
+      },
+      {
+        "slug": "planner-setup-choice",
+        "path": "/planner/planner-setup-choice",
+        "title": "Planner Setup Choice"
+      }
+    ]
+  },
+  {
     "flow": "profile",
     "title": "Profile",
     "screens": [
       {
-        "slug": "landing-page-themes",
-        "path": "/profile/landing-page-themes",
-        "title": "Landing Page Themes"
+        "slug": "add-reminder",
+        "path": "/profile/add-reminder",
+        "title": "Add Reminder"
+      },
+      {
+        "slug": "agency-code-connected-success",
+        "path": "/profile/agency-code-connected-success",
+        "title": "Agency Code Connected Success"
+      },
+      {
+        "slug": "agency-info-edit",
+        "path": "/profile/agency-info-edit",
+        "title": "Agency Info Edit"
+      },
+      {
+        "slug": "agency-setting",
+        "path": "/profile/agency-setting",
+        "title": "Agency Setting"
+      },
+      {
+        "slug": "enter-agency-code",
+        "path": "/profile/enter-agency-code",
+        "title": "Enter Agency Code"
+      },
+      {
+        "slug": "generate-agency-code",
+        "path": "/profile/generate-agency-code",
+        "title": "Generate Agency Code"
+      },
+      {
+        "slug": "integrations",
+        "path": "/profile/integrations",
+        "title": "Integrations"
       },
       {
         "slug": "landing-page",
@@ -244,9 +407,29 @@ export const FLOWS: GeneratedFlow[] = [
         "title": "Landing Page"
       },
       {
+        "slug": "landing-page-themes",
+        "path": "/profile/landing-page-themes",
+        "title": "Landing Page Themes"
+      },
+      {
         "slug": "levels",
         "path": "/profile/levels",
         "title": "Levels"
+      },
+      {
+        "slug": "logout-confirm",
+        "path": "/profile/logout-confirm",
+        "title": "Logout Confirm"
+      },
+      {
+        "slug": "notifications",
+        "path": "/profile/notifications",
+        "title": "Notifications"
+      },
+      {
+        "slug": "onboarding-intro-carousel",
+        "path": "/profile/onboarding-intro-carousel",
+        "title": "Onboarding Intro Carousel"
       },
       {
         "slug": "personal-information",
@@ -254,14 +437,69 @@ export const FLOWS: GeneratedFlow[] = [
         "title": "Personal Information"
       },
       {
-        "slug": "profile-self-managed",
-        "path": "/profile/profile-self-managed",
-        "title": "Profile Self Managed"
+        "slug": "personal-information/address",
+        "path": "/profile/personal-information/address",
+        "title": "Address"
+      },
+      {
+        "slug": "personal-information/bank-details",
+        "path": "/profile/personal-information/bank-details",
+        "title": "Bank Details"
+      },
+      {
+        "slug": "personal-information/barter-commercials",
+        "path": "/profile/personal-information/barter-commercials",
+        "title": "Barter Commercials"
+      },
+      {
+        "slug": "personal-information/basics",
+        "path": "/profile/personal-information/basics",
+        "title": "Basics"
+      },
+      {
+        "slug": "personal-information/commercials",
+        "path": "/profile/personal-information/commercials",
+        "title": "Commercials"
+      },
+      {
+        "slug": "personal-information/language",
+        "path": "/profile/personal-information/language",
+        "title": "Language"
+      },
+      {
+        "slug": "personal-information/measurements",
+        "path": "/profile/personal-information/measurements",
+        "title": "Measurements"
       },
       {
         "slug": "profile",
         "path": "/profile/profile",
         "title": "Profile"
+      },
+      {
+        "slug": "profile-agency-info",
+        "path": "/profile/profile-agency-info",
+        "title": "Profile Agency Info"
+      },
+      {
+        "slug": "profile-home",
+        "path": "/profile/profile-home",
+        "title": "Profile Home"
+      },
+      {
+        "slug": "profile-self-managed",
+        "path": "/profile/profile-self-managed",
+        "title": "Profile Self Managed"
+      },
+      {
+        "slug": "reminders-list",
+        "path": "/profile/reminders-list",
+        "title": "Reminders List"
+      },
+      {
+        "slug": "sign-in",
+        "path": "/profile/sign-in",
+        "title": "Sign In"
       }
     ]
   },
@@ -294,6 +532,11 @@ export const FLOWS: GeneratedFlow[] = [
         "slug": "order-summary",
         "path": "/services/order-summary",
         "title": "Order Summary"
+      },
+      {
+        "slug": "order-summary/partial",
+        "path": "/services/order-summary/partial",
+        "title": "Partial"
       },
       {
         "slug": "videographers",
@@ -330,4 +573,4 @@ export const FLOWS: GeneratedFlow[] = [
   }
 ];
 
-export const TOTAL_SCREENS = 51;
+export const TOTAL_SCREENS = 96;
