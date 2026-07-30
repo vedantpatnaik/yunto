@@ -39,6 +39,12 @@ services:
       SEED_ON_BOOT: ${SEED_ON_BOOT:-false}
       HOST: 0.0.0.0
       PORT: 3001
+      # S3 uploads. Optional: with S3_BUCKET empty the upload routes answer 501
+      # and the server still boots. Credentials come from the EC2 instance role,
+      # so no keys are passed here.
+      S3_BUCKET: ${S3_BUCKET:-}
+      AWS_REGION: ${AWS_REGION:-ap-south-1}
+      S3_PUBLIC_BASE_URL: ${S3_PUBLIC_BASE_URL:-}
     expose:
       - "3001"
 
