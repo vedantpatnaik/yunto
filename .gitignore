@@ -58,3 +58,8 @@ deploy/.env
 deploy/.aws-account
 *.pem
 deploy/.instance-*
+
+# Figma raw cache (470MB) + token — never commit
+.figma-cache/
+deploy/.rds-password
+deploy/.db-sg

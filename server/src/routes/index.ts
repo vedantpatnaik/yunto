@@ -1,25 +1,34 @@
 import { Router } from "express";
-import { z } from "zod";
 import { prisma } from "../lib/prisma";
 import { crudRouter } from "../lib/crud";
+import { schemas, type ResourceName } from "../lib/schemas";
 import { authRouter } from "./auth.routes";
 import { statsRouter } from "./stats.routes";
 import { usersRouter } from "./users.routes";
 import { detailRouter } from "./detail.routes";
+import { notificationsRouter } from "./notifications.routes";
+import { uploadsRouter } from "./uploads.routes";
+import { guard } from "../middleware/rbac";
 
 export const router = Router();
 
 router.use("/auth", authRouter);
 router.use("/stats", statsRouter);
-router.use("/users", usersRouter);
+// Reads stay open to every authenticated user; writes (POST /users creates a
+// team member) are gated to managers by the policy table in middleware/rbac.ts.
+// SUPER_ADMIN — the seeded demo admin — always passes.
+router.use("/users", ...guard("users"), usersRouter);
+router.use("/notifications", notificationsRouter);
+// Unlisted in POLICY, so guard() is auth-only today — it just keeps the mount
+// consistent and lets uploads be locked down later by adding a policy entry.
+router.use("/uploads", ...guard("uploads"), uploadsRouter);
 router.use("/", detailRouter);
 
-// Permissive create/update validation for scaffolded resources — Prisma enforces
-// the column types; tighten these per-resource as the product hardens.
-const body = z.object({}).passthrough();
-
+// Create/update bodies are validated per resource by lib/schemas.ts (derived from
+// the Prisma models). The schemas coerce numbers/dates, check enum members, and
+// still pass unknown keys through to Prisma, so no existing caller is narrowed.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-const resources: [string, any][] = [
+const resources: [ResourceName, any][] = [
   ["agencies", prisma.agency],
   ["creators", prisma.creator],
   ["leads", prisma.lead],
@@ -36,6 +45,10 @@ const resources: [string, any][] = [
   ["notes", prisma.note],
 ];
 
+// `guard` runs requireAuth then the RBAC policy check. GET/HEAD are always
+// permitted for authenticated users, so every existing read path is unchanged;
+// only POST/PATCH/DELETE on resources listed in POLICY can now 403.
 for (const [path, model] of resources) {
-  router.use(`/${path}`, crudRouter(model, body, body));
+  const { create, update } = schemas[path];
+  router.use(`/${path}`, ...guard(path), crudRouter(model, create, update));
 }

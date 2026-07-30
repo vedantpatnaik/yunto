@@ -1,0 +1,42 @@
+{
+  "expo": {
+    "name": "Yunto",
+    "slug": "yunto",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "scheme": "yunto",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.socyio.yunto",
+      "buildNumber": "1",
+      "infoPlist": {
+        "NSPhotoLibraryUsageDescription": "Yunto needs photo access so you can attach content to campaigns and deliverables.",
+        "NSCameraUsageDescription": "Yunto uses the camera so you can capture and upload content directly."
+      }
+    },
+    "android": {
+      "package": "com.socyio.yunto",
+      "versionCode": 1,
+      "adaptiveIcon": {
+        "backgroundColor": "#FAF7FF",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-status-bar",
+      "expo-secure-store",
+      "expo-font",
+      "expo-splash-screen"
+    ]
+  }
+}

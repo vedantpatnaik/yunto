@@ -23,51 +23,79 @@ enum TeamKind {
 }
 
 model User {
-  id           String    @id @default(cuid())
-  email        String    @unique
-  phone        String?   @unique
-  passwordHash String
-  name         String
-  avatarUrl    String?
-  role         Role      @default(SALES_EMPLOYEE)
-  agencyCode   String?
-  teamId       String?
-  team         Team?     @relation(fields: [teamId], references: [id])
+  id            String    @id @default(cuid())
+  email         String    @unique
+  phone         String?   @unique
+  passwordHash  String
+  name          String
+  avatarUrl     String?
+  role          Role      @default(SALES_EMPLOYEE)
+  agencyCode    String?
+  teamId        String?
+  team          Team?     @relation(fields: [teamId], references: [id])
   targetMonthly Int?
   targetYearly  Int?
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  /// Employee profile details surfaced by the settings screens.
+  dateOfBirth   DateTime?
+  address       String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 
-  leads        Lead[]
-  reminders    Reminder[]
-  notes        Note[]
-  messages     Message[]
-  leaves       Leave[]
-  attendance   Attendance[]
+  leads         Lead[]
+  reminders     Reminder[]
+  notes         Note[]
+  messages      Message[]
+  leaves        Leave[]
+  attendance    Attendance[]
+  notifications Notification[]
+  attachments   Attachment[]
 }
 
 model Team {
-  id        String    @id @default(cuid())
+  id        String   @id @default(cuid())
   name      String
   kind      TeamKind
   members   User[]
-  createdAt DateTime  @default(now())
+  createdAt DateTime @default(now())
 }
 
 // ------------------------------- Agencies -------------------------------
 model Agency {
-  id            String     @id @default(cuid())
-  name          String
-  description   String?
-  logoUrl       String?
-  creatorsCount Int        @default(0)
-  earnings      Int        @default(0)
-  campaignsCount Int       @default(0)
-  createdAt     DateTime   @default(now())
+  id             String            @id @default(cuid())
+  name           String
+  description    String?
+  logoUrl        String?
+  website        String?
+  creatorsCount  Int               @default(0)
+  earnings       Int               @default(0)
+  campaignsCount Int               @default(0)
+  /// Subscription tier the agency is billed on (FREE / LITE / PRO / ...).
+  planId         String?
+  plan           SubscriptionPlan? @relation(fields: [planId], references: [id])
+  createdAt      DateTime          @default(now())
 
-  creators      Creator[]
-  leads         Lead[]
-  campaigns     Campaign[]
+  creators  Creator[]
+  leads     Lead[]
+  campaigns Campaign[]
+}
+
+// ---------------------------- Subscriptions -----------------------------
+enum BillingInterval {
+  MONTHLY
+  QUARTERLY
+  YEARLY
+}
+
+/// Product pricing tiers agencies subscribe to. Rows are the plan catalogue
+/// (FREE / LITE / PRO / ULTIMATE / CUSTOM), not per-agency billing state.
+model SubscriptionPlan {
+  id        String          @id @default(cuid())
+  name      String          @unique
+  price     Int             @default(0)
+  interval  BillingInterval @default(MONTHLY)
+  createdAt DateTime        @default(now())
+
+  agencies Agency[]
 }
 
 // ------------------------------- Creators -------------------------------
@@ -78,26 +106,29 @@ enum Platform {
 }
 
 model Creator {
-  id           String    @id @default(cuid())
-  name         String
-  handle       String
-  avatarUrl    String?
-  followers    Int       @default(0)
-  avgViews     Int       @default(0)
-  engagementRate Float   @default(0)
-  stars        Float     @default(0)
-  cpv          Float     @default(0)
-  leadsCount   Int       @default(0)
-  matchPct     Int       @default(0)
-  location     String?
-  gender       String?
-  niche        String?
-  platform     Platform  @default(INSTAGRAM)
-  listed       Boolean   @default(false)
-  blacklisted  Boolean   @default(false)
-  agencyId     String?
-  agency       Agency?   @relation(fields: [agencyId], references: [id])
-  createdAt    DateTime  @default(now())
+  id             String   @id @default(cuid())
+  name           String
+  handle         String
+  avatarUrl      String?
+  followers      Int      @default(0)
+  avgViews       Int      @default(0)
+  engagementRate Float    @default(0)
+  stars          Float    @default(0)
+  cpv            Float    @default(0)
+  leadsCount     Int      @default(0)
+  matchPct       Int      @default(0)
+  location       String?
+  gender         String?
+  niche          String?
+  platform       Platform @default(INSTAGRAM)
+  listed         Boolean  @default(false)
+  blacklisted    Boolean  @default(false)
+  agencyId       String?
+  agency         Agency?  @relation(fields: [agencyId], references: [id])
+  /// Whole-percent discount the managing agency offers off this creator's rate
+  /// card — the "-45% OFF" badge on the managed-by row.
+  discountPct    Int?
+  createdAt      DateTime @default(now())
 
   campaignLinks CampaignCreator[]
   calendar      CalendarContent[]
@@ -124,24 +155,24 @@ enum DealType {
 }
 
 model Lead {
-  id            String     @id @default(cuid())
-  brandName     String
-  agencyId      String?
-  agency        Agency?    @relation(fields: [agencyId], references: [id])
-  contactPerson String?
-  personRole    String?
-  money         String?
+  id             String     @id @default(cuid())
+  brandName      String
+  agencyId       String?
+  agency         Agency?    @relation(fields: [agencyId], references: [id])
+  contactPerson  String?
+  personRole     String?
+  money          String?
   engagementRate String?
-  peopleCount   Int        @default(0)
-  status        LeadStatus @default(NEW)
-  intent        LeadIntent @default(MEDIUM)
-  dealType      DealType   @default(PAID)
-  channel       String?
-  source        String?
-  ownerId       String?
-  owner         User?      @relation(fields: [ownerId], references: [id])
-  createdAt     DateTime   @default(now())
-  updatedAt     DateTime   @updatedAt
+  peopleCount    Int        @default(0)
+  status         LeadStatus @default(NEW)
+  intent         LeadIntent @default(MEDIUM)
+  dealType       DealType   @default(PAID)
+  channel        String?
+  source         String?
+  ownerId        String?
+  owner          User?      @relation(fields: [ownerId], references: [id])
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
 }
 
 // ------------------------------- Campaigns ------------------------------
@@ -152,24 +183,24 @@ enum CampaignStatus {
 }
 
 model Campaign {
-  id         String            @id @default(cuid())
-  name       String
-  brandName  String
-  agencyId   String?
-  agency     Agency?           @relation(fields: [agencyId], references: [id])
-  status     CampaignStatus    @default(ACTIVE)
-  progress   Int               @default(0)
-  budget     Int               @default(0)
+  id             String         @id @default(cuid())
+  name           String
+  brandName      String
+  agencyId       String?
+  agency         Agency?        @relation(fields: [agencyId], references: [id])
+  status         CampaignStatus @default(ACTIVE)
+  progress       Int            @default(0)
+  budget         Int            @default(0)
   engagementRate String?
-  contactPerson String?
-  peopleCount   Int             @default(0)
-  website       String?
-  timeline      String?
-  createdAt  DateTime          @default(now())
+  contactPerson  String?
+  peopleCount    Int            @default(0)
+  website        String?
+  timeline       String?
+  createdAt      DateTime       @default(now())
 
-  creators   CampaignCreator[]
-  invoices   Invoice[]
-  contracts  Contract[]
+  creators  CampaignCreator[]
+  invoices  Invoice[]
+  contracts Contract[]
 }
 
 model CampaignCreator {
@@ -293,12 +324,12 @@ model Leave {
 }
 
 model Attendance {
-  id       String   @id @default(cuid())
-  userId   String
-  user     User     @relation(fields: [userId], references: [id])
-  date     DateTime
-  present  Boolean  @default(true)
-  loginAt  DateTime?
+  id      String    @id @default(cuid())
+  userId  String
+  user    User      @relation(fields: [userId], references: [id])
+  date    DateTime
+  present Boolean   @default(true)
+  loginAt DateTime?
 
   @@unique([userId, date])
 }
@@ -329,13 +360,59 @@ model Message {
   createdAt DateTime    @default(now())
 }
 
+// ------------------------------ Attachments -----------------------------
+/// Generic file attachment. The owner is polymorphic: entityType names the
+/// model ("Leave", "Contract", "Invoice", ...) and entityId its row id, so a
+/// document can hang off any record without widening those tables.
+model Attachment {
+  id         String   @id @default(cuid())
+  url        String
+  filename   String
+  mimeType   String?
+  size       Int?
+  uploaderId String?
+  uploader   User?    @relation(fields: [uploaderId], references: [id])
+  entityType String?
+  entityId   String?
+  createdAt  DateTime @default(now())
+
+  @@index([entityType, entityId])
+}
+
+// ----------------------------- Notifications ----------------------------
+enum NotificationKind {
+  SYSTEM
+  LEAD
+  CAMPAIGN
+  CONTRACT
+  INVOICE
+  LEAVE
+  MESSAGE
+  REMINDER
+}
+
+model Notification {
+  id         String           @id @default(cuid())
+  userId     String
+  user       User             @relation(fields: [userId], references: [id])
+  kind       NotificationKind @default(SYSTEM)
+  title      String
+  body       String?
+  read       Boolean          @default(false)
+  entityType String?
+  entityId   String?
+  createdAt  DateTime         @default(now())
+
+  @@index([userId, read])
+}
+
 // ------------------------------- Calendar -------------------------------
 model CalendarContent {
-  id        String   @id @default(cuid())
-  creatorId String
-  creator   Creator  @relation(fields: [creatorId], references: [id])
-  title     String
+  id          String   @id @default(cuid())
+  creatorId   String
+  creator     Creator  @relation(fields: [creatorId], references: [id])
+  title       String
   scheduledAt DateTime
-  status    String   @default("scheduled")
-  createdAt DateTime @default(now())
+  status      String   @default("scheduled")
+  createdAt   DateTime @default(now())
 }
