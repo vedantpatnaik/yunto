@@ -20,7 +20,7 @@ export function useCreate<T = Record<string, unknown>>(resource: string) {
 }
 
 // ---- typed convenience hooks for the core entities ----
-export interface Creator { id: string; name: string; handle: string; followers: number; avgViews: number; engagementRate: number; stars: number; cpv: number; leadsCount?: number; matchPct?: number; listed?: boolean; niche?: string; location?: string; agencyId?: string; }
+export interface Creator { id: string; name: string; handle: string; followers: number; avgViews: number; engagementRate: number; stars: number; cpv: number; leadsCount?: number; matchPct?: number; discountPct?: number | null; listed?: boolean; niche?: string; location?: string; agencyId?: string; }
 export interface Agency { id: string; name: string; description?: string; creatorsCount: number; earnings: number; campaignsCount: number; }
 export interface Lead { id: string; brandName: string; contactPerson?: string; personRole?: string; money?: string; engagementRate?: string; peopleCount: number; status: string; intent: string; }
 export interface Campaign { id: string; name: string; brandName: string; status: string; progress: number; budget: number; engagementRate?: string; contactPerson?: string; peopleCount?: number; website?: string; timeline?: string; agencyId?: string; }

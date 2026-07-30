@@ -262,7 +262,30 @@ export const noteUpdateSchema = noteCreateSchema.partial();
 /* -------------------------------- registry -------------------------------- */
 
 /** Keyed by the URL segment each resource is mounted on in routes/index.ts. */
+/** Subscription plan catalogue (FREE / LITE / PRO / ULTIMATE / CUSTOM). */
+const planCreateSchema = z
+  .object({
+    name: z.string().min(1),
+    price: z.coerce.number().int().min(0).optional(),
+    interval: z.enum(["MONTHLY", "QUARTERLY", "YEARLY"]).optional(),
+  })
+  .passthrough();
+const planUpdateSchema = planCreateSchema.partial();
+
+/** Daily attendance. Unique on (userId, date), so writes should upsert. */
+const attendanceCreateSchema = z
+  .object({
+    userId: z.string().min(1),
+    date: z.coerce.date(),
+    present: z.coerce.boolean().optional(),
+    loginAt: z.coerce.date().optional(),
+  })
+  .passthrough();
+const attendanceUpdateSchema = attendanceCreateSchema.partial();
+
 export const schemas = {
+  plans: { create: planCreateSchema, update: planUpdateSchema },
+  attendance: { create: attendanceCreateSchema, update: attendanceUpdateSchema },
   agencies: { create: agencyCreateSchema, update: agencyUpdateSchema },
   creators: { create: creatorCreateSchema, update: creatorUpdateSchema },
   leads: { create: leadCreateSchema, update: leadUpdateSchema },

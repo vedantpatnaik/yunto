@@ -12,17 +12,34 @@ type Delegate = {
   delete: (args: unknown) => Promise<unknown>;
 };
 
+/** Per-resource overrides for the generated list endpoint. */
+export type CrudOptions = {
+  /** Sort key. Defaults to `{ createdAt: "desc" }`. */
+  orderBy?: Record<string, "asc" | "desc">;
+  /** Relations to eager-load, so clients need not make a second round trip. */
+  include?: Record<string, boolean>;
+};
+
 /**
  * Generates REST CRUD (list / get / create / update / delete) for a Prisma model.
  * All routes require auth. create/update bodies are validated with the given schemas.
  */
-export function crudRouter(model: Delegate, createSchema: z.ZodTypeAny, updateSchema: z.ZodTypeAny) {
+export function crudRouter(
+  model: Delegate,
+  createSchema: z.ZodTypeAny,
+  updateSchema: z.ZodTypeAny,
+  opts: CrudOptions = {}
+) {
   const r = Router();
   r.use(requireAuth);
+  // Most models sort newest-first on createdAt, but not every model has that
+  // column (Attendance is keyed by `date`), and Prisma throws on an unknown
+  // orderBy field. Resources with a different sort key pass it explicitly.
+  const orderBy = opts.orderBy ?? { createdAt: "desc" };
 
   r.get("/", asyncHandler(async (req, res) => {
     const take = Math.min(Number(req.query.take ?? 200), 500);
-    res.json(await model.findMany({ take, orderBy: { createdAt: "desc" } }));
+    res.json(await model.findMany({ take, orderBy, ...(opts.include ? { include: opts.include } : {}) }));
   }));
 
   r.get("/:id", asyncHandler(async (req, res) => {

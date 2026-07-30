@@ -226,7 +226,48 @@ async function main() {
     } });
   }
 
+  // --------------------------- subscription plans -------------------------
+  // The revenue screen renders a plan name and price per agency; these are the
+  // catalogue rows behind it (prices in USD/interval, matching the design).
+  const planSpecs = [
+    { name: "FREE", price: 0 }, { name: "LITE", price: 60 }, { name: "PRO", price: 180 },
+    { name: "ULTIMATE", price: 360 }, { name: "CUSTOM", price: 600 },
+  ] as const;
+  const plans = [];
+  for (const p of planSpecs) {
+    plans.push(await prisma.subscriptionPlan.upsert({
+      where: { name: p.name },
+      update: { price: p.price },
+      create: { name: p.name, price: p.price, interval: "YEARLY" },
+    }));
+  }
+  // Bigger agencies skew to richer plans, but not perfectly: real accounts lag
+  // their usage before upgrading, so a couple of high earners sit a tier low.
+  const ranked = await prisma.agency.findMany({ orderBy: { earnings: "desc" } });
+  const LAG = [0, 1, 0, 2, 0, 0, 1, 0]; // deterministic downgrade offset by rank
+  for (let i = 0; i < ranked.length; i++) {
+    const base = Math.min(plans.length - 1, Math.floor((i * plans.length) / Math.max(1, ranked.length)));
+    const idx = Math.min(plans.length - 1, base + LAG[i % LAG.length]);
+    await prisma.agency.update({
+      where: { id: ranked[i].id },
+      data: {
+        planId: plans[plans.length - 1 - idx].id,
+        website: `www.${ranked[i].name.toLowerCase().replace(/[^a-z]/g, "")}.com`,
+      },
+    });
+  }
+
+  // Rate-card discount the managing agency offers — the "-45% OFF" badge.
+  const managed = await prisma.creator.findMany({ where: { agencyId: { not: null } } });
+  for (let i = 0; i < managed.length; i++) {
+    await prisma.creator.update({
+      where: { id: managed[i].id },
+      data: { discountPct: [45, 30, 25, 40, 15, 35, 20, 50][i % 8] },
+    });
+  }
+
   const counts = {
+    plans: await prisma.subscriptionPlan.count(),
     users: await prisma.user.count(), agencies: await prisma.agency.count(), creators: await prisma.creator.count(),
     leads: await prisma.lead.count(), campaigns: await prisma.campaign.count(), invoices: await prisma.invoice.count(),
     contacts: await prisma.contact.count(), contracts: await prisma.contract.count(), reminders: await prisma.reminder.count(),

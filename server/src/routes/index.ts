@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { prisma } from "../lib/prisma";
-import { crudRouter } from "../lib/crud";
+import { crudRouter, type CrudOptions } from "../lib/crud";
 import { schemas, type ResourceName } from "../lib/schemas";
 import { authRouter } from "./auth.routes";
 import { statsRouter } from "./stats.routes";
@@ -28,7 +28,11 @@ router.use("/", detailRouter);
 // the Prisma models). The schemas coerce numbers/dates, check enum members, and
 // still pass unknown keys through to Prisma, so no existing caller is narrowed.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-const resources: [ResourceName, any][] = [
+const resources: [ResourceName, any, CrudOptions?][] = [
+  // Plan catalogue is small and sorted by price so the pricing table reads in order.
+  ["plans", prisma.subscriptionPlan, { orderBy: { price: "asc" } }],
+  // Attendance has no createdAt column — it must sort on `date` or Prisma throws.
+  ["attendance", prisma.attendance, { orderBy: { date: "desc" } }],
   ["agencies", prisma.agency],
   ["creators", prisma.creator],
   ["leads", prisma.lead],
@@ -48,7 +52,7 @@ const resources: [ResourceName, any][] = [
 // `guard` runs requireAuth then the RBAC policy check. GET/HEAD are always
 // permitted for authenticated users, so every existing read path is unchanged;
 // only POST/PATCH/DELETE on resources listed in POLICY can now 403.
-for (const [path, model] of resources) {
+for (const [path, model, opts] of resources) {
   const { create, update } = schemas[path];
-  router.use(`/${path}`, ...guard(path), crudRouter(model, create, update));
+  router.use(`/${path}`, ...guard(path), crudRouter(model, create, update, opts));
 }

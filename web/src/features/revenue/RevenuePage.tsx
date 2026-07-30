@@ -31,22 +31,20 @@ const AVATARS = [
 ];
 
 /**
- * Subscription tiers — the names, dot colours and list price come straight from
- * the Figma filter chips (product pricing, not per-agency data). The Prisma
- * Agency model has no plan column, so an agency's tier is derived from where it
- * ranks by roster size (creatorsCount) across all agencies.
+ * Plan chip colours are design tokens (Figma), keyed by plan name. Names and
+ * prices come from the SubscriptionPlan table via /plans, joined on
+ * Agency.planId — only the swatch is local, because colour is not product data.
  */
-const TIERS = [
-  { name: "FREE", color: "#EE58BA", price: 0 },
-  { name: "LITE", color: "#BE5BAB", price: 60 },
-  { name: "PRO", color: "#824C97", price: 180 },
-  { name: "ULTIMATE", color: "#393C83", price: 360 },
-  { name: "CUSTOM", color: "#ED743F", price: 600 },
-] as const;
-type Tier = (typeof TIERS)[number];
+const TIER_COLORS: Record<string, string> = {
+  FREE: "#EE58BA", LITE: "#BE5BAB", PRO: "#824C97", ULTIMATE: "#393C83", CUSTOM: "#ED743F",
+};
+const TIER_FALLBACK = "#824C97";
+type Tier = { name: string; color: string; price: number };
 
 /** the extra columns the REST payload carries beyond the exported hook types */
-type AgencyRow = Agency & { createdAt: string };
+type AgencyRow = Agency & { createdAt: string; planId?: string | null };
+/** Plan catalogue row from /plans. */
+type PlanRow = { id: string; name: string; price: number; interval: string };
 type InvoiceRow = Invoice & { campaignId?: string | null; createdAt: string };
 
 /** one fully-derived table row */
@@ -137,6 +135,7 @@ function RevRow({ top, row, avatar }: { top: number; row: Row; avatar: string })
 export default function RevenuePage() {
   const navigate = useNavigate();
   const { data: agencyData, isLoading } = useList<AgencyRow>("agencies");
+  const { data: planData } = useList<PlanRow>("plans");
   const { data: campaignData } = useCampaigns();
   const { data: invoiceData } = useList<InvoiceRow>("invoices");
   const { data: dash } = useDashboard();
@@ -151,6 +150,7 @@ export default function RevenuePage() {
     .join(" ");
 
   const agencies = agencyData ?? [];
+  const plans = planData ?? [];
   const campaigns = campaignData ?? [];
   const invoices = invoiceData ?? [];
 
@@ -171,13 +171,15 @@ export default function RevenuePage() {
   const monthTotal = monthInvoices.reduce((s, i) => s + i.budget, 0);
   const yuntoMonth = monthInvoices.reduce((s, i) => s + i.agencyFee, 0);
 
-  /* ---- tier per agency: rank by roster size, split into the 5 chip buckets ---- */
-  const tierIdx = new Map(
-    [...agencies]
-      .sort((a, b) => a.creatorsCount - b.creatorsCount)
-      .map((a, i, arr) => [a.id, Math.min(TIERS.length - 1, Math.floor((i * TIERS.length) / arr.length))] as const)
-  );
-  const tierOf = (id: string): Tier => TIERS[tierIdx.get(id) ?? 0];
+  /* ---- tier per agency: real SubscriptionPlan, joined on Agency.planId ---- */
+  const planById = new Map(plans.map((p) => [p.id, p]));
+  const tierOf = (id: string): Tier => {
+    const a = agencies.find((x) => x.id === id);
+    const p = a?.planId ? planById.get(a.planId) : undefined;
+    // An agency with no plan assigned yet shows the entry tier rather than a blank chip.
+    const name = p?.name ?? plans[0]?.name ?? "FREE";
+    return { name, color: TIER_COLORS[name] ?? TIER_FALLBACK, price: p?.price ?? plans[0]?.price ?? 0 };
+  };
   const tierCount = (name: string) => agencies.filter((a) => tierOf(a.id).name === name).length;
 
   /* ---- invoice -> campaign -> agency join ---- */

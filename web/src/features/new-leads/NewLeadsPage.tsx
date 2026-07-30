@@ -40,6 +40,8 @@ interface Roster {
   stars: number;
   cpv: number;
   location: string;
+  /** Mean rate-card discount across the agency's roster; null when unrecorded. */
+  discountPct: number | null;
 }
 
 /** Intent drives the little completion ring next to the location pill. */
@@ -91,13 +93,15 @@ function InternalManaged({ money }: { money: string }) {
   );
 }
 
-function AgencyManaged({ money, name, stars }: { money: string; name: string; stars: string }) {
+function AgencyManaged({ money, name, stars, discountPct }: { money: string; name: string; stars: string; discountPct: number | null }) {
   return (
     <>
       <div className="absolute left-[8px] top-[132px] h-[33px] w-[237px] rounded-[11px] bg-[rgba(104,1,254,0.06)]" />
-      <div className="absolute left-[106px] top-[126px] flex h-[12px] w-[47px] items-center justify-center rounded-[3px] bg-gradient-to-r from-[#A27CEE] to-[#7F4BE7]">
-        <span className="text-[9px] leading-none text-white">-45% OFF</span>
-      </div>
+      {discountPct !== null && (
+        <div className="absolute left-[106px] top-[126px] flex h-[12px] w-[47px] items-center justify-center rounded-[3px] bg-gradient-to-r from-[#A27CEE] to-[#7F4BE7]">
+          <span className="text-[9px] leading-none text-white">-{discountPct}% OFF</span>
+        </div>
+      )}
       <span className="absolute left-[13px] top-[137px] h-[24px] w-[24px] rounded-full bg-gradient-to-br from-[#FFD6E7] to-[#C8B3ED]" />
       <div className="absolute left-[41px] top-[137px] text-[10.2px] leading-none text-ink/90">{name}</div>
       <div className="absolute left-[41px] top-[149px] flex items-center gap-[3px]">
@@ -176,7 +180,7 @@ function CreatorCard({
       {/* managed by */}
       <div className="absolute left-[8px] top-[112px] text-[9.3px] leading-none text-ink/70">Managed by:</div>
       {agencyName ? (
-        <AgencyManaged money={lead.money ?? ""} name={agencyName} stars={stars} />
+        <AgencyManaged money={lead.money ?? ""} name={agencyName} stars={stars} discountPct={roster.discountPct} />
       ) : (
         <InternalManaged money={lead.money ?? ""} />
       )}
@@ -253,11 +257,15 @@ export default function NewLeadsPage() {
     const pool = owned.length ? owned : creators;
     const counts = new Map<string, number>();
     for (const c of pool) if (c.location) counts.set(c.location, (counts.get(c.location) ?? 0) + 1);
+    // The badge shows the discount this agency typically offers off its
+    // creators' rate cards; null when none of its roster has one recorded.
+    const discounts = pool.map((c) => c.discountPct).filter((d): d is number => typeof d === "number");
     return {
       avgViews: mean(pool.map((c) => c.avgViews)),
       stars: mean(pool.map((c) => c.stars)),
       cpv: mean(pool.map((c) => c.cpv)),
       location: [...counts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? "—",
+      discountPct: discounts.length ? Math.round(mean(discounts)) : null,
     };
   };
 
