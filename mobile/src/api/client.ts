@@ -1,3 +1,4 @@
+import { Platform } from "react-native";
 import * as SecureStore from "expo-secure-store";
 import Constants from "expo-constants";
 
@@ -23,13 +24,42 @@ export const BASE: string =
 
 let cachedToken: string | null | undefined;
 
+/**
+ * SecureStore is native-only. On web (Expo also targets it, and it is how the
+ * screens are render-tested) fall back to localStorage, which is the same
+ * storage the web client uses — so a token set by either is understood by both.
+ */
+const isWeb = Platform.OS === "web";
+
+async function readStored(): Promise<string | null> {
+  if (isWeb) {
+    return typeof localStorage !== "undefined" ? localStorage.getItem(TOKEN_KEY) : null;
+  }
+  return SecureStore.getItemAsync(TOKEN_KEY);
+}
+
+async function writeStored(t: string): Promise<void> {
+  if (isWeb) {
+    if (typeof localStorage !== "undefined") localStorage.setItem(TOKEN_KEY, t);
+    return;
+  }
+  await SecureStore.setItemAsync(TOKEN_KEY, t);
+}
+
+async function removeStored(): Promise<void> {
+  if (isWeb) {
+    if (typeof localStorage !== "undefined") localStorage.removeItem(TOKEN_KEY);
+    return;
+  }
+  await SecureStore.deleteItemAsync(TOKEN_KEY);
+}
+
 export async function getToken(): Promise<string | null> {
   if (cachedToken !== undefined) return cachedToken;
   try {
-    cachedToken = await SecureStore.getItemAsync(TOKEN_KEY);
+    cachedToken = await readStored();
   } catch {
-    // SecureStore is unavailable on web/simulator edge cases — fail open to
-    // logged-out rather than crashing the app on boot.
+    // Storage unavailable — fail open to logged-out rather than crashing on boot.
     cachedToken = null;
   }
   return cachedToken;
@@ -38,7 +68,7 @@ export async function getToken(): Promise<string | null> {
 export async function setToken(t: string): Promise<void> {
   cachedToken = t;
   try {
-    await SecureStore.setItemAsync(TOKEN_KEY, t);
+    await writeStored(t);
   } catch {
     /* keep the in-memory token so the session still works this launch */
   }
@@ -47,7 +77,7 @@ export async function setToken(t: string): Promise<void> {
 export async function clearToken(): Promise<void> {
   cachedToken = null;
   try {
-    await SecureStore.deleteItemAsync(TOKEN_KEY);
+    await removeStored();
   } catch {
     /* already gone */
   }
