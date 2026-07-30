@@ -304,13 +304,13 @@ export default function Profile() {
                 size={13}
                 weight="semibold"
                 font="inter"
-                color="#2a7347"
+                color={growthPct !== null && growthPct < 0 ? "#B23B2E" : "#2a7347"}
                 lineHeight={15.73}
                 numberOfLines={1}
               >
                 {growthPct === null
-                  ? "above avg"
-                  : `${growthPct >= 0 ? "+" : ""}${growthPct}% above avg`}
+                  ? "vs avg"
+                  : `${growthPct >= 0 ? "+" : ""}${growthPct}% ${growthPct >= 0 ? "above" : "below"} avg`}
               </Txt>
             </Abs>
             <Abs x={160.61} y={318} w={164.91} h={32} radius={20} bg="rgba(235,225,250,0.7)">

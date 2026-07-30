@@ -279,6 +279,14 @@ export default function ProfileSelfManaged() {
     [agencies, profile],
   );
 
+  /** Engagement measured against the roster average — the chip's real value. */
+  const growthPct = useMemo(() => {
+    if (!profile || !creators.length) return null;
+    const avg = creators.reduce((s, c) => s + c.engagementRate, 0) / creators.length;
+    if (!avg) return null;
+    return Math.round((profile.engagementRate / avg - 1) * 100);
+  }, [creators, profile]);
+
   const name = profile?.name ?? "Sophia Roy";
   const followers = profile ? `${compact(profile.followers).toUpperCase()} Followers` : "124K Followers";
   const landingUrl = `Socyio.com/${slugify(name)}`;
@@ -399,10 +407,12 @@ export default function ProfileSelfManaged() {
                 size={13}
                 weight="semibold"
                 font="inter"
-                color={CHIP_GREEN_INK}
+                color={growthPct !== null && growthPct < 0 ? "#B23B2E" : CHIP_GREEN_INK}
                 lineHeight={15.73}
               >
-                +35% above avg
+                {growthPct === null
+                  ? "vs avg"
+                  : `${growthPct >= 0 ? "+" : ""}${growthPct}% ${growthPct >= 0 ? "above" : "below"} avg`}
               </Txt>
             </Abs>
             <Abs x={160.61} y={318 - IY} w={164.91} h={32} radius={20} bg={CHIP_LILAC}>

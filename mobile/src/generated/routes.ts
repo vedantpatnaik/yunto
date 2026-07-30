@@ -234,9 +234,24 @@ export const FLOWS: GeneratedFlow[] = [
     "title": "Profile",
     "screens": [
       {
+        "slug": "landing-page-themes",
+        "path": "/profile/landing-page-themes",
+        "title": "Landing Page Themes"
+      },
+      {
+        "slug": "landing-page",
+        "path": "/profile/landing-page",
+        "title": "Landing Page"
+      },
+      {
         "slug": "levels",
         "path": "/profile/levels",
         "title": "Levels"
+      },
+      {
+        "slug": "personal-information",
+        "path": "/profile/personal-information",
+        "title": "Personal Information"
       },
       {
         "slug": "profile-self-managed",
@@ -315,4 +330,4 @@ export const FLOWS: GeneratedFlow[] = [
   }
 ];
 
-export const TOTAL_SCREENS = 48;
+export const TOTAL_SCREENS = 51;

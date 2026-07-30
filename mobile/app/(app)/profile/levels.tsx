@@ -1,3 +1,4 @@
+import { Fragment } from "react";
 import type { ComponentProps } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
 import { useRouter } from "expo-router";
@@ -572,7 +573,7 @@ export default function Levels() {
 
       {/* Perk chips */}
       {PERKS.map((perk) => (
-        <View key={perk.label}>
+        <Fragment key={perk.label}>
           <Abs
             x={82.55}
             y={perk.y}
@@ -607,7 +608,7 @@ export default function Levels() {
           >
             {perk.label}
           </Txt>
-        </View>
+        </Fragment>
       ))}
 
       {/* Brand collab chip — hugs its label exactly as the Figma frame does */}
