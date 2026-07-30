@@ -17,7 +17,7 @@ import { HttpError } from "./error";
 
 export const SUPER_ADMIN: Role = "SUPER_ADMIN";
 
-export type Action = "read" | "write";
+export type Action = "read" | "write" | "create";
 
 /** Every authenticated role. */
 const ALL: readonly Role[] = [
@@ -37,7 +37,16 @@ const SALES: readonly Role[] = ["SUPER_ADMIN", "SALES_MANAGER", "SALES_EMPLOYEE"
 /** The delivery side of the house. */
 const OPS: readonly Role[] = ["SUPER_ADMIN", "SALES_MANAGER", "OPS_MANAGER", "OPS_EMPLOYEE"];
 
-export type Rule = { readonly read: readonly Role[]; readonly write: readonly Role[] };
+export type Rule = {
+  readonly read: readonly Role[];
+  readonly write: readonly Role[];
+  /**
+   * Optional override for POST. Some resources are created by everyone but
+   * only amended by managers — a leave request is raised by the employee and
+   * approved by their manager. Falls back to `write` when omitted.
+   */
+  readonly create?: readonly Role[];
+};
 
 /**
  * resource -> who may read / write it. Keys match the REST path segment used in
@@ -50,7 +59,8 @@ export const POLICY: Readonly<Record<string, Rule>> = {
   users: { read: ALL, write: MANAGERS },
   contracts: { read: ALL, write: MANAGERS },
   invoices: { read: ALL, write: MANAGERS },
-  leaves: { read: ALL, write: MANAGERS },
+  // Anyone may APPLY for leave; only managers approve/reject/delete it.
+  leaves: { read: ALL, write: MANAGERS, create: ALL },
 
   // Pipeline — sales owns it.
   leads: { read: ALL, write: SALES },
@@ -69,12 +79,15 @@ export function can(role: string | undefined, action: Action, resource: string):
   if (role === SUPER_ADMIN) return true;
   const rule = POLICY[resource];
   if (!rule) return true; // unlisted resource => not restricted
-  return (rule[action] as readonly string[]).includes(role);
+  // `create` is optional; fall back to the general write list when unset.
+  const allowed = action === "create" ? (rule.create ?? rule.write) : rule[action];
+  return (allowed as readonly string[]).includes(role);
 }
 
-/** True for HTTP verbs that only observe state. */
+/** Maps an HTTP verb to the permission it needs. */
 function actionForMethod(method: string): Action {
-  return method === "GET" || method === "HEAD" || method === "OPTIONS" ? "read" : "write";
+  if (method === "GET" || method === "HEAD" || method === "OPTIONS") return "read";
+  return method === "POST" ? "create" : "write";
 }
 
 /**
