@@ -61,7 +61,7 @@ export default function SignupSuccess() {
   // the dashboard never mounts against a half-written session.
   const { isLoading } = useMe();
 
-  const go = useCallback(() => router.replace("/home"), [router]);
+  const go = useCallback(() => router.replace("/home/home-dashboard"), [router]);
 
   useEffect(() => {
     if (isLoading) return;

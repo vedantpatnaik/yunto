@@ -45,6 +45,104 @@ export const FLOWS: GeneratedFlow[] = [
     ]
   },
   {
+    "flow": "content",
+    "title": "Content",
+    "screens": [
+      {
+        "slug": "all-ideas",
+        "path": "/content/all-ideas",
+        "title": "All Ideas"
+      },
+      {
+        "slug": "content-editor",
+        "path": "/content/content-editor",
+        "title": "Content Editor"
+      },
+      {
+        "slug": "content-idea-detail",
+        "path": "/content/content-idea-detail",
+        "title": "Content Idea Detail"
+      },
+      {
+        "slug": "content-itinerary-set-date",
+        "path": "/content/content-itinerary-set-date",
+        "title": "Content Itinerary Set Date"
+      },
+      {
+        "slug": "content-itinerary",
+        "path": "/content/content-itinerary",
+        "title": "Content Itinerary"
+      },
+      {
+        "slug": "plan-generator",
+        "path": "/content/plan-generator",
+        "title": "Plan Generator"
+      },
+      {
+        "slug": "plan-select-dates",
+        "path": "/content/plan-select-dates",
+        "title": "Plan Select Dates"
+      }
+    ]
+  },
+  {
+    "flow": "home",
+    "title": "Home",
+    "screens": [
+      {
+        "slug": "home-dashboard",
+        "path": "/home/home-dashboard",
+        "title": "Home Dashboard"
+      },
+      {
+        "slug": "set-revenue-target",
+        "path": "/home/set-revenue-target",
+        "title": "Set Revenue Target"
+      }
+    ]
+  },
+  {
+    "flow": "leads",
+    "title": "Leads",
+    "screens": [
+      {
+        "slug": "lead-detail-deliverables-sheet",
+        "path": "/leads/lead-detail-deliverables-sheet",
+        "title": "Lead Detail Deliverables Sheet"
+      },
+      {
+        "slug": "lead-detail-mark-closed",
+        "path": "/leads/lead-detail-mark-closed",
+        "title": "Lead Detail Mark Closed"
+      },
+      {
+        "slug": "lead-detail",
+        "path": "/leads/lead-detail",
+        "title": "Lead Detail"
+      },
+      {
+        "slug": "lead-history",
+        "path": "/leads/lead-history",
+        "title": "Lead History"
+      },
+      {
+        "slug": "lead-notes-schedule-follow-up",
+        "path": "/leads/lead-notes-schedule-follow-up",
+        "title": "Lead Notes Schedule Follow Up"
+      },
+      {
+        "slug": "lead-notes",
+        "path": "/leads/lead-notes",
+        "title": "Lead Notes"
+      },
+      {
+        "slug": "leads",
+        "path": "/leads/leads",
+        "title": "Leads"
+      }
+    ]
+  },
+  {
     "flow": "onboarding",
     "title": "Onboarding",
     "screens": [
@@ -96,6 +194,63 @@ export const FLOWS: GeneratedFlow[] = [
     ]
   },
   {
+    "flow": "payments",
+    "title": "Payments",
+    "screens": [
+      {
+        "slug": "invoice-create-select-campaign",
+        "path": "/payments/invoice-create-select-campaign",
+        "title": "Invoice Create Select Campaign"
+      },
+      {
+        "slug": "invoice-create",
+        "path": "/payments/invoice-create",
+        "title": "Invoice Create"
+      },
+      {
+        "slug": "invoice-history",
+        "path": "/payments/invoice-history",
+        "title": "Invoice History"
+      },
+      {
+        "slug": "invoice-hub",
+        "path": "/payments/invoice-hub",
+        "title": "Invoice Hub"
+      },
+      {
+        "slug": "invoice-your-details",
+        "path": "/payments/invoice-your-details",
+        "title": "Invoice Your Details"
+      },
+      {
+        "slug": "payout-bank-details",
+        "path": "/payments/payout-bank-details",
+        "title": "Payout Bank Details"
+      }
+    ]
+  },
+  {
+    "flow": "profile",
+    "title": "Profile",
+    "screens": [
+      {
+        "slug": "levels",
+        "path": "/profile/levels",
+        "title": "Levels"
+      },
+      {
+        "slug": "profile-self-managed",
+        "path": "/profile/profile-self-managed",
+        "title": "Profile Self Managed"
+      },
+      {
+        "slug": "profile",
+        "path": "/profile/profile",
+        "title": "Profile"
+      }
+    ]
+  },
+  {
     "flow": "reminders",
     "title": "Reminders",
     "screens": [
@@ -110,7 +265,54 @@ export const FLOWS: GeneratedFlow[] = [
         "title": "Reminders"
       }
     ]
+  },
+  {
+    "flow": "services",
+    "title": "Services",
+    "screens": [
+      {
+        "slug": "editors",
+        "path": "/services/editors",
+        "title": "Editors"
+      },
+      {
+        "slug": "order-summary",
+        "path": "/services/order-summary",
+        "title": "Order Summary"
+      },
+      {
+        "slug": "videographers",
+        "path": "/services/videographers",
+        "title": "Videographers"
+      }
+    ]
+  },
+  {
+    "flow": "system",
+    "title": "System",
+    "screens": [
+      {
+        "slug": "desktop-handoff-connected",
+        "path": "/system/desktop-handoff-connected",
+        "title": "Desktop Handoff Connected"
+      },
+      {
+        "slug": "desktop-handoff-scan",
+        "path": "/system/desktop-handoff-scan",
+        "title": "Desktop Handoff Scan"
+      },
+      {
+        "slug": "log-out",
+        "path": "/system/log-out",
+        "title": "Log Out"
+      },
+      {
+        "slug": "notifications",
+        "path": "/system/notifications",
+        "title": "Notifications"
+      }
+    ]
   }
 ];
 
-export const TOTAL_SCREENS = 16;
+export const TOTAL_SCREENS = 48;

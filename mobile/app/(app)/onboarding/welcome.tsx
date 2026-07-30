@@ -370,7 +370,7 @@ export default function Welcome() {
 
       {/* 7498:44169 primary CTA */}
       <Pressable
-        onPress={() => router.push("/onboarding-intro" as never)}
+        onPress={() => router.push("/onboarding/onboarding-intro" as never)}
         style={({ pressed }) => [
           styles.layer,
           styles.primary,

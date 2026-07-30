@@ -10,9 +10,9 @@ import Svg, {
   Rect,
   Stop,
 } from "react-native-svg";
-import { Abs, getScale, Screen, Txt } from "../../../../../../src/ui/Frame";
-import { fonts, gradients } from "../../../../../../src/theme";
-import { inr, useCreators } from "../../../../../../src/api/hooks";
+import { Abs, getScale, Screen, Txt } from "../../../../../src/ui/Frame";
+import { fonts, gradients } from "../../../../../src/theme";
+import { inr, useCreators } from "../../../../../src/api/hooks";
 
 /**
  * Services — "Confirm Editor" booking form (Figma 7506:45158).

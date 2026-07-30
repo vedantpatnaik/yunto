@@ -37,7 +37,10 @@
     "ios": "expo start --ios",
     "web": "expo start --web",
     "render-check": "node scripts/render-check.mjs",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "check-links": "node scripts/check-links.mjs",
+    "gen-routes": "node scripts/gen-routes.mjs",
+    "verify": "npm run typecheck && npm run gen-routes && npm run check-links && npm run render-check"
   },
   "private": true
 }

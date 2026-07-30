@@ -10,8 +10,8 @@ import Svg, {
   Rect,
   Stop,
 } from "react-native-svg";
-import { Abs, Screen, Txt } from "../../../../src/ui/Frame";
-import { gradients } from "../../../../src/theme";
+import { Abs, Screen, Txt } from "../../../src/ui/Frame";
+import { gradients } from "../../../src/theme";
 import {
   inr,
   useCalendar,
@@ -19,7 +19,7 @@ import {
   useRemove,
   type CalendarItem,
   type Creator,
-} from "../../../../src/api/hooks";
+} from "../../../src/api/hooks";
 
 /**
  * Services — "Your Order Details" (Figma 1887:3974, 375x812).
@@ -263,11 +263,12 @@ function BookingCard({
             {date}
           </Txt>
 
+          {/* Icon + label are the spec's 9.8pt glyph, 2.8 gap and 53pt text run. */}
           <Abs x={SLOT.x} y={SLOT.y} w={SLOT.w} h={SLOT.h} radius={SLOT.r} bg={PILL}>
-            <Abs x={6} y={2.8} w={9.8} h={9.8} center>
+            <Abs x={3.6} y={2.79} w={9.8} h={9.8} center>
               <Feather name="clock" size={9.8} color={INK} />
             </Abs>
-            <Txt x={18.6} y={2.1} w={48} size={7.14} font="inter" color={INK} lineHeight={11.2} numberOfLines={1}>
+            <Txt x={16.2} y={2.09} w={53} size={7.14} font="inter" color={INK} lineHeight={11.2} numberOfLines={1}>
               {slot}
             </Txt>
           </Abs>
@@ -278,9 +279,9 @@ function BookingCard({
 
           <Abs x={PRICE.x} y={PRICE.y} w={PRICE.w} h={PRICE.h} radius={PRICE.r} bg={PILL}>
             <Txt
-              x={7.65}
-              y={2.1}
-              w={PRICE.w - 15.3}
+              x={5}
+              y={2.09}
+              w={PRICE.w - 10}
               size={7.14}
               font="inter"
               color={INK}

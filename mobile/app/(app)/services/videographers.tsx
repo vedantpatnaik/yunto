@@ -18,9 +18,9 @@ import Svg, {
   Rect,
   Stop,
 } from "react-native-svg";
-import { Abs, Screen, Txt } from "../../../../src/ui/Frame";
-import { colors } from "../../../../src/theme";
-import { useCreators, type Creator } from "../../../../src/api/hooks";
+import { Abs, Screen, Txt } from "../../../src/ui/Frame";
+import { colors } from "../../../src/theme";
+import { useCreators, type Creator } from "../../../src/api/hooks";
 
 /**
  * Videographers — Figma 7348:19700 (375x875).

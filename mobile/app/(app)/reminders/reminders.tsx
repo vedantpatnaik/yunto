@@ -355,7 +355,7 @@ export default function Reminders() {
 
       {/* Floating CTA */}
       <Pressable
-        onPress={() => router.push("/add-reminder" as never)}
+        onPress={() => router.push("/reminders/add-reminder" as never)}
         style={({ pressed }) => [styles.cta, pressed && styles.pressed]}
       >
         <Feather name="plus" size={20} color="#FFFEFE" />

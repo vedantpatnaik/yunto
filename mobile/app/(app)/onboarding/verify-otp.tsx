@@ -140,7 +140,7 @@ export default function VerifyOtp() {
   // then continues to the signup-success screen.
   useEffect(() => {
     if (!verify.isSuccess) return;
-    const t = setTimeout(() => router.replace("/signup-success"), 1400);
+    const t = setTimeout(() => router.replace("/onboarding/signup-success"), 1400);
     return () => clearTimeout(t);
   }, [verify.isSuccess, router]);
 

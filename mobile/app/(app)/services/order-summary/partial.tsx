@@ -3,9 +3,9 @@ import { Image, Pressable, StyleSheet } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import { Abs, Screen, Txt } from "../../../../../src/ui/Frame";
-import { colors, gradients } from "../../../../../src/theme";
-import { useCalendar, useCreators, useRemove } from "../../../../../src/api/hooks";
+import { Abs, Screen, Txt } from "../../../../src/ui/Frame";
+import { colors, gradients } from "../../../../src/theme";
+import { useCalendar, useCreators, useRemove } from "../../../../src/api/hooks";
 
 /**
  * Services — order summary, videographer slot empty (Figma 1887:4246, 375x812).

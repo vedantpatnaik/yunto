@@ -170,7 +170,7 @@ export default function ProfileSetup() {
         },
       });
     }
-    router.push("/profile-verify-link");
+    router.push("/onboarding/profile-verify-link");
   };
 
   return (

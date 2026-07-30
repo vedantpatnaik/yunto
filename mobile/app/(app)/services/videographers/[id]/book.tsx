@@ -10,10 +10,10 @@ import Svg, {
   Rect,
   Stop,
 } from "react-native-svg";
-import { Abs, Screen, Txt } from "../../../../../../src/ui/Frame";
-import { fonts, gradients } from "../../../../../../src/theme";
-import { useCreate, useCreators, inr } from "../../../../../../src/api/hooks";
-import type { Contract, Creator } from "../../../../../../src/api/hooks";
+import { Abs, Screen, Txt } from "../../../../../src/ui/Frame";
+import { fonts, gradients } from "../../../../../src/theme";
+import { useCreate, useCreators, inr } from "../../../../../src/api/hooks";
+import type { Contract, Creator } from "../../../../../src/api/hooks";
 
 /**
  * Confirm videographer booking — Figma 7506:45348 (375x875), traced 1:1.

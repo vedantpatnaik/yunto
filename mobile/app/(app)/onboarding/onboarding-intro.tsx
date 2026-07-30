@@ -409,7 +409,7 @@ export default function OnboardingIntro() {
       ))}
 
       <Pressable
-        onPress={() => router.push("/join-path")}
+        onPress={() => router.push("/onboarding/join-path")}
         style={({ pressed }) => [
           {
             position: "absolute",

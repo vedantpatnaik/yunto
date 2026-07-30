@@ -47,13 +47,38 @@ if (!list.length) {
 console.log(`building web bundle for ${list.length} routes…`);
 execSync(`npx expo export --platform web --output-dir ${OUT}`, { cwd: ROOT, stdio: "pipe" });
 
-const server = spawn("python3", ["-m", "http.server", String(PORT)], { cwd: OUT, stdio: "ignore" });
-const stop = () => { try { server.kill(); } catch {} };
+// A plain static server 404s on deep links, which would force client-side
+// pushState navigation — and that proved flaky, occasionally leaving the
+// previous screen mounted and silently "passing" the wrong route. Serving an
+// SPA fallback lets each route be a real page load, which is deterministic.
+const { createServer } = await import("node:http");
+const MIME = {
+  ".html": "text/html", ".js": "text/javascript", ".css": "text/css",
+  ".json": "application/json", ".png": "image/png", ".jpg": "image/jpeg",
+  ".svg": "image/svg+xml", ".ico": "image/x-icon", ".ttf": "font/ttf", ".woff2": "font/woff2",
+};
+// Held in memory so a concurrent export cleaning the output directory cannot
+// take the server down mid-run.
+const SHELL = fs.readFileSync(path.join(OUT, "index.html"));
+const httpServer = createServer((req, res) => {
+  const url = decodeURIComponent((req.url || "/").split("?")[0]);
+  const file = path.join(OUT, url);
+  // Anything that is not an existing file is an app route -> serve the shell.
+  let isFile = false;
+  try { isFile = fs.statSync(file).isFile(); } catch { isFile = false; }
+  if (!isFile) {
+    res.writeHead(200, { "Content-Type": "text/html" });
+    res.end(SHELL);
+    return;
+  }
+  res.writeHead(200, { "Content-Type": MIME[path.extname(file)] ?? "application/octet-stream" });
+  const stream = fs.createReadStream(file);
+  stream.on("error", () => { res.writeHead(404); res.end(); });
+  stream.pipe(res);
+});
+await new Promise((r) => httpServer.listen(PORT, r));
+const stop = () => { try { httpServer.close(); } catch {} };
 process.on("exit", stop);
-
-// A static server has no SPA fallback, so deep links 404. Load the root once and
-// navigate client-side instead, which is also closer to how the app really runs.
-await new Promise((r) => setTimeout(r, 1200));
 
 const token = await fetch(`${API}/auth/login`, {
   method: "POST",
@@ -78,21 +103,26 @@ page.on("pageerror", (e) => errors.push(`JS: ${e.message.slice(0, 110)}`));
 page.on("console", (m) => {
   if (m.type() !== "error") return;
   const t = m.text();
-  // CORS noise from the static test origin is a harness artifact: a native app
-  // does not enforce CORS, and the deployed web origin is allow-listed.
-  if (/CORS|Access-Control|ERR_FAILED|Failed to load resource/i.test(t)) return;
+  // A blocked request is NOT noise to swallow: it means the screen rendered
+  // with no data, which looks identical to a screen that renders correctly.
+  // The API origin must allow-list this harness (see server CORS_ORIGIN).
+  if (/CORS|Access-Control/i.test(t)) {
+    errors.push("API blocked by CORS — add this origin to the server allowlist");
+    return;
+  }
+  if (/Failed to load resource|ERR_FAILED/i.test(t)) return;
   errors.push(`console: ${t.slice(0, 110)}`);
 });
 
-await page.goto(`http://localhost:${PORT}/`, { waitUntil: "networkidle" });
-await page.waitForTimeout(1500);
+// Confirm the API is reachable before judging any screen, so an unreachable
+// backend is reported once rather than as N misleading "renders fine" passes.
+const apiOk = await fetch(`${API}/health`.replace("/api/health", "/health")).then((r) => r.ok).catch(() => false);
+if (!apiOk) console.warn(`! API not reachable at ${API} — data-driven screens will look empty`);
 
 for (const route of list) {
   errors = [];
-  await page.evaluate((r) => window.history.pushState({}, "", r), route);
-  // Nudge the router to pick up the new location.
-  await page.evaluate(() => window.dispatchEvent(new PopStateEvent("popstate")));
-  await page.waitForTimeout(700);
+  await page.goto(`http://localhost:${PORT}${route}`, { waitUntil: "networkidle", timeout: 30000 });
+  await page.waitForTimeout(900);
 
   const info = await page.evaluate(() => ({
     len: document.body.innerText.trim().length,

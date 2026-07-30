@@ -176,7 +176,7 @@ export default function ProfileVerifyLink() {
     if (!creator || verify.isPending) return;
     verify.mutate(
       { id: creator.id, data: { listed: true } },
-      { onSuccess: () => router.push("/phone-number") },
+      { onSuccess: () => router.push("/onboarding/phone-number") },
     );
   };
 

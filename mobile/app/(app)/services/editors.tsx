@@ -10,9 +10,9 @@ import Svg, {
   Rect,
   Stop,
 } from "react-native-svg";
-import { Abs, Screen, Txt } from "../../../../src/ui/Frame";
-import { gradients } from "../../../../src/theme";
-import { useCreators } from "../../../../src/api/hooks";
+import { Abs, Screen, Txt } from "../../../src/ui/Frame";
+import { gradients } from "../../../src/theme";
+import { useCreators } from "../../../src/api/hooks";
 
 /**
  * Services — "Editor" browse deck (Figma 7348:19819, 375x875).
