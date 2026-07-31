@@ -39,9 +39,22 @@ for (const f of tsxFiles(APP)) {
     const raw = m[1];
     const line = src.slice(0, m.index).split("\n").length;
     const rel = path.relative(APP, f);
-    if (raw.includes("${")) { dynamic.push({ rel, line, raw }); continue; }
     const target = raw.split("?")[0].replace(/\/$/, "") || "/";
-    if (target.startsWith("/") && !routes.has(target)) broken.push({ rel, line, raw });
+    if (!target.startsWith("/")) continue;
+
+    // Interpolation in the QUERY string is fine — the path still resolves.
+    // Interpolation in the PATH needs a [param] route to exist, and without one
+    // the tap silently does nothing, exactly like a typo.
+    if (target.includes("${")) {
+      const parent = target.slice(0, target.indexOf("${")).replace(/\/$/, "");
+      const hasParam = [...routes].some(
+        (r) => r.startsWith(parent + "/") && r.slice(parent.length + 1).startsWith("[")
+      );
+      if (!hasParam) broken.push({ rel, line, raw, why: `no [param] route under ${parent}/` });
+      else dynamic.push({ rel, line, raw });
+      continue;
+    }
+    if (!routes.has(target)) broken.push({ rel, line, raw, why: "no such route" });
   }
 }
 
@@ -58,6 +71,6 @@ if (dynamic.length) {
 }
 if (broken.length) {
   console.log("\nBROKEN — these taps will do nothing:");
-  for (const b of broken) console.log(`  ${b.rel}:${b.line} -> ${b.raw}`);
+  for (const b of broken) console.log(`  ${b.rel}:${b.line} -> ${b.raw}   (${b.why})`);
 }
 process.exit(broken.length || collisions.length ? 1 : 0);

@@ -602,7 +602,7 @@ export default function EditorDetail() {
         <Feather name="x" size={28} color={REJECT_RED} />
       </Pressable>
       <Pressable
-        onPress={() => router.push(`/bookings/${editor?.id ?? ""}` as never)}
+        onPress={() => router.push(`/services/editors/${editor?.id ?? ""}/book` as never)}
         style={({ pressed }) => [styles.confirmButton, pressed && styles.pressed]}
       >
         <Feather name="check" size={28} color={colors.white} />

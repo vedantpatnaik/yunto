@@ -484,7 +484,7 @@ export default function EditorsList() {
             </Abs>
 
             <Pressable
-              onPress={() => router.push(`/agency/services/editors/${front.id}` as never)}
+              onPress={() => router.push(`/agency/creators/editor-detail?id=${front.id}` as never)}
               style={({ pressed }) => [styles.cta, pressed && styles.pressed]}
             >
               <Txt

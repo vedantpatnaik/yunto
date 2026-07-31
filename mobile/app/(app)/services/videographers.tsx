@@ -486,7 +486,7 @@ export default function Videographers() {
 
             <Pressable
               onPress={() => {
-                if (top) router.push(`/creators/${top.id}` as never);
+                if (top) router.push(`/services/videographers/${top.id}` as never);
               }}
               style={({ pressed }) => [styles.cta, pressed && styles.pressed]}
             >

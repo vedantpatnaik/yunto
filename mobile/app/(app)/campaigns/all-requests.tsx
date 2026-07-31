@@ -361,8 +361,8 @@ export default function AllRequests() {
             key={r.id}
             top={CARD_TOP + i * CARD_STEP}
             row={r}
-            onPortfolio={() => router.push(`/creators/${r.id}` as never)}
-            onChat={() => router.push(`/chat/${r.id}` as never)}
+            onPortfolio={() => router.push(`/services/videographers/${r.id}` as never)}
+            onChat={() => router.push(`/chat/message?id=${r.id}` as never)}
           />
         ))}
         {!isLoading && rows.length === 0 ? (

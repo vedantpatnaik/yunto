@@ -522,7 +522,7 @@ export default function ActiveCampaigns() {
           <CampaignCard
             key={r.id}
             row={r}
-            onView={() => router.push(`/campaigns/${r.id}` as never)}
+            onView={() => router.push(`/campaigns/campaign-brief?id=${r.id}` as never)}
           />
         ))}
         {!isLoading && rows.length === 0 ? (
