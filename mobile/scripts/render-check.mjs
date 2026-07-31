@@ -6,7 +6,7 @@
  * in a phone-sized viewport, failing on runtime errors, blank output, or a
  * screen that silently redirects to /login.
  *
- *   node scripts/render-check.mjs            # all routes under app/(app)
+ *   node scripts/render-check.mjs            # every route in app/
  *   node scripts/render-check.mjs --shots    # also write PNGs to .render/
  */
 import { chromium } from "playwright";
@@ -14,6 +14,7 @@ import { execSync, spawn } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { staticRoutes } from "./routes.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const OUT = "/tmp/yunto-rnweb";
@@ -21,33 +22,10 @@ const PORT = 8099;
 const SHOTS = process.argv.includes("--shots");
 const API = process.env.EXPO_PUBLIC_API_URL ?? "http://localhost:3001/api";
 
-/**
- * Every generated route across both app groups. Screens nest several levels
- * deep (profile/personal-information/…, services/editors/[id]/…), so this must
- * recurse — a flat scan silently skipped them and reported a clean pass.
- * Dynamic segments are excluded: they need a concrete param to be meaningful.
- */
-function routes() {
-  const out = [];
-  for (const group of ["(app)", "(agency)"]) {
-    const base = path.join(ROOT, "app", group);
-    if (!fs.existsSync(base)) continue;
-    const walk = (dir) => {
-      for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
-        const p = path.join(dir, e.name);
-        if (e.isDirectory()) walk(p);
-        else if (e.name.endsWith(".tsx") && !e.name.startsWith("_")) {
-          const rel = path.relative(base, p).replace(/\.tsx$/, "").split(path.sep).join("/");
-          if (!rel.includes("[")) out.push(`/${rel}`);
-        }
-      }
-    };
-    walk(base);
-  }
-  return [...new Set(out)].sort();
-}
-
-const list = routes();
+// Route discovery is shared with check-links/gen-routes (scripts/routes.mjs).
+// Hardcoding group names here meant renaming a group silently halved coverage
+// while still reporting a clean pass — the worst kind of green check.
+const list = staticRoutes(path.join(ROOT, "app")).filter((u) => u !== "/login");
 if (!list.length) {
   console.log("no generated screens yet");
   process.exit(0);

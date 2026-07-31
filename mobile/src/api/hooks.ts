@@ -145,6 +145,22 @@ export const useMessages = (channelId: string | null) =>
     enabled: !!channelId,
   });
 
+/**
+ * Post to a channel. The author is taken from the token server-side, so the
+ * client neither sends nor can spoof one. Invalidates that channel's thread.
+ */
+export function useSendMessage(channelId: string | null) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: string) =>
+      api<Message>(`/channels/${channelId}/messages`, {
+        method: "POST",
+        body: JSON.stringify({ body }),
+      }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["messages", channelId] }),
+  });
+}
+
 /** The authenticated user. Drives greetings and owner-scoped actions. */
 export const useMe = () =>
   useQuery({ queryKey: ["me"], queryFn: () => api<User>("/auth/me"), staleTime: 300_000 });

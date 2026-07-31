@@ -1268,7 +1268,7 @@ export default function HomeDashboard() {
         {me?.name ?? "Sophia Roy"}
       </Txt>
 
-      <Pressable onPress={() => router.push("/chat" as never)} style={[styles.headerButton, styles.headerChat]}>
+      <Pressable onPress={() => router.push("/chat/chat" as never)} style={[styles.headerButton, styles.headerChat]}>
         <Feather name="message-circle" size={20} color={ICON_ON_DARK} />
       </Pressable>
       <Pressable

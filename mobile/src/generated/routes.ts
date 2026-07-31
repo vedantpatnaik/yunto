@@ -23,11 +23,6 @@ export const FLOWS: GeneratedFlow[] = [
         "title": "Active Campaigns"
       },
       {
-        "slug": "active-campaigns",
-        "path": "/campaigns/active-campaigns",
-        "title": "Active Campaigns"
-      },
-      {
         "slug": "all-requests",
         "path": "/campaigns/all-requests",
         "title": "All Requests"
@@ -43,34 +38,25 @@ export const FLOWS: GeneratedFlow[] = [
         "title": "Campaign Brief Workspace Drawer"
       },
       {
-        "slug": "campaign-creator-detail",
-        "path": "/campaigns/campaign-creator-detail",
-        "title": "Campaign Creator Detail"
-      },
-      {
-        "slug": "campaign-creators",
-        "path": "/campaigns/campaign-creators",
-        "title": "Campaign Creators"
-      },
-      {
-        "slug": "campaign-detail",
-        "path": "/campaigns/campaign-detail",
-        "title": "Campaign Detail"
-      },
-      {
-        "slug": "campaign-notes",
-        "path": "/campaigns/campaign-notes",
-        "title": "Campaign Notes"
-      },
-      {
-        "slug": "campaign-requests",
-        "path": "/campaigns/campaign-requests",
-        "title": "Campaign Requests"
-      },
-      {
         "slug": "invoice-select-campaign",
         "path": "/campaigns/invoice-select-campaign",
         "title": "Invoice Select Campaign"
+      }
+    ]
+  },
+  {
+    "flow": "chat",
+    "title": "Chat",
+    "screens": [
+      {
+        "slug": "chat",
+        "path": "/chat/chat",
+        "title": "Chat"
+      },
+      {
+        "slug": "message",
+        "path": "/chat/message",
+        "title": "Message"
       }
     ]
   },
@@ -116,130 +102,13 @@ export const FLOWS: GeneratedFlow[] = [
     ]
   },
   {
-    "flow": "creators",
-    "title": "Creators",
-    "screens": [
-      {
-        "slug": "add-creator-invite",
-        "path": "/creators/add-creator-invite",
-        "title": "Add Creator Invite"
-      },
-      {
-        "slug": "add-creators",
-        "path": "/creators/add-creators",
-        "title": "Add Creators"
-      },
-      {
-        "slug": "assign-creators",
-        "path": "/creators/assign-creators",
-        "title": "Assign Creators"
-      },
-      {
-        "slug": "campaign-creator-match",
-        "path": "/creators/campaign-creator-match",
-        "title": "Campaign Creator Match"
-      },
-      {
-        "slug": "campaign-creator-profile",
-        "path": "/creators/campaign-creator-profile",
-        "title": "Campaign Creator Profile"
-      },
-      {
-        "slug": "creator-detail",
-        "path": "/creators/creator-detail",
-        "title": "Creator Detail"
-      },
-      {
-        "slug": "creators-filter-sheet",
-        "path": "/creators/creators-filter-sheet",
-        "title": "Creators Filter Sheet"
-      },
-      {
-        "slug": "creators-roster",
-        "path": "/creators/creators-roster",
-        "title": "Creators Roster"
-      },
-      {
-        "slug": "creators-roster-all-tab",
-        "path": "/creators/creators-roster-all-tab",
-        "title": "Creators Roster All Tab"
-      },
-      {
-        "slug": "creators-selected-view",
-        "path": "/creators/creators-selected-view",
-        "title": "Creators Selected View"
-      },
-      {
-        "slug": "creators-sort-sheet",
-        "path": "/creators/creators-sort-sheet",
-        "title": "Creators Sort Sheet"
-      },
-      {
-        "slug": "editor-detail",
-        "path": "/creators/editor-detail",
-        "title": "Editor Detail"
-      },
-      {
-        "slug": "editors-list",
-        "path": "/creators/editors-list",
-        "title": "Editors List"
-      },
-      {
-        "slug": "videographer-detail",
-        "path": "/creators/videographer-detail",
-        "title": "Videographer Detail"
-      },
-      {
-        "slug": "videographers-list",
-        "path": "/creators/videographers-list",
-        "title": "Videographers List"
-      }
-    ]
-  },
-  {
-    "flow": "filters",
-    "title": "Filters",
-    "screens": [
-      {
-        "slug": "creators-filter-sheet",
-        "path": "/filters/creators-filter-sheet",
-        "title": "Creators Filter Sheet"
-      },
-      {
-        "slug": "creators-sort-sheet",
-        "path": "/filters/creators-sort-sheet",
-        "title": "Creators Sort Sheet"
-      }
-    ]
-  },
-  {
     "flow": "home",
     "title": "Home",
     "screens": [
       {
-        "slug": "home-admin",
-        "path": "/home/home-admin",
-        "title": "Home Admin"
-      },
-      {
         "slug": "home-dashboard",
         "path": "/home/home-dashboard",
         "title": "Home Dashboard"
-      },
-      {
-        "slug": "home-operations",
-        "path": "/home/home-operations",
-        "title": "Home Operations"
-      },
-      {
-        "slug": "home-sales",
-        "path": "/home/home-sales",
-        "title": "Home Sales"
-      },
-      {
-        "slug": "home-set-target-sheet",
-        "path": "/home/home-set-target-sheet",
-        "title": "Home Set Target Sheet"
       },
       {
         "slug": "set-revenue-target",
@@ -253,16 +122,6 @@ export const FLOWS: GeneratedFlow[] = [
     "title": "Leads",
     "screens": [
       {
-        "slug": "add-lead",
-        "path": "/leads/add-lead",
-        "title": "Add Lead"
-      },
-      {
-        "slug": "lead-added-success",
-        "path": "/leads/lead-added-success",
-        "title": "Lead Added Success"
-      },
-      {
         "slug": "lead-detail",
         "path": "/leads/lead-detail",
         "title": "Lead Detail"
@@ -273,24 +132,9 @@ export const FLOWS: GeneratedFlow[] = [
         "title": "Lead Detail Deliverables Sheet"
       },
       {
-        "slug": "lead-detail-info",
-        "path": "/leads/lead-detail-info",
-        "title": "Lead Detail Info"
-      },
-      {
         "slug": "lead-detail-mark-closed",
         "path": "/leads/lead-detail-mark-closed",
         "title": "Lead Detail Mark Closed"
-      },
-      {
-        "slug": "lead-detail-notes",
-        "path": "/leads/lead-detail-notes",
-        "title": "Lead Detail Notes"
-      },
-      {
-        "slug": "lead-distribution",
-        "path": "/leads/lead-distribution",
-        "title": "Lead Distribution"
       },
       {
         "slug": "lead-history",
@@ -311,11 +155,6 @@ export const FLOWS: GeneratedFlow[] = [
         "slug": "leads",
         "path": "/leads/leads",
         "title": "Leads"
-      },
-      {
-        "slug": "leads-list",
-        "path": "/leads/leads-list",
-        "title": "Leads List"
       }
     ]
   },
@@ -375,11 +214,6 @@ export const FLOWS: GeneratedFlow[] = [
     "title": "Payments",
     "screens": [
       {
-        "slug": "add-payment-reminder",
-        "path": "/payments/add-payment-reminder",
-        "title": "Add Payment Reminder"
-      },
-      {
         "slug": "invoice-create",
         "path": "/payments/invoice-create",
         "title": "Invoice Create"
@@ -400,110 +234,14 @@ export const FLOWS: GeneratedFlow[] = [
         "title": "Invoice Hub"
       },
       {
-        "slug": "invoice-reminders",
-        "path": "/payments/invoice-reminders",
-        "title": "Invoice Reminders"
-      },
-      {
         "slug": "invoice-your-details",
         "path": "/payments/invoice-your-details",
         "title": "Invoice Your Details"
       },
       {
-        "slug": "lead-payment-summary",
-        "path": "/payments/lead-payment-summary",
-        "title": "Lead Payment Summary"
-      },
-      {
-        "slug": "payment-followup-timeline",
-        "path": "/payments/payment-followup-timeline",
-        "title": "Payment Followup Timeline"
-      },
-      {
-        "slug": "payments-notifications",
-        "path": "/payments/payments-notifications",
-        "title": "Payments Notifications"
-      },
-      {
         "slug": "payout-bank-details",
         "path": "/payments/payout-bank-details",
         "title": "Payout Bank Details"
-      },
-      {
-        "slug": "set-revenue-target",
-        "path": "/payments/set-revenue-target",
-        "title": "Set Revenue Target"
-      }
-    ]
-  },
-  {
-    "flow": "people",
-    "title": "People",
-    "screens": [
-      {
-        "slug": "assign-creators",
-        "path": "/people/assign-creators",
-        "title": "Assign Creators"
-      },
-      {
-        "slug": "lead-distribution",
-        "path": "/people/lead-distribution",
-        "title": "Lead Distribution"
-      },
-      {
-        "slug": "leaves",
-        "path": "/people/leaves",
-        "title": "Leaves"
-      },
-      {
-        "slug": "manage-teams",
-        "path": "/people/manage-teams",
-        "title": "Manage Teams"
-      },
-      {
-        "slug": "people-overview",
-        "path": "/people/people-overview",
-        "title": "People Overview"
-      },
-      {
-        "slug": "person-attendance",
-        "path": "/people/person-attendance",
-        "title": "Person Attendance"
-      },
-      {
-        "slug": "person-profile",
-        "path": "/people/person-profile",
-        "title": "Person Profile"
-      },
-      {
-        "slug": "team-actions-menu",
-        "path": "/people/team-actions-menu",
-        "title": "Team Actions Menu"
-      },
-      {
-        "slug": "team-add-member",
-        "path": "/people/team-add-member",
-        "title": "Team Add Member"
-      },
-      {
-        "slug": "team-detail",
-        "path": "/people/team-detail",
-        "title": "Team Detail"
-      },
-      {
-        "slug": "team-management-hub",
-        "path": "/people/team-management-hub",
-        "title": "Team Management Hub"
-      },
-      {
-        "slug": "team-member-detail",
-        "path": "/people/team-member-detail",
-        "title": "Team Member Detail"
-      },
-      {
-        "slug": "team-roster",
-        "path": "/people/team-roster",
-        "title": "Team Roster"
       }
     ]
   },
@@ -578,39 +316,9 @@ export const FLOWS: GeneratedFlow[] = [
     "title": "Profile",
     "screens": [
       {
-        "slug": "add-reminder",
-        "path": "/profile/add-reminder",
-        "title": "Add Reminder"
-      },
-      {
-        "slug": "agency-code-connected-success",
-        "path": "/profile/agency-code-connected-success",
-        "title": "Agency Code Connected Success"
-      },
-      {
-        "slug": "agency-info-edit",
-        "path": "/profile/agency-info-edit",
-        "title": "Agency Info Edit"
-      },
-      {
         "slug": "agency-setting",
         "path": "/profile/agency-setting",
         "title": "Agency Setting"
-      },
-      {
-        "slug": "enter-agency-code",
-        "path": "/profile/enter-agency-code",
-        "title": "Enter Agency Code"
-      },
-      {
-        "slug": "generate-agency-code",
-        "path": "/profile/generate-agency-code",
-        "title": "Generate Agency Code"
-      },
-      {
-        "slug": "integrations",
-        "path": "/profile/integrations",
-        "title": "Integrations"
       },
       {
         "slug": "landing-page",
@@ -626,21 +334,6 @@ export const FLOWS: GeneratedFlow[] = [
         "slug": "levels",
         "path": "/profile/levels",
         "title": "Levels"
-      },
-      {
-        "slug": "logout-confirm",
-        "path": "/profile/logout-confirm",
-        "title": "Logout Confirm"
-      },
-      {
-        "slug": "notifications",
-        "path": "/profile/notifications",
-        "title": "Notifications"
-      },
-      {
-        "slug": "onboarding-intro-carousel",
-        "path": "/profile/onboarding-intro-carousel",
-        "title": "Onboarding Intro Carousel"
       },
       {
         "slug": "personal-information",
@@ -688,29 +381,9 @@ export const FLOWS: GeneratedFlow[] = [
         "title": "Profile"
       },
       {
-        "slug": "profile-agency-info",
-        "path": "/profile/profile-agency-info",
-        "title": "Profile Agency Info"
-      },
-      {
-        "slug": "profile-home",
-        "path": "/profile/profile-home",
-        "title": "Profile Home"
-      },
-      {
         "slug": "profile-self-managed",
         "path": "/profile/profile-self-managed",
         "title": "Profile Self Managed"
-      },
-      {
-        "slug": "reminders-list",
-        "path": "/profile/reminders-list",
-        "title": "Reminders List"
-      },
-      {
-        "slug": "sign-in",
-        "path": "/profile/sign-in",
-        "title": "Sign In"
       }
     ]
   },
@@ -784,4 +457,4 @@ export const FLOWS: GeneratedFlow[] = [
   }
 ];
 
-export const TOTAL_SCREENS = 137;
+export const TOTAL_SCREENS = 74;
