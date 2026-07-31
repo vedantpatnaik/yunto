@@ -11,7 +11,21 @@ import Svg, {
   Stop,
 } from "react-native-svg";
 import { Abs, Ring, Screen, Txt } from "../../../src/ui/Frame";
-import { inr, useContacts, useLeads, useUsers } from "../../../src/api/hooks";
+import { colors } from "../../../src/theme";
+import {
+  inr,
+  useContacts,
+  useCreate,
+  useLeadDeliverables,
+  useLeads,
+  useUpdate,
+  useUsers,
+} from "../../../src/api/hooks";
+import type {
+  DeliverableKind,
+  DeliverablePlatform,
+  LeadDeliverable,
+} from "../../../src/api/hooks";
 
 /**
  * Lead Detail — Select Deliverables. Figma 7348:19301 (375x875).
@@ -71,10 +85,27 @@ type PlatformName = "Instagram" | "YouTube";
 
 const PLATFORMS: Record<
   PlatformName,
-  { icon: "instagram" | "youtube"; posts: readonly [string, string, string] }
+  {
+    icon: "instagram" | "youtube";
+    posts: readonly [string, string, string];
+    /** The server Platform enum member this column writes as. */
+    value: DeliverablePlatform;
+    /** The DeliverableKind behind each of the three post columns, in order. */
+    kinds: readonly [DeliverableKind, DeliverableKind, DeliverableKind];
+  }
 > = {
-  Instagram: { icon: "instagram", posts: ["Reel", "Post", "Story"] },
-  YouTube: { icon: "youtube", posts: ["Integrated Video", "Dedicated Video", "Shots"] },
+  Instagram: {
+    icon: "instagram",
+    posts: ["Reel", "Post", "Story"],
+    value: "INSTAGRAM",
+    kinds: ["REEL", "POST", "STORY"],
+  },
+  YouTube: {
+    icon: "youtube",
+    posts: ["Integrated Video", "Dedicated Video", "Shots"],
+    value: "YOUTUBE",
+    kinds: ["INTEGRATED_VIDEO", "DEDICATED_VIDEO", "SHORT"],
+  },
 };
 
 /* ------------------------------ derivations ------------------------------- */
@@ -105,11 +136,36 @@ interface DeliverableRow {
   icon: "video" | "instagram";
 }
 
-/** The two rows the design ships; the sheet appends to this list. */
+/**
+ * The two rows the design ships. They stand in only while the lead has no saved
+ * deliverables — the empty state exactly as Figma authored it. As soon as
+ * /lead-deliverables returns rows for this lead, those replace them.
+ */
 const SEED_DELIVERABLES: DeliverableRow[] = [
   { label: "1 Reel", note: "Needs script", tint: REEL_TINT, ink: PAID_INK, icon: "video" },
   { label: "2 Stories", note: "Pending shoot", tint: STORY_TINT, ink: STORY_INK, icon: "instagram" },
 ];
+
+/**
+ * Kind -> the sheet column it was chosen from. A saved row is therefore drawn
+ * with the same label and the same index-parity swatch the sheet's own Add
+ * produced, so nothing about the list's appearance changes.
+ */
+const KIND_COLUMN: Partial<Record<DeliverableKind, { name: string; slot: number }>> = {
+  REEL: { name: "Reel", slot: 0 },
+  POST: { name: "Post", slot: 1 },
+  STORY: { name: "Story", slot: 2 },
+  INTEGRATED_VIDEO: { name: "Integrated Video", slot: 0 },
+  DEDICATED_VIDEO: { name: "Dedicated Video", slot: 1 },
+  SHORT: { name: "Shots", slot: 2 },
+};
+
+/** The alternating swatch the design gives consecutive deliverable rows. */
+const styleOf = (slot: number) => ({
+  tint: slot % 2 === 0 ? REEL_TINT : STORY_TINT,
+  ink: slot % 2 === 0 ? PAID_INK : STORY_INK,
+  icon: (slot % 2 === 0 ? "video" : "instagram") as DeliverableRow["icon"],
+});
 
 /* -------------------------------- backdrop -------------------------------- */
 /** The frame fill: a warm vertical base plus four soft radial glows. */
@@ -191,6 +247,7 @@ export default function LeadDetailDeliverablesSheet() {
   const { data: leads = [], isLoading } = useLeads();
   const { data: users = [] } = useUsers();
   const { data: contacts = [] } = useContacts();
+  const { data: allDeliverables = [] } = useLeadDeliverables();
 
   const lead = leads.find((l) => l.id === id) ?? leads[0];
   const owner = users.find((u) => u.id === lead?.ownerId);
@@ -202,39 +259,120 @@ export default function LeadDetailDeliverablesSheet() {
   const email = contact?.email;
   const website = email?.split("@")[1];
 
-  /* Sheet state — local until submitted; there is no Deliverable model yet. */
-  const [platform, setPlatform] = useState<PlatformName>("Instagram");
-  const [visits, setVisits] = useState(1);
-  const [counts, setCounts] = useState<[number, number, number]>([1, 1, 1]);
-  const [rows, setRows] = useState<DeliverableRow[]>(SEED_DELIVERABLES);
-  const [link, setLink] = useState("");
+  const createDeliverable = useCreate<LeadDeliverable>("lead-deliverables");
+  const updateDeliverable = useUpdate<LeadDeliverable>("lead-deliverables");
 
-  const posts = PLATFORMS[platform].posts;
+  /* Everything already agreed on this lead. The list endpoint sorts createdAt
+     desc, so `newest` is the row the last Add wrote. This is what seeds the
+     whole sheet. */
+  const saved = allDeliverables.filter((d) => d.leadId === lead?.id);
+  const newest = saved[0];
 
-  const bump = (i: number, by: number) =>
-    setCounts((c) => {
-      const next: [number, number, number] = [c[0], c[1], c[2]];
-      next[i] = Math.max(0, next[i] + by);
-      return next;
-    });
+  /* Sheet state. Every field is a draft laid over the saved row rather than a
+     copy made by an effect: it shows the stored value the moment
+     /lead-deliverables lands, and a failed save leaves the draft untouched so
+     nothing the user chose is thrown away. */
+  const [platformDraft, setPlatformDraft] = useState<PlatformName | null>(null);
+  const [visitsDraft, setVisitsDraft] = useState<number | null>(null);
+  const [countDraft, setCountDraft] = useState<Partial<Record<DeliverableKind, number>>>({});
+  const [linkDraft, setLinkDraft] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [failed, setFailed] = useState(false);
 
-  const add = () => {
-    const picked = posts.flatMap<DeliverableRow>((name, i) =>
-      counts[i] > 0
-        ? [
-            {
-              label: `${counts[i]} ${name}`,
-              note: "Pending shoot",
-              tint: i % 2 === 0 ? REEL_TINT : STORY_TINT,
-              ink: i % 2 === 0 ? PAID_INK : STORY_INK,
-              icon: i % 2 === 0 ? "video" : "instagram",
-            },
-          ]
-        : [],
-    );
-    setRows((r) => [...r, ...picked]);
-    router.back();
+  const platform: PlatformName =
+    platformDraft ?? (newest?.platform === "YOUTUBE" ? "YouTube" : "Instagram");
+  const visits = visitsDraft ?? newest?.visits ?? 1;
+
+  const { posts, kinds } = PLATFORMS[platform];
+
+  /** The lead's saved row for one of the three post columns, if it has one. */
+  const rowFor = (kind: DeliverableKind) => saved.find((d) => d.kind === kind);
+
+  /** The stored quantity where there is one, else the 01 the design opens on. */
+  const countAt = (i: number) => countDraft[kinds[i]] ?? rowFor(kinds[i])?.quantity ?? 1;
+  const counts: [number, number, number] = [countAt(0), countAt(1), countAt(2)];
+
+  const link = linkDraft ?? newest?.link ?? "";
+
+  const bump = (i: number, by: number) => {
+    const kind = kinds[i];
+    const current = counts[i];
+    setCountDraft((d) => ({ ...d, [kind]: Math.max(0, (d[kind] ?? current) + by) }));
   };
+
+  /**
+   * Writes the sheet onto the lead. Each post column with a count is PATCHed
+   * onto the lead's existing row of that kind, or POSTed as a new one — so
+   * re-opening the sheet and confirming again edits rather than duplicates. A
+   * column left at zero is simply not part of the deal; the sheet ships no
+   * remove affordance, so nothing is ever deleted. On failure the sheet stays
+   * up with every value intact and the message above the CTA explains why.
+   */
+  const save = async () => {
+    if (!lead || saving) return;
+    setSaving(true);
+    setFailed(false);
+    try {
+      for (let i = 0; i < kinds.length; i += 1) {
+        const kind = kinds[i];
+        const quantity = counts[i];
+        if (quantity <= 0) continue;
+        const existing = rowFor(kind);
+        if (existing) {
+          await updateDeliverable.mutateAsync({
+            id: existing.id,
+            data: { platform: PLATFORMS[platform].value, quantity, visits },
+          });
+        } else {
+          await createDeliverable.mutateAsync({
+            leadId: lead.id,
+            platform: PLATFORMS[platform].value,
+            kind,
+            quantity,
+            visits,
+            note: "Pending shoot",
+          });
+        }
+      }
+      router.back();
+    } catch {
+      setFailed(true);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  /**
+   * The deliverable link on the card behind the sheet. LeadDeliverable.link is
+   * the only column that holds it, so it hangs off the most recent row — until
+   * the lead has one there is nothing to attach it to and Submit is inert.
+   */
+  const submitLink = async () => {
+    if (!newest || saving) return;
+    setSaving(true);
+    setFailed(false);
+    try {
+      await updateDeliverable.mutateAsync({ id: newest.id, data: { link } });
+      setLinkDraft(null); // adopt the stored value now that it round-tripped
+    } catch {
+      setFailed(true);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  /* Rows come from the lead's saved deliverables, oldest first so the list
+     reads in the order it was agreed. */
+  const savedRows = saved
+    .slice()
+    .reverse()
+    .flatMap<DeliverableRow>((d) => {
+      const column = KIND_COLUMN[d.kind];
+      return column
+        ? [{ label: `${d.quantity} ${column.name}`, note: d.note ?? "Pending shoot", ...styleOf(column.slot) }]
+        : [];
+    });
+  const rows = savedRows.length > 0 ? savedRows : SEED_DELIVERABLES;
 
   /* The List is a fixed 117pt box: show the two most recent rows. */
   const visible = rows.slice(-MAX_DELIVERABLES);
@@ -584,14 +722,15 @@ export default function LeadDetailDeliverablesSheet() {
           <Abs x={35} y={978} w={305} h={52} radius={16} bg="#F9F9F9" />
           <TextInput
             value={link}
-            onChangeText={setLink}
+            onChangeText={setLinkDraft}
             placeholder="Add deliverable link..."
             placeholderTextColor="#757575"
             style={styles.linkInput}
           />
           <Pressable
-            onPress={() => setLink("")}
-            style={({ pressed }) => [styles.submit, pressed && styles.pressed]}
+            onPress={() => void submitLink()}
+            disabled={saving || !newest}
+            style={({ pressed }) => [styles.submit, pressed && styles.pressed, saving && styles.busy]}
           >
             <Txt size={13} weight="semibold" font="inter" color={WHITE} lineHeight={15.73} align="center">
               Submit
@@ -830,7 +969,7 @@ export default function LeadDetailDeliverablesSheet() {
         Select Platform
       </Txt>
       <Pressable
-        onPress={() => setPlatform((p) => (p === "Instagram" ? "YouTube" : "Instagram"))}
+        onPress={() => setPlatformDraft(platform === "Instagram" ? "YouTube" : "Instagram")}
         style={({ pressed }) => [styles.field, styles.platformField, pressed && styles.pressed]}
       >
         <View style={[styles.fieldFill, styles.platformBorder]} />
@@ -857,7 +996,7 @@ export default function LeadDetailDeliverablesSheet() {
         Choose Number of visits
       </Txt>
       <Pressable
-        onPress={() => setVisits((v) => (v >= 9 ? 1 : v + 1))}
+        onPress={() => setVisitsDraft(visits >= 9 ? 1 : visits + 1)}
         style={({ pressed }) => [styles.field, styles.visitsField, pressed && styles.pressed]}
       >
         <View style={styles.fieldFill} />
@@ -931,8 +1070,33 @@ export default function LeadDetailDeliverablesSheet() {
         );
       })}
 
+      {/* Save failed — the retry is the CTA itself and every chosen value is
+          still in state, so this sits in the 32.72pt gap the spec leaves between
+          the last post row (bottom 760) and the Add button (top 792.72).
+          Nothing moves, and it is absent unless a write actually failed. */}
+      {failed ? (
+        <Txt
+          x={37}
+          y={768}
+          w={301}
+          size={12}
+          weight="medium"
+          font="inter"
+          color={colors.danger}
+          lineHeight={15}
+          numberOfLines={1}
+          align="center"
+        >
+          Could not save these deliverables. Tap Add to try again.
+        </Txt>
+      ) : null}
+
       {/* Add */}
-      <Pressable onPress={add} style={({ pressed }) => [styles.addButton, pressed && styles.pressed]}>
+      <Pressable
+        onPress={() => void save()}
+        disabled={saving}
+        style={({ pressed }) => [styles.addButton, pressed && styles.pressed, saving && styles.busy]}
+      >
         <Txt size={16} weight="bold" font="inter" color={WHITE} lineHeight={19.36} align="center">
           Add
         </Txt>
@@ -944,6 +1108,8 @@ export default function LeadDetailDeliverablesSheet() {
 const styles = StyleSheet.create({
   backdrop: { position: "absolute", left: 0, top: 0 },
   pressed: { opacity: 0.9 },
+  /** In-flight only — the design's own opacity is restored the moment it lands. */
+  busy: { opacity: 0.5 },
 
   headerAction: {
     position: "absolute",

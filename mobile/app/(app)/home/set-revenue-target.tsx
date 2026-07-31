@@ -1,14 +1,12 @@
 import { useState } from "react";
 import type { ReactNode } from "react";
-import { Image, Pressable, ScrollView, TextInput, View } from "react-native";
+import { Alert, Image, Pressable, ScrollView, TextInput, View } from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import { useQueryClient } from "@tanstack/react-query";
 import { Screen, Abs, Txt } from "../../../src/ui/Frame";
 import { fonts } from "../../../src/theme";
-import { useMe, useLeads, useInvoices, compact, inr } from "../../../src/api/hooks";
-import type { User } from "../../../src/api/hooks";
+import { useMe, useLeads, useInvoices, useUpdateMe, compact, inr } from "../../../src/api/hooks";
 
 /**
  * Set Revenue Target — Figma frame 7348:18113 (375x875), traced 1:1.
@@ -81,6 +79,15 @@ const TABS = [
 /** revenueGoal.frequencyOptions — the sheet's dropdown cycles these in order. */
 const FREQUENCIES = ["Monthly", "Weekly", "Yearly"] as const;
 type Frequency = (typeof FREQUENCIES)[number];
+
+/**
+ * How many of each period fit in a year. `User` stores only targetMonthly and
+ * targetYearly, so the entered figure is normalised to an annual amount on the
+ * way out and divided back into the selected period on the way in. That is also
+ * what gives "Weekly" — which has no column of its own — a real, round-tripping
+ * home instead of a value that vanishes on close.
+ */
+const PER_YEAR: Record<Frequency, number> = { Monthly: 12, Weekly: 52, Yearly: 1 };
 
 /* -------------------------------- helpers --------------------------------- */
 /** The design writes single-digit pipeline counts as "06". */
@@ -155,11 +162,11 @@ const FieldLabel = ({ y, children }: { y: number; children: string }) => (
 /* --------------------------------- screen --------------------------------- */
 export default function SetRevenueTargetScreen() {
   const router = useRouter();
-  const qc = useQueryClient();
 
   const { data: me } = useMe();
   const { data: leads, isLoading: leadsLoading } = useLeads();
   const { data: invoices, isLoading: invoicesLoading } = useInvoices();
+  const saveTarget = useUpdateMe();
 
   const [frequency, setFrequency] = useState<Frequency>("Monthly");
   /** null until the field is touched, so the prefill can follow the frequency. */
@@ -174,23 +181,32 @@ export default function SetRevenueTargetScreen() {
 
   const paid = (invoices ?? []).filter((i) => i.status === "PAID").reduce((s, i) => s + i.payout, 0);
 
-  // revenueGoal.current — the stored target for the selected frequency.
-  const stored = frequency === "Yearly" ? me?.targetYearly : me?.targetMonthly;
+  // revenueGoal.current — the saved target, re-expressed in the selected period,
+  // so opening the sheet shows what is already stored. targetYearly is the source
+  // of truth; targetMonthly backfills a row that only ever had a monthly figure.
+  const storedYearly =
+    me?.targetYearly ?? (me?.targetMonthly != null ? me.targetMonthly * 12 : null);
+  const stored = storedYearly != null ? Math.round(storedYearly / PER_YEAR[frequency]) : null;
   const amount = typed ?? (stored != null ? inr(stored) : "");
 
   const digits = Number(amount.replace(/[^0-9]/g, ""));
+  const saving = saveTarget.isPending;
 
   const submit = () => {
-    if (!digits) return;
-    // No PATCH /users/:id exists on the API yet, so the new target is written
-    // straight into the `me` cache: the dashboard's revenue goal re-reads it and
-    // the sheet closes, exactly as revenueGoal.setTarget would behave.
-    qc.setQueryData<User>(["me"], (prev) =>
-      prev
-        ? { ...prev, ...(frequency === "Yearly" ? { targetYearly: digits } : { targetMonthly: digits }) }
-        : prev,
+    if (!digits || saving) return;
+    // Both columns are written from one annual figure so they can never drift
+    // apart — the home dashboard reads targetMonthly, the reports targetYearly.
+    const targetYearly = digits * PER_YEAR[frequency];
+    saveTarget.mutate(
+      { targetYearly, targetMonthly: Math.round(targetYearly / 12) },
+      {
+        onSuccess: () => router.back(),
+        // Surfaced, never swallowed. `typed` is left untouched, so the sheet
+        // stays open with exactly what was entered still in the field.
+        onError: (err) =>
+          Alert.alert("Couldn’t save target", err.message || "Please try again."),
+      },
     );
-    router.back();
   };
 
   return (
@@ -455,11 +471,13 @@ export default function SetRevenueTargetScreen() {
         {/* ------------------------------ CTA ------------------------------ */}
         <Pressable
           onPress={submit}
-          disabled={!digits}
+          disabled={!digits || saving}
           style={({ pressed }) => ({
             position: "absolute", left: 37, top: 299.72, width: 301, height: 55,
             borderRadius: 100, backgroundColor: "#312b28",
-            opacity: digits ? (pressed ? 0.9 : 1) : 0.5,
+            // Same two opacity stops the design already uses for enabled /
+            // disabled — in-flight simply reuses the disabled one.
+            opacity: digits && !saving ? (pressed ? 0.9 : 1) : 0.5,
             shadowColor: "#312b28", shadowOpacity: 0.25, shadowRadius: 20,
             shadowOffset: { width: 0, height: 8 }, elevation: 6,
           })}

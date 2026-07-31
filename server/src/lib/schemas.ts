@@ -39,6 +39,9 @@ const obool = z.boolean().optional();
 const date = z.coerce.date();
 /** `Json` — the shapes actually stored (poll options / results are arrays). */
 const json = z.union([z.array(z.any()), z.record(z.any())]);
+/** `String[]` — a Postgres scalar list. Optional, never nullable (Prisma rejects
+ *  null on a list column); omit the key to leave the stored list untouched. */
+const ostrList = z.array(z.string()).optional();
 
 /**
  * A Prisma enum column. Input is trimmed and upper-cased before matching, so
@@ -64,6 +67,22 @@ export const PAYMENT_STATUS = ["PAID", "UNPAID", "OVERDUE"] as const;
 export const POLL_KIND = ["GENERAL", "CAMPAIGN"] as const;
 export const LEAVE_STATUS = ["PENDING", "APPROVED", "REJECTED"] as const;
 export const CHANNEL_KIND = ["TEAM", "INFLUENCER", "BRAND", "CAMPAIGN"] as const;
+export const DELIVERABLE_KIND = [
+  "REEL",
+  "POST",
+  "STORY",
+  "CAROUSEL",
+  "STATIC_POST",
+  "COLLAB",
+  "INTEGRATED_VIDEO",
+  "DEDICATED_VIDEO",
+  "SHORT",
+  "UGC",
+  "EVENT_APPEARANCE",
+] as const;
+export const SERVICE_KIND = ["VIDEOGRAPHER", "EDITOR"] as const;
+export const LANDING_THEME = ["MODERN", "DARK", "CLEAN"] as const;
+export const LANDING_LAYOUT = ["CENTERED", "LEFT"] as const;
 
 /* -------------------------------- Agency --------------------------------- */
 
@@ -259,6 +278,114 @@ export const noteCreateSchema = obj({
 });
 export const noteUpdateSchema = noteCreateSchema.partial();
 
+/* ------------------------------ PayoutDetail ------------------------------ */
+/* Not mounted on the generic crudRouter — routes/payout.routes.ts owns these
+   and always supplies `userId` from the JWT, so the body never carries one.
+   Every column is optional: the Bank Details card and the invoice "Your
+   Details" form each write their own half of the row. */
+
+export const payoutDetailWriteSchema = obj({
+  accountHolderName: nstr,
+  bankName: nstr,
+  accountNumber: nstr,
+  ifsc: nstr,
+  upiId: nstr,
+  verified: obool,
+  legalName: nstr,
+  tradeName: nstr,
+  gstNumber: nstr,
+  mobile: nstr,
+  pincode: nstr,
+  state: nstr,
+});
+
+/* --------------------------------- RateCard ------------------------------- */
+
+export const rateCardCreateSchema = obj({
+  creatorId: z.string(),
+  reelRate: oint,
+  postRate: oint,
+  storyRate: oint,
+  integratedRate: oint,
+  dedicatedRate: oint,
+  shortRate: oint,
+  acceptsBarter: obool,
+  barterValue: nint,
+  barterFormats: z.array(enumOf(DELIVERABLE_KIND)).optional(),
+});
+export const rateCardUpdateSchema = rateCardCreateSchema.partial();
+
+/* ------------------------------ CampaignBrief ----------------------------- */
+
+export const campaignBriefCreateSchema = obj({
+  campaignId: z.string(),
+  keyMessage: nstr,
+  targetAudience: nstr,
+  guidelines: ostrList,
+  deliverables: ostrList,
+  notes: ostrList,
+});
+export const campaignBriefUpdateSchema = campaignBriefCreateSchema.partial();
+
+/* ----------------------------- LeadDeliverable ---------------------------- */
+
+export const leadDeliverableCreateSchema = obj({
+  leadId: z.string(),
+  platform: enumOf(PLATFORM).optional(),
+  kind: enumOf(DELIVERABLE_KIND),
+  quantity: oint,
+  visits: oint,
+  note: nstr,
+  link: nstr,
+});
+export const leadDeliverableUpdateSchema = leadDeliverableCreateSchema.partial();
+
+/* --------------------------------- Booking -------------------------------- */
+/* Booking.status is a free-form String defaulting to "pending", like
+   Contract.status — deliberately not an enum. */
+
+export const bookingCreateSchema = obj({
+  creatorId: z.string(),
+  bookedById: nstr,
+  service: enumOf(SERVICE_KIND),
+  scheduledAt: date,
+  hours: oint,
+  total: oint,
+  projectType: nstr,
+  location: nstr,
+  brief: nstr,
+  addons: ostrList,
+  status: ostr,
+});
+export const bookingUpdateSchema = bookingCreateSchema.partial();
+
+/* ------------------------------- LandingPage ------------------------------ */
+
+export const landingPageCreateSchema = obj({
+  creatorId: z.string(),
+  slug: z.string(),
+  headline: nstr,
+  bio: nstr,
+  theme: enumOf(LANDING_THEME).optional(),
+  layout: enumOf(LANDING_LAYOUT).optional(),
+  fontStyle: nstr,
+  contactTime: nstr,
+  services: ostrList,
+  hideInsights: obool,
+  published: obool,
+});
+export const landingPageUpdateSchema = landingPageCreateSchema.partial();
+
+/* ------------------------------- LandingLink ------------------------------ */
+
+export const landingLinkCreateSchema = obj({
+  pageId: z.string(),
+  label: z.string(),
+  url: z.string(),
+  sortOrder: oint,
+});
+export const landingLinkUpdateSchema = landingLinkCreateSchema.partial();
+
 /* -------------------------------- registry -------------------------------- */
 
 /** Keyed by the URL segment each resource is mounted on in routes/index.ts. */
@@ -300,6 +427,12 @@ export const schemas = {
   channels: { create: channelCreateSchema, update: channelUpdateSchema },
   calendar: { create: calendarCreateSchema, update: calendarUpdateSchema },
   notes: { create: noteCreateSchema, update: noteUpdateSchema },
+  "rate-cards": { create: rateCardCreateSchema, update: rateCardUpdateSchema },
+  "campaign-briefs": { create: campaignBriefCreateSchema, update: campaignBriefUpdateSchema },
+  "lead-deliverables": { create: leadDeliverableCreateSchema, update: leadDeliverableUpdateSchema },
+  bookings: { create: bookingCreateSchema, update: bookingUpdateSchema },
+  "landing-pages": { create: landingPageCreateSchema, update: landingPageUpdateSchema },
+  "landing-links": { create: landingLinkCreateSchema, update: landingLinkUpdateSchema },
 } satisfies Record<string, { create: z.ZodTypeAny; update: z.ZodTypeAny }>;
 
 /** URL segments the registry covers. */

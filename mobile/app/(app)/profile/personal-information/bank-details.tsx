@@ -1,5 +1,6 @@
 import type { ComponentProps } from "react";
-import { Pressable, StyleSheet, View } from "react-native";
+import { useState } from "react";
+import { Alert, Pressable, StyleSheet, TextInput, View } from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
@@ -11,7 +12,13 @@ import Svg, {
   Stop,
 } from "react-native-svg";
 import { Abs, Screen, Txt } from "../../../../src/ui/Frame";
-import { useMe, useUpdate, type User } from "../../../../src/api/hooks";
+import { fonts } from "../../../../src/theme";
+import {
+  useMe,
+  usePayoutDetail,
+  useSavePayoutDetail,
+  type PayoutDetail,
+} from "../../../../src/api/hooks";
 
 /**
  * Personal Information — Bank Details (expanded) — Figma 7358:29381.
@@ -66,6 +73,15 @@ const FIELD_W_HALF = 156;
 const INNER_W_HALF = 114;
 const FIELD_H = 72;
 const HALF_H = 75;
+
+/* The spec paints each value as a 16.94pt text line. An input keeps that exact
+   centre but is laid out 24pt tall so the caret box never clips a descender —
+   the rendered glyph line lands on the spec's baseline, unmoved. */
+const VALUE_LINE_H = 16.94;
+const VALUE_BOX_H = 24;
+const VALUE_BOX_DY = (VALUE_LINE_H - VALUE_BOX_H) / 2;
+/* Widens the touch area to the surrounding card without painting anything. */
+const VALUE_HIT_SLOP = { top: 20, bottom: 20, left: 21, right: 21 };
 
 /* --------------------------- spec colour tokens --------------------------- */
 const LABEL_INK = "#111827";
@@ -252,11 +268,18 @@ function CollapsedRow({ section, onPress }: { section: SectionSpec; onPress: () 
   );
 }
 
-/* ------------------------------ read-out cards ---------------------------- */
+/* -------------------------------- form cards ------------------------------ */
+type Capitalize = ComponentProps<typeof TextInput>["autoCapitalize"];
+type Keyboard = ComponentProps<typeof TextInput>["keyboardType"];
+
 /**
  * One 301x72 glass card: an uppercase caption (Inter 700 12 / 14.52, +0.5) over
- * the value (Inter 500 14 / 16.94). `valueSpacing` carries the 2pt tracking the
- * masked account number is authored with.
+ * the editable value (Inter 500 14 / 16.94). `valueSpacing` carries the 2pt
+ * tracking the masked account number is authored with.
+ *
+ * `placeholder` is the value the spec paints and is drawn in the value ink, so
+ * an empty record looks exactly like the design while nothing fake is ever sent
+ * to the API — the user has to type before a column is written.
  */
 function Field({
   y,
@@ -264,14 +287,24 @@ function Field({
   valueY,
   label,
   value,
+  onChange,
+  onFocus,
+  placeholder,
   valueSpacing,
+  capitalize,
+  keyboard,
 }: {
   y: number;
   labelY: number;
   valueY: number;
   label: string;
   value: string;
+  onChange: (next: string) => void;
+  onFocus?: () => void;
+  placeholder: string;
   valueSpacing?: number;
+  capitalize?: Capitalize;
+  keyboard?: Keyboard;
 }) {
   return (
     <>
@@ -300,20 +333,28 @@ function Field({
       >
         {label}
       </Txt>
-      <Txt
-        x={FIELD_TEXT_X}
-        y={valueY}
-        w={INNER_W_FULL}
-        size={14}
-        weight="medium"
-        font="inter"
-        color={FIELD_VALUE_INK}
-        lineHeight={16.94}
-        letterSpacing={valueSpacing}
-        numberOfLines={1}
-      >
-        {value}
-      </Txt>
+      <TextInput
+        value={value}
+        onChangeText={onChange}
+        onFocus={onFocus}
+        placeholder={placeholder}
+        placeholderTextColor={FIELD_VALUE_INK}
+        autoCapitalize={capitalize}
+        keyboardType={keyboard}
+        autoCorrect={false}
+        selectionColor={FIELD_VALUE_INK}
+        hitSlop={VALUE_HIT_SLOP}
+        style={[
+          styles.value,
+          {
+            left: FIELD_TEXT_X,
+            top: valueY + VALUE_BOX_DY,
+            width: INNER_W_FULL,
+            height: VALUE_BOX_H,
+          },
+          valueSpacing !== undefined ? { letterSpacing: valueSpacing } : null,
+        ]}
+      />
     </>
   );
 }
@@ -324,11 +365,17 @@ function HalfField({
   textX,
   label,
   value,
+  onChange,
+  placeholder,
+  capitalize,
 }: {
   x: number;
   textX: number;
   label: string;
   value: string;
+  onChange: (next: string) => void;
+  placeholder: string;
+  capitalize?: Capitalize;
 }) {
   return (
     <>
@@ -357,48 +404,91 @@ function HalfField({
       >
         {label}
       </Txt>
-      <Txt
-        x={textX}
-        y={1107}
-        w={INNER_W_HALF}
-        size={14}
-        weight="medium"
-        font="inter"
-        color={FIELD_VALUE_INK}
-        lineHeight={16.94}
-        numberOfLines={1}
-      >
-        {value}
-      </Txt>
+      <TextInput
+        value={value}
+        onChangeText={onChange}
+        placeholder={placeholder}
+        placeholderTextColor={FIELD_VALUE_INK}
+        autoCapitalize={capitalize}
+        autoCorrect={false}
+        selectionColor={FIELD_VALUE_INK}
+        hitSlop={VALUE_HIT_SLOP}
+        style={[
+          styles.value,
+          {
+            left: textX,
+            top: 1107 + VALUE_BOX_DY,
+            width: INNER_W_HALF,
+            height: VALUE_BOX_H,
+          },
+        ]}
+      />
     </>
   );
 }
 
 /* --------------------------------- screen --------------------------------- */
+/** The five PayoutDetail columns this card owns. */
+type BankKey = "accountHolderName" | "bankName" | "accountNumber" | "ifsc" | "upiId";
+
 export default function PersonalInformationBankDetails() {
   const router = useRouter();
   const { data: me } = useMe();
-  const saveBankDetails = useUpdate<User>("users");
+  const { data: payout } = usePayoutDetail();
+  const saveBankDetails = useSavePayoutDetail();
 
-  /* The account holder is the signed-in creator, so it reads off /auth/me and
-     falls back to the spec value while the request is in flight — no effect,
-     and the geometry never moves. The remaining fields (bank, masked account,
-     IFSC, UPI) have no column on the API yet and stay at their spec values. */
-  const holderName = me?.name ?? "Sophia Roy";
-  const bankName = "HDFC Bank";
-  const accountNumberMasked = "•••• •••• •••• 4589";
-  const ifsc = "HDFC0001234";
-  const upiId = "sohpia@okhdfc";
+  /* Edits are held as overrides so every field shows the saved record the moment
+     /payout-details lands and the spec placeholder until then — no effect, and
+     the geometry never moves. */
+  const [draft, setDraft] = useState<Partial<Record<BankKey, string>>>({});
+  const edit = (key: BankKey) => (next: string) => setDraft((d) => ({ ...d, [key]: next }));
+
+  /* The account holder is the signed-in creator until they save a different
+     name on the payout record itself. */
+  const holderName = draft.accountHolderName ?? payout?.accountHolderName ?? me?.name ?? "";
+  const bankName = draft.bankName ?? payout?.bankName ?? "";
+  /* Untouched, the card shows the masked tail the API derives; the raw number is
+     only ever in state when the user types a fresh one, so a save can never
+     write the mask back over the stored account number. */
+  const accountNumber = draft.accountNumber ?? payout?.accountNumberMasked ?? "";
+  const ifsc = draft.ifsc ?? payout?.ifsc ?? "";
+  const upiId = draft.upiId ?? payout?.upiId ?? "";
 
   const onSave = () => {
-    if (!me) {
+    /* Send a column when the user actually touched it, or when it already holds
+       a value: a save fired while the record is still loading can then never
+       blank a stored column, and a field the user cleared still clears (null). */
+    const body: Partial<PayoutDetail> = {};
+    const put = (key: BankKey, value: string) => {
+      if (draft[key] !== undefined || value.trim()) body[key] = value.trim() || null;
+    };
+    put("accountHolderName", holderName);
+    put("bankName", bankName);
+    /* The account number is written only from a number typed on this screen —
+       never the masked read-out — and leaving the re-entry blank keeps whatever
+       is already stored rather than wiping it. */
+    if (draft.accountNumber?.trim()) body.accountNumber = draft.accountNumber.trim();
+    put("ifsc", ifsc);
+    put("upiId", upiId);
+
+    if (Object.keys(body).length === 0) {
       router.back();
       return;
     }
-    saveBankDetails.mutate(
-      { id: me.id, data: { name: holderName } },
-      { onSuccess: () => router.back(), onError: () => router.back() }
-    );
+    saveBankDetails.mutate(body, {
+      onSuccess: () => {
+        setDraft({});
+        router.back();
+      },
+      /* Stay on the screen with the draft intact so nothing typed is lost. */
+      onError: (err: unknown) =>
+        Alert.alert(
+          "Couldn't save bank details",
+          err instanceof Error && err.message
+            ? err.message
+            : "Please check your connection and try again."
+        ),
+    });
   };
 
   return (
@@ -454,7 +544,10 @@ export default function PersonalInformationBankDetails() {
         <SectionHead tile="#E0E7FF" ink="#4F46E5" icon="business-outline" label="Bank Details" expanded />
       </Pressable>
 
-      {/* ------------------------ Verified Account badge -------------------- */}
+      {/* ------------------------ Verified Account badge --------------------
+          Display-only: PayoutDetail.verified is set by the payouts team after
+          a penny-drop check, never by this form, and the spec has no unverified
+          variant of the card — so the badge is painted exactly as authored. */}
       <LinearGradient
         colors={["rgba(230,250,240,0.9)", "rgba(210,245,225,0.8)"]}
         start={{ x: 0.2, y: 0 }}
@@ -479,21 +572,64 @@ export default function PersonalInformationBankDetails() {
         Verified Account
       </Txt>
 
-      {/* --------------------------- account read-out ----------------------- */}
-      <Field y={805} labelY={822} valueY={843} label="ACCOUNT HOLDER NAME" value={holderName} />
-      <Field y={893} labelY={910} valueY={931} label="BANK NAME" value={bankName} />
+      {/* --------------------------- account details ------------------------ */}
+      <Field
+        y={805}
+        labelY={822}
+        valueY={843}
+        label="ACCOUNT HOLDER NAME"
+        value={holderName}
+        onChange={edit("accountHolderName")}
+        placeholder="Sophia Roy"
+        capitalize="words"
+      />
+      <Field
+        y={893}
+        labelY={910}
+        valueY={931}
+        label="BANK NAME"
+        value={bankName}
+        onChange={edit("bankName")}
+        placeholder="HDFC Bank"
+        capitalize="words"
+      />
       <Field
         y={981}
         labelY={998}
         valueY={1019}
         label="ACCOUNT NUMBER"
-        value={accountNumberMasked}
+        value={accountNumber}
+        onChange={edit("accountNumber")}
+        /* The mask is a read-out, not an editable value: focusing starts a
+           fresh entry so bullets can never be typed back into the column. */
+        onFocus={() =>
+          setDraft((d) => (d.accountNumber === undefined ? { ...d, accountNumber: "" } : d))
+        }
+        placeholder="•••• •••• •••• 4589"
         valueSpacing={2}
+        capitalize="none"
+        keyboard="number-pad"
       />
 
       {/* The IFSC | UPI pair — both 156x75, at x=37 and x=201 per the spec. */}
-      <HalfField x={37} textX={58} label="IFSC CODE" value={ifsc} />
-      <HalfField x={201} textX={222} label="UPI ID" value={upiId} />
+      <HalfField
+        x={37}
+        textX={58}
+        label="IFSC CODE"
+        value={ifsc}
+        onChange={edit("ifsc")}
+        placeholder="HDFC0001234"
+        capitalize="characters"
+      />
+      <HalfField
+        x={201}
+        textX={222}
+        label="UPI ID"
+        value={upiId}
+        onChange={edit("upiId")}
+        placeholder="sohpia@okhdfc"
+        capitalize="none"
+      />
 
       {/* ------------------------ encryption reassurance -------------------- */}
       <Abs
@@ -631,6 +767,18 @@ const styles = StyleSheet.create({
     shadowRadius: 24,
     shadowOffset: { width: 0, height: 8 },
     elevation: 1,
+  },
+  /* Field value — Inter 500 14, #1A1525, drawn where the spec's TEXT node sits.
+     Absolute, unpadded and without the platform's extra font padding so the
+     input renders the same glyph line the read-only Txt did. */
+  value: {
+    position: "absolute",
+    padding: 0,
+    fontFamily: fonts.interMedium,
+    fontSize: 14,
+    color: FIELD_VALUE_INK,
+    textAlignVertical: "center",
+    includeFontPadding: false,
   },
   noteShadow: {
     shadowColor: "#000000",

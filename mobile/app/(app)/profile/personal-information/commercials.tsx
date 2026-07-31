@@ -11,8 +11,16 @@ import Svg, {
   Stop,
 } from "react-native-svg";
 import { Abs, Screen, Txt } from "../../../../src/ui/Frame";
-import { fonts } from "../../../../src/theme";
-import { inr, useCreators, useMe, useUpdate, type Creator } from "../../../../src/api/hooks";
+import { colors, fonts } from "../../../../src/theme";
+import {
+  inr,
+  useCreate,
+  useCreators,
+  useMe,
+  useRateCards,
+  useUpdate,
+  type RateCard,
+} from "../../../../src/api/hooks";
 
 /**
  * Personal Information — Commercials (expanded) — Figma 7358:28895.
@@ -22,6 +30,10 @@ import { inr, useCreators, useMe, useUpdate, type Creator } from "../../../../sr
  * Instagram (Reels / Story / Post / Collab) and YouTube (Integrated Video) —
  * every deliverable a rupee field, closing on "Save Changes"; Barter
  * Commercials and Bank Details stay collapsed underneath.
+ *
+ * The fields read and write the creator's RateCard row (/rate-cards): Reels,
+ * Story, Post and Integrated Video map to reelRate / storyRate / postRate /
+ * integratedRate. Collab has no column on that model, so it stays display-only.
  *
  * The Figma frame is 875pt but "Main" stacks 1437pt of accordion behind a clip,
  * so the canvas is sized to the real content bottom (Bank Details 1437 + Main's
@@ -277,6 +289,9 @@ function CollapsedRow({ section, onPress }: { section: SectionSpec; onPress: () 
 }
 
 /* ------------------------------- rate card -------------------------------- */
+/** The RateCard columns this screen writes. Barter lives on the same row. */
+type RateColumn = "reelRate" | "storyRate" | "postRate" | "integratedRate";
+
 interface Deliverable {
   key: string;
   /** Spec caption above the field. */
@@ -286,6 +301,11 @@ interface Deliverable {
   fieldY: number;
   /** Share of the creator's base rate this format carries — see `priceFor`. */
   weight: number;
+  /**
+   * RateCard column this field reads and writes. Omitted where the backend has
+   * no column for the format, in which case the field is display-only.
+   */
+  column?: RateColumn;
 }
 
 interface PlatformGroup {
@@ -311,9 +331,14 @@ const PLATFORMS: PlatformGroup[] = [
     nameY: 561,
     nameW: 96,
     deliverables: [
-      { key: "reels", label: "Reels", labelY: 613, fieldY: 637, weight: 1 },
-      { key: "story", label: "Story", labelY: 707, fieldY: 731, weight: 0.4 },
-      { key: "post", label: "Post", labelY: 801, fieldY: 825, weight: 0.7 },
+      { key: "reels", label: "Reels", labelY: 613, fieldY: 637, weight: 1, column: "reelRate" },
+      { key: "story", label: "Story", labelY: 707, fieldY: 731, weight: 0.4, column: "storyRate" },
+      { key: "post", label: "Post", labelY: 801, fieldY: 825, weight: 0.7, column: "postRate" },
+      /* DISPLAY-ONLY: RateCard has no collab column (reel/post/story/integrated/
+         dedicated/short only) and DeliverableKind.COLLAB has no price field, so
+         this shows the derived estimate and is deliberately not editable —
+         faking a save would drop the number on the floor. Give it a column here
+         the moment the backend grows one and it saves with the rest. */
       { key: "collab", label: "Collab", labelY: 895, fieldY: 919, weight: 1 },
     ],
   },
@@ -326,7 +351,14 @@ const PLATFORMS: PlatformGroup[] = [
     nameY: 1019,
     nameW: 83,
     deliverables: [
-      { key: "integrated", label: "Integrated Video", labelY: 1071, fieldY: 1095, weight: 1 },
+      {
+        key: "integrated",
+        label: "Integrated Video",
+        labelY: 1071,
+        fieldY: 1095,
+        weight: 1,
+        column: "integratedRate",
+      },
     ],
   },
 ];
@@ -341,26 +373,40 @@ export default function PersonalInformationCommercials() {
   const router = useRouter();
   const { data: me } = useMe();
   const { data: creators } = useCreators();
-  const save = useUpdate<Creator>("creators");
+  const { data: rateCards } = useRateCards();
+  const createCard = useCreate<RateCard>("rate-cards");
+  const updateCard = useUpdate<RateCard>("rate-cards");
 
-  /* Creator carries no rate-card columns, so the paid rates are derived from
-     the record's real economics (cpv x avg views) weighted per format — the
-     same derivation the web creator-detail page uses, so the two never drift. */
   const roster = creators ?? [];
   const creator = roster.find((c) => c.name === me?.name) ?? roster[0];
+
+  /* The saved record. One RateCard row per creator, so this is the same row the
+     Barter Commercials section edits — the PATCH below only names the four paid
+     columns, leaving the barter half of the row untouched. */
+  const card = (rateCards ?? []).find((c) => c.creatorId === creator?.id);
+
+  /* Until a rate card exists there is nothing to show, so the fields open on an
+     estimate derived from the creator's real economics (cpv x avg views)
+     weighted per format — the same derivation the web creator-detail page uses.
+     Once a card is saved its stored rupees win outright. */
   const base = creator ? creator.cpv * creator.avgViews : 0;
   const priceFor = (weight: number) =>
     base > 0 ? Math.max(0, Math.round((base * weight) / 500) * 500) : 0;
 
-  /* Edits are held as overrides so each field shows the live rate the moment
-     /creators lands and falls back to the spec placeholder until then —
-     no effect, and the geometry never moves. */
+  /* Edits are held as overrides so each field adopts the saved rate the moment
+     /rate-cards lands and falls back to the estimate until then — no effect,
+     and the geometry never moves. A failed save leaves this untouched, so the
+     typed numbers survive for the retry. */
   const [draft, setDraft] = useState<Record<string, string>>({});
+
+  /** Saved rupees where the card has them, otherwise the derived estimate. */
+  const rateOf = (d: Deliverable) =>
+    card && d.column ? card[d.column] : priceFor(d.weight);
 
   const priceOf = (d: Deliverable) => {
     const override = draft[d.key];
     if (override !== undefined) return override;
-    const live = priceFor(d.weight);
+    const live = rateOf(d);
     return live > 0 ? inr(live) : "";
   };
 
@@ -369,19 +415,29 @@ export default function PersonalInformationCommercials() {
     setDraft((d) => ({ ...d, [key]: digits ? inr(Number(digits)) : "" }));
   };
 
-  /* Reels is the headline paid rate (weight 1), so saving inverts the base
-     derivation and writes the creator's cost-per-view back. */
-  const onSave = () => {
-    const reels = PLATFORMS[0].deliverables[0];
-    const rate = Number(digitsOf(priceOf(reels)));
-    if (!creator || !creator.avgViews || !rate) {
-      router.back();
-      return;
+  const saving = createCard.isPending || updateCard.isPending;
+  const failed = createCard.isError || updateCard.isError;
+
+  /** Every field the backend has a column for, as whole rupees. */
+  const ratesFromFields = () => {
+    const out: Partial<Record<RateColumn, number>> = {};
+    for (const platform of PLATFORMS) {
+      for (const d of platform.deliverables) {
+        if (d.column) out[d.column] = Number(digitsOf(priceOf(d))) || 0;
+      }
     }
-    save.mutate(
-      { id: creator.id, data: { cpv: rate / creator.avgViews } },
-      { onSuccess: () => router.back(), onError: () => router.back() }
-    );
+    return out;
+  };
+
+  /* Writes the paid rate card. PATCHes the creator's existing row, or POSTs the
+     first one. On failure nothing is cleared and the screen stays put so the
+     user can retry — see the message under the CTA. */
+  const onSave = () => {
+    if (!creator || saving) return;
+    const rates = ratesFromFields();
+    const done = { onSuccess: () => router.back() };
+    if (card) updateCard.mutate({ id: card.id, data: rates }, done);
+    else createCard.mutate({ creatorId: creator.id, ...rates }, done);
   };
 
   return (
@@ -499,6 +555,9 @@ export default function PersonalInformationCommercials() {
               <TextInput
                 value={priceOf(d)}
                 onChangeText={(v) => setPrice(d.key, v)}
+                /* No column, no save — so the field shows its estimate but is
+                   not typeable, rather than pretending to accept a rate. */
+                editable={d.column !== undefined && !saving}
                 placeholder={PRICE_HINT}
                 placeholderTextColor={LABEL_INK}
                 keyboardType="number-pad"
@@ -516,8 +575,11 @@ export default function PersonalInformationCommercials() {
       {/* ------------------------------- CTA -------------------------------- */}
       <Pressable
         onPress={onSave}
-        disabled={save.isPending}
-        style={({ pressed }) => [styles.cta, (pressed || save.isPending) && styles.pressed]}
+        /* Inert while the write is in flight, and until /creators resolves the
+           record the rate card hangs off — a tap before that has nothing to
+           attach to, so it is refused rather than silently dropped. */
+        disabled={saving || !creator}
+        style={({ pressed }) => [styles.cta, (pressed || saving) && styles.pressed]}
       >
         <Txt
           x={94.61}
@@ -533,6 +595,27 @@ export default function PersonalInformationCommercials() {
           Save Changes
         </Txt>
       </Pressable>
+
+      {/* Save failed — the retry is the CTA itself and the typed rates are still
+          in state, so this sits in the 40pt gap the spec leaves between the CTA
+          (bottom 1237) and the Barter Commercials row (top 1277). Nothing above
+          it moves, and it is absent unless the write actually failed. */}
+      {failed ? (
+        <Txt
+          x={37}
+          y={1245}
+          w={FIELD_W}
+          size={12}
+          weight="medium"
+          font="inter"
+          color={colors.danger}
+          lineHeight={15}
+          numberOfLines={2}
+          align="center"
+        >
+          Could not save your rate card. Tap Save Changes to try again.
+        </Txt>
+      ) : null}
 
       {/* ==================== Main — the six collapsed rows =================== */}
       {SECTIONS.map((section) => (

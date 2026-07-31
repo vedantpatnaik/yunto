@@ -10,8 +10,17 @@ import Svg, {
   Stop,
 } from "react-native-svg";
 import { Abs, Ring, Screen, Txt } from "../../../src/ui/Frame";
-import { fonts } from "../../../src/theme";
-import { compact, useAgencies, useCreators, useMe } from "../../../src/api/hooks";
+import { colors, fonts } from "../../../src/theme";
+import {
+  compact,
+  useAgencies,
+  useCreate,
+  useCreators,
+  useLandingPages,
+  useMe,
+  useUpdate,
+  type LandingPage,
+} from "../../../src/api/hooks";
 
 /**
  * Landing Page — Edit Content — Figma frame 7358:27242 (375x875), traced 1:1.
@@ -23,6 +32,10 @@ import { compact, useAgencies, useCreators, useMe } from "../../../src/api/hooks
  *                           whose column actually runs to y=1059 and reserves
  *                           120pt of bottom padding — hence the inner scroll.
  *   Bottom CTA 766..875     the pinned "Save" button, outside the clip box.
+ *
+ * Save writes the creator's LandingPage row — bio and preferred contact time
+ * are the two editable columns this tab owns (headline / theme / layout / links
+ * belong to the Themes tab and the link editor).
  *
  * Coordinates below are raw frame coordinates; <Screen> scales the 375pt canvas.
  * Nodes inside the pane are shifted by MAIN_Y through oy() so the spec's own
@@ -63,7 +76,10 @@ const CTA_FILL = "#312b28";
 /* ------------------------------- spec copy -------------------------------- */
 const BIO_PLACEHOLDER =
   "Hi! I'm Sophia, a lifestyle and fashion\ncreator. I love creating\naesthetic vlogs and UGC content for\nbrands I truly believe in. Let's create\nsomething beautiful together! ✨";
+/** The frame's authored contact window, shown until the row supplies its own. */
+const CONTACT_PLACEHOLDER = "10:00 AM - 2:00 PM EST";
 const AGENCY_BODY_COPY = "Your agency currently handles all\ninbound brand inquiries.";
+const SAVE_ERROR = "Could not save your landing page. Tap Save to try again.";
 /** The frame's own preview values — held until the creator record lands. */
 const FALLBACK_NAME = "Sophia Roy";
 const FALLBACK_FOLLOWERS = "1.2M Followers";
@@ -87,6 +103,14 @@ const SERVICES = [
   { label: "Barter Campaigns", x: 15, y: 963, w: 157.8, tw: 121.8, bg: "#fff4e5", fg: "#b36814" },
   { label: "Tutorials", x: 184.8, y: 963, w: 94.83, tw: 58.83, bg: "#ebf8e3", fg: "#4b8227" },
 ] as const;
+
+/**
+ * socy.io/<slug> for a creator who has no page row yet. Same derivation the
+ * seed uses, so a handle always maps to the one page LandingPage.creatorId
+ * allows; the id is the fallback for a creator with no usable handle.
+ */
+const slugOf = (handle: string, id: string) =>
+  handle.replace(/^@/, "").replace(/\s+/g, "").toLowerCase() || id;
 
 /* -------------------------------- backdrop -------------------------------- */
 /** The frame fill: a warm vertical base under four soft radial glows. */
@@ -130,6 +154,7 @@ export default function LandingPageEditContentScreen() {
   const { data: creators } = useCreators();
   const { data: agencies } = useAgencies();
   const { data: me } = useMe();
+  const { data: pages } = useLandingPages();
 
   /** The signed-in creator's own record — the profile this page publishes. */
   const creator = useMemo(() => {
@@ -139,10 +164,49 @@ export default function LandingPageEditContentScreen() {
 
   const agency = agencies?.find((a) => a.id === creator?.agencyId);
 
-  // Creator carries no bio / contact-time / services columns, so the editor
-  // holds its edits locally and Save closes the sheet. Nothing is fabricated
-  // into the record: only the three figures below come off the API.
-  const [bio, setBio] = useState("");
+  /** The creator's landing-page row — the record this tab reads and writes. */
+  const page = pages?.find((p) => p.creatorId === creator?.id);
+
+  const createPage = useCreate<LandingPage>("landing-pages");
+  const updatePage = useUpdate<LandingPage>("landing-pages");
+  const saving = createPage.isPending || updatePage.isPending;
+
+  /* Edits are held as drafts over the row, so each field shows what is already
+     saved the moment /landing-pages lands and a keystroke wins from then on —
+     no effect, no flicker, and a failed save keeps every character typed. */
+  const [draftBio, setDraftBio] = useState<string | null>(null);
+  const [draftContact, setDraftContact] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const bio = draftBio ?? page?.bio ?? "";
+  const contactTime = draftContact ?? page?.contactTime ?? "";
+
+  /* Services provided. LandingPage.services holds the saved set, and the
+     SERVICES catalogue owns each chip's traced coordinate and colour — so only
+     labels it knows have a slot in this frame, and until the row lands the
+     catalogue stands in as the preview exactly as FALLBACK_NAME does for the
+     name. The frame carries no per-chip remove control and "Add More" has no
+     destination in the trace, so the set is not editable here: it is written
+     back unchanged, which keeps the row equal to what the screen shows and
+     preserves any saved label this frame has no coordinate for. */
+  const services = page?.services ?? SERVICES.map((s) => s.label);
+  const chips = SERVICES.filter((c) => services.includes(c.label));
+
+  const onSave = () => {
+    if (saving || !creator) return;
+    setError(null);
+    const fields = { bio: bio.trim(), contactTime: contactTime.trim(), services };
+    const onSuccess = () => router.back();
+    const onError = (e: unknown) => setError(e instanceof Error ? e.message : SAVE_ERROR);
+    if (page) {
+      updatePage.mutate({ id: page.id, data: fields }, { onSuccess, onError });
+    } else {
+      createPage.mutate(
+        { ...fields, creatorId: creator.id, slug: slugOf(creator.handle, creator.id) },
+        { onSuccess, onError }
+      );
+    }
+  };
 
   const name = creator?.name ?? FALLBACK_NAME;
   const followers = creator ? `${compact(creator.followers)} Followers` : FALLBACK_FOLLOWERS;
@@ -280,7 +344,7 @@ export default function LandingPageEditContentScreen() {
         >
           <TextInput
             value={bio}
-            onChangeText={setBio}
+            onChangeText={setDraftBio}
             placeholder={BIO_PLACEHOLDER}
             placeholderTextColor={INK}
             multiline
@@ -300,12 +364,16 @@ export default function LandingPageEditContentScreen() {
           x={15} y={oy(795)} w={345} h={58} radius={20}
           bg="#ffffff" border={BORDER_80} borderWidth={1} style={styles.fieldShadow}
         >
-          <Txt
-            x={21} y={19.5} w={176} size={15} weight="medium" font="inter"
-            color={INK} lineHeight={18.15}
-          >
-            10:00 AM - 2:00 PM EST
-          </Txt>
+          {/* Inter 500 15/18.15 at 21,19.5 — the spec's TEXT node, made writable.
+              Styling is copied off <Txt font="inter" weight="medium">, so the
+              pill reads identically whether it is typed into or left alone. */}
+          <TextInput
+            value={contactTime}
+            onChangeText={setDraftContact}
+            placeholder={CONTACT_PLACEHOLDER}
+            placeholderTextColor={INK}
+            style={styles.contactInput}
+          />
           <Abs x={304} y={19} w={20} h={20} center>
             <Feather name="chevron-down" size={20} color={LABEL_INK} />
           </Abs>
@@ -318,7 +386,7 @@ export default function LandingPageEditContentScreen() {
         >
           Services provided
         </Txt>
-        {SERVICES.map((chip) => (
+        {chips.map((chip) => (
           <Abs key={chip.label} x={chip.x} y={oy(chip.y)} w={chip.w} h={41} radius={100} bg={chip.bg}>
             <Txt
               x={18} y={12} w={chip.tw} size={14} weight="semibold" font="inter"
@@ -346,8 +414,9 @@ export default function LandingPageEditContentScreen() {
 
       {/* ------------------------------ Bottom CTA --------------------------- */}
       <Pressable
-        onPress={() => router.back()}
-        style={({ pressed }) => [styles.cta, pressed && styles.pressed]}
+        onPress={onSave}
+        disabled={saving || !creator}
+        style={({ pressed }) => [styles.cta, (pressed || saving) && styles.pressed]}
       >
         <Txt
           x={0} y={18} w={232} size={16} weight="semibold" font="inter"
@@ -356,6 +425,18 @@ export default function LandingPageEditContentScreen() {
           Save
         </Txt>
       </Pressable>
+
+      {/* Save failed — the retry is the CTA itself, and the drafts above still
+          hold what was typed, so nothing in the traced layout moves. Renders in
+          the 32pt gap between the clipped pane (750) and the button (782). */}
+      {error ? (
+        <Txt
+          x={20} y={756} w={335} size={13} weight="medium" font="inter"
+          color={colors.danger} lineHeight={15.73} align="center" numberOfLines={2}
+        >
+          {error}
+        </Txt>
+      ) : null}
     </Screen>
   );
 }
@@ -438,6 +519,21 @@ const styles = StyleSheet.create({
     fontFamily: fonts.inter,
     fontSize: 15,
     lineHeight: 24,
+    color: INK,
+  },
+
+  /** The contact-time TEXT node's own box: 176pt run at 21,19.5 in the pill. */
+  contactInput: {
+    position: "absolute",
+    left: 21,
+    top: 19.5,
+    width: 176,
+    height: 19,
+    padding: 0,
+    includeFontPadding: false,
+    fontFamily: fonts.interMedium,
+    fontSize: 15,
+    lineHeight: 18.15,
     color: INK,
   },
 

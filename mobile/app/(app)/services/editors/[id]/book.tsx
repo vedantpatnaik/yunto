@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Image, Pressable, ScrollView, StyleSheet, TextInput, View } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
@@ -12,7 +12,15 @@ import Svg, {
 } from "react-native-svg";
 import { Abs, getScale, Screen, Txt } from "../../../../../src/ui/Frame";
 import { fonts, gradients } from "../../../../../src/theme";
-import { inr, useCreators } from "../../../../../src/api/hooks";
+import {
+  inr,
+  useBookings,
+  useCreate,
+  useCreators,
+  useMe,
+  useUpdate,
+} from "../../../../../src/api/hooks";
+import type { Booking } from "../../../../../src/api/hooks";
 
 /**
  * Services — "Confirm Editor" booking form (Figma 7506:45158).
@@ -56,6 +64,10 @@ const TOGGLE_ON = "#4caf50";
 const TOGGLE_OFF = "#e0e0e0";
 const DIVIDER = "#eaeaea";
 const CTA_BG = "#312b28";
+/** Not a spec token — the frame paints no error state. Only ever drawn on a
+ *  failed save, in the empty 42pt of the CTA bar under the button, so no
+ *  traced coordinate moves. */
+const ERROR_INK = "#b42318";
 
 const GLASS_40 = "rgba(255,255,255,0.4)";
 const GLASS_60 = "rgba(255,255,255,0.6)";
@@ -302,17 +314,63 @@ export default function ConfirmEditorBooking() {
   const scale = getScale();
   const { id } = useLocalSearchParams<{ id?: string }>();
   const { data = [] } = useCreators();
+  const { data: bookings = [] } = useBookings();
+  const { data: me } = useMe();
+  const createBooking = useCreate<Booking>("bookings");
+  const updateBooking = useUpdate<Booking>("bookings");
 
   /** The editor being booked; falls back to the first record while routing. */
   const creator = useMemo(() => data.find((c) => c.id === id) ?? data[0], [data, id]);
 
+  /**
+   * The booking this form edits: the caller's open EDITOR slot with this
+   * creator, if one exists. /bookings comes back newest-first, so `find` picks
+   * the latest. Re-entering the screen therefore reopens that booking instead
+   * of stacking a second row for the same job.
+   */
+  const draft = useMemo(
+    () =>
+      creator && me
+        ? bookings.find(
+            (b) =>
+              b.creatorId === creator.id &&
+              b.bookedById === me.id &&
+              b.service === "EDITOR" &&
+              b.status === "pending",
+          )
+        : undefined,
+    [bookings, creator, me],
+  );
+
   const [contentType, setContentType] = useState(0);
   const [qty, setQty] = useState(3);
+  /* Video length and editing style are display-only: Booking has no column for
+     either, and neither changes the quote, so they are deliberately not saved
+     rather than smuggled into a field that means something else. */
   const [videoLength, setVideoLength] = useState(1);
   const [editingStyle, setEditingStyle] = useState(0);
+  /* Likewise the raw-footage link — attachments hang off the Attachment model,
+     which has no endpoint, so this stays a display-only field for now. */
   const [driveLink, setDriveLink] = useState("");
   const [brief, setBrief] = useState("");
   const [picked, setPicked] = useState<Record<string, boolean>>({ subtitles: true });
+  /** Failure text for the save; never clears what the user typed. */
+  const [error, setError] = useState<string | null>(null);
+
+  /**
+   * Seed the form from the saved booking the first time it arrives (keyed by
+   * row id, so a background refetch can never overwrite what is being typed).
+   * Only the fields Booking actually stores are seeded.
+   */
+  const seededId = useRef<string | null>(null);
+  useEffect(() => {
+    if (!draft || seededId.current === draft.id) return;
+    seededId.current = draft.id;
+    const type = CONTENT_TYPES.findIndex((c) => c.label === draft.projectType);
+    if (type >= 0) setContentType(type);
+    setBrief(draft.brief ?? "");
+    setPicked(Object.fromEntries(draft.addons.map((k) => [k, true] as const)));
+  }, [draft]);
 
   /** Line items, subtotal, tax and total all follow the deliverable count. */
   const lines = useMemo(() => {
@@ -337,6 +395,41 @@ export default function ConfirmEditorBooking() {
   const toggle = (key: string) => setPicked((p) => ({ ...p, [key]: !p[key] }));
 
   const firstName = creator ? creator.name.split(" ")[0] : "";
+
+  const saving = createBooking.isPending || updateBooking.isPending;
+  const canSave = !!creator && !saving;
+
+  /**
+   * Write the booking. Updates the open slot if there is one, otherwise creates
+   * it — the same create-or-update shape the rate-card screens use.
+   */
+  const submit = () => {
+    if (!creator || saving) return;
+    setError(null);
+    const data: Partial<Booking> = {
+      creatorId: creator.id,
+      ...(me ? { bookedById: me.id } : {}),
+      service: "EDITOR",
+      // scheduledAt has no default server-side and this frame carries no date
+      // field, so an edit job is stamped with the moment it was booked.
+      scheduledAt: new Date().toISOString(),
+      // Editor work is quoted per batch of videos, not by the hour.
+      hours: 0,
+      // The deliverable count has no column of its own; it is priced into the
+      // total the user is looking at when they confirm.
+      total,
+      projectType: CONTENT_TYPES[contentType].label,
+      brief: brief.trim() || null,
+      addons: ADDONS.filter((a) => picked[a.key]).map((a) => a.key),
+      status: "pending",
+    };
+    const handlers = {
+      onSuccess: () => router.back(),
+      onError: (e: Error) => setError(`Couldn't save this booking — ${e.message}`),
+    };
+    if (draft) updateBooking.mutate({ id: draft.id, data }, handlers);
+    else createBooking.mutate(data, handlers);
+  };
 
   return (
     <View style={styles.root}>
@@ -605,13 +698,36 @@ export default function ConfirmEditorBooking() {
             style={StyleSheet.absoluteFill}
           />
           <Pressable
-            onPress={() => router.back()}
-            style={({ pressed }) => [styles.cta, pressed && styles.pressed]}
+            onPress={submit}
+            disabled={!canSave}
+            style={({ pressed }) => [
+              styles.cta,
+              { opacity: !canSave ? 0.5 : pressed ? 0.9 : 1 },
+            ]}
           >
             <Txt x={98.5} y={16} w={138} size={16} weight="bold" font="inter" color="#ffffff" lineHeight={19.36} align="center">
               Confirm Booking
             </Txt>
           </Pressable>
+
+          {/* Failure notice — drawn only when the save fails, in the empty band
+              under the button. Everything typed is kept; the CTA retries. */}
+          {error ? (
+            <Txt
+              x={20}
+              y={74}
+              w={335}
+              size={12}
+              weight="medium"
+              font="inter"
+              color={ERROR_INK}
+              lineHeight={14.52}
+              align="center"
+              numberOfLines={2}
+            >
+              {error}
+            </Txt>
+          ) : null}
         </View>
       </View>
     </View>

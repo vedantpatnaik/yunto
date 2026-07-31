@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Linking, Pressable, StyleSheet, TextInput } from "react-native";
+import { Alert, Linking, Pressable, StyleSheet, TextInput } from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
@@ -12,7 +12,7 @@ import Svg, {
 } from "react-native-svg";
 import { Abs, Screen, Txt } from "../../../src/ui/Frame";
 import { fonts } from "../../../src/theme";
-import { useMe } from "../../../src/api/hooks";
+import { useMe, usePayoutDetail, useSavePayoutDetail } from "../../../src/api/hooks";
 
 /**
  * Your Details — Figma 7358:30364 (375x875).
@@ -26,6 +26,14 @@ import { useMe } from "../../../src/api/hooks";
  * Coordinates are raw frame coordinates from the spec; <Screen> scales the
  * 375pt canvas to the device. The form card bottoms out at 844 inside an
  * 875pt frame, so nothing is clipped and every node sits at its spec x/y.
+ *
+ * Persistence: the six fields are the "Your Details" half of the caller's
+ * PayoutDetail row (legalName / tradeName / gstNumber / mobile / pincode /
+ * state), saved through the singleton /payout-details endpoint. The frame
+ * authors no Save button — the back chevron is its only action — so the
+ * chevron commits the edits and only then pops. Nothing is written when the
+ * form was not touched, and a failed write keeps the user on the screen with
+ * every keystroke intact.
  */
 
 /* ------------------------------- geometry -------------------------------- */
@@ -175,22 +183,59 @@ function Field({
   );
 }
 
+/* --------------------------------- record --------------------------------- */
+/** The columns this frame owns. The bank half of the row is edited elsewhere. */
+type DetailKey = "legalName" | "tradeName" | "gstNumber" | "mobile" | "pincode" | "state";
+
 /* --------------------------------- screen --------------------------------- */
 export default function InvoiceYourDetails() {
   const router = useRouter();
   const { data: me } = useMe();
+  const { data: detail } = usePayoutDetail();
+  const save = useSavePayoutDetail();
 
   /**
-   * Local edits win; otherwise the field falls back to the signed-in user's
-   * record. There is no invoice-profile write endpoint yet, so nothing is
-   * persisted — the spec has no save affordance either.
+   * Edits are held as per-key overrides rather than seeded into state by an
+   * effect: a field shows its saved value the moment the record lands, adopts
+   * the user's keystroke the moment they type, and the geometry never moves in
+   * between. An empty draft also means "untouched", which is what decides
+   * whether leaving the screen writes anything at all.
    */
-  const [tradeName, setTradeName] = useState("");
-  const [gstin, setGstin] = useState("");
-  const [pincode, setPincode] = useState("400001");
-  const [state, setState] = useState("Maharashtra");
-  const [fullName, setFullName] = useState<string | null>(null);
-  const [mobile, setMobile] = useState<string | null>(null);
+  const [draft, setDraft] = useState<Partial<Record<DetailKey, string>>>({});
+  const edit = (key: DetailKey) => (next: string) => setDraft((d) => ({ ...d, [key]: next }));
+
+  /* Draft > saved record > the account the invoice is raised from. Pincode and
+     State keep the spec's pre-filled values as their last resort, exactly as
+     the frame renders them before anything is saved. */
+  const fullName = draft.legalName ?? detail?.legalName ?? me?.name ?? "";
+  const tradeName = draft.tradeName ?? detail?.tradeName ?? "";
+  const gstin = draft.gstNumber ?? detail?.gstNumber ?? "";
+  const mobile = draft.mobile ?? detail?.mobile ?? me?.phone ?? "";
+  const pincode = draft.pincode ?? detail?.pincode ?? "400001";
+  const state = draft.state ?? detail?.state ?? "Maharashtra";
+
+  /**
+   * The chevron is this frame's only action, so it saves before it pops. An
+   * untouched form goes straight back rather than writing the placeholder
+   * defaults, and a rejected write stays put with the typed values still in
+   * `draft` — the platform alert is the only way to report it without adding a
+   * node the design does not have.
+   */
+  const saveAndBack = () => {
+    if (save.isPending) return;
+    if (Object.keys(draft).length === 0) {
+      router.back();
+      return;
+    }
+    save.mutate(
+      { legalName: fullName, tradeName, gstNumber: gstin, mobile, pincode, state },
+      {
+        onSuccess: () => router.back(),
+        onError: (err) =>
+          Alert.alert("Couldn't save your details", err.message, [{ text: "OK" }]),
+      }
+    );
+  };
 
   return (
     <Screen height={FRAME_H} background="#F7F0E4" scroll>
@@ -198,8 +243,9 @@ export default function InvoiceYourDetails() {
 
       {/* =============================== Header ============================== */}
       <Pressable
-        onPress={() => router.back()}
-        style={({ pressed }) => [styles.back, pressed && styles.pressed]}
+        onPress={saveAndBack}
+        disabled={save.isPending}
+        style={({ pressed }) => [styles.back, (pressed || save.isPending) && styles.pressed]}
       >
         <Ionicons name="chevron-back" size={20} color={BACK_INK} />
       </Pressable>
@@ -279,9 +325,9 @@ export default function InvoiceYourDetails() {
         y={FIELD_Y}
         w={FIELD_W}
         label="Full Name"
-        value={fullName ?? me?.name ?? ""}
+        value={fullName}
         placeholder="Sophia Roy"
-        onChangeText={setFullName}
+        onChangeText={edit("legalName")}
       />
 
       <Field
@@ -291,7 +337,7 @@ export default function InvoiceYourDetails() {
         label="Trade Name"
         value={tradeName}
         placeholder="e.g. SR Creations"
-        onChangeText={setTradeName}
+        onChangeText={edit("tradeName")}
       />
 
       <Field
@@ -301,7 +347,7 @@ export default function InvoiceYourDetails() {
         label="GST Number"
         value={gstin}
         placeholder="22AAAAA0000A1Z5"
-        onChangeText={setGstin}
+        onChangeText={edit("gstNumber")}
         autoCapitalize="characters"
       />
 
@@ -310,9 +356,9 @@ export default function InvoiceYourDetails() {
         y={FIELD_Y + FIELD_STEP * 3}
         w={FIELD_W}
         label="Mobile Number"
-        value={mobile ?? me?.phone ?? ""}
+        value={mobile}
         placeholder="+91 98765 43210"
-        onChangeText={setMobile}
+        onChangeText={edit("mobile")}
         keyboardType="phone-pad"
         autoCapitalize="none"
       />
@@ -325,7 +371,7 @@ export default function InvoiceYourDetails() {
         label="Pincode"
         value={pincode}
         placeholder="400001"
-        onChangeText={setPincode}
+        onChangeText={edit("pincode")}
         keyboardType="number-pad"
         autoCapitalize="none"
       />
@@ -336,7 +382,7 @@ export default function InvoiceYourDetails() {
         label="State"
         value={state}
         placeholder="Maharashtra"
-        onChangeText={setState}
+        onChangeText={edit("state")}
       />
     </Screen>
   );

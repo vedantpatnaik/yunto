@@ -8,6 +8,13 @@ const daysAhead = (d: number) => new Date(Date.now() + d * 864e5);
 
 async function main() {
   // wipe (children first for FK safety)
+  await prisma.landingLink.deleteMany();
+  await prisma.landingPage.deleteMany();
+  await prisma.booking.deleteMany();
+  await prisma.leadDeliverable.deleteMany();
+  await prisma.campaignBrief.deleteMany();
+  await prisma.rateCard.deleteMany();
+  await prisma.payoutDetail.deleteMany();
   await prisma.message.deleteMany();
   await prisma.chatChannel.deleteMany();
   await prisma.calendarContent.deleteMany();
@@ -106,14 +113,15 @@ async function main() {
     "Realme", "Coca-Cola", "Sephora", "H&M India", "Decathlon", "Bewakoof", "The Souled Store"];
   const lstatus = ["NEW", "CONTACTED", "CONNECTED", "CONVERTED", "DEAD"] as const;
   const intents = ["HIGH", "MEDIUM", "LOW"] as const;
+  const leadRows = [];
   for (let i = 0; i < brands.length; i++) {
-    await prisma.lead.create({ data: {
+    leadRows.push(await prisma.lead.create({ data: {
       brandName: brands[i], agencyId: agencies[i % agencies.length].id,
       contactPerson: rc(employees, i).name, personRole: i % 2 ? "sales" : "ops",
       money: `${300 + ((i * 70) % 700)}k`, engagementRate: `${(2 + (i % 4)).toFixed(1)}% ER`,
       peopleCount: 20 + ((i * 5) % 60), status: lstatus[i % lstatus.length], intent: intents[i % 3],
       dealType: i % 3 ? "PAID" : "BARTER", ownerId: rc(employees, i).id,
-    } });
+    } }));
   }
 
   // --- campaigns (16) + creator links ---
@@ -238,6 +246,135 @@ async function main() {
     } });
   }
 
+  // ------------------------- payout / billing details ----------------------
+  // One row per user. These are only ever served back to their owner
+  // (/payout-details is scoped to the caller), so the account numbers below are
+  // never listed across users.
+  const bankNames = ["HDFC Bank", "ICICI Bank", "Axis Bank", "State Bank of India", "Kotak Mahindra"];
+  const stateNames = ["Maharashtra", "Delhi", "Karnataka", "Telangana", "West Bengal"];
+  for (let i = 0; i < allUsers.length; i++) {
+    const u = allUsers[i];
+    const handle = u.name.split(" ")[0].toLowerCase();
+    await prisma.payoutDetail.create({ data: {
+      userId: u.id,
+      accountHolderName: u.name, bankName: rc(bankNames, i),
+      accountNumber: `${50100000000000 + i * 731}`, ifsc: `HDFC000${1234 + i}`,
+      upiId: `${handle}@okhdfc`, verified: i % 4 !== 0,
+      legalName: u.name, tradeName: `${u.name.split(" ")[0]} Creations`,
+      gstNumber: `2${7 + (i % 3)}AAAAA${1000 + i}A1Z${i % 10}`,
+      mobile: `+91 9${(800000000 + i * 111111).toString()}`,
+      pincode: `${400001 + i * 11}`, state: rc(stateNames, i),
+    } });
+  }
+
+  // ------------------------------- rate cards ------------------------------
+  // Priced off the creator's own economics (cpv x avg views), rounded to ₹500 —
+  // the same derivation the Commercials screen shows, so the two never drift.
+  const r500 = (n: number) => Math.max(500, Math.round(n / 500) * 500);
+  for (let i = 0; i < creators.length; i++) {
+    const c = creators[i];
+    const base = r500(c.cpv * c.avgViews);
+    const barter = i % 3 === 0;
+    await prisma.rateCard.create({ data: {
+      creatorId: c.id,
+      reelRate: base, postRate: r500(base * 0.7), storyRate: r500(base * 0.4),
+      integratedRate: r500(base * 2), dedicatedRate: r500(base * 2.5), shortRate: r500(base * 0.6),
+      acceptsBarter: barter, barterValue: barter ? r500(base * 1.2) : null,
+      barterFormats: (barter ? ["REEL", "STORY", "UGC"] : []) as never,
+    } });
+  }
+
+  // ----------------------------- campaign briefs ---------------------------
+  const briefAudiences = [
+    "Gen Z & young millennial women looking for minimal, effective skincare.",
+    "Urban millennials who shop online for value-first fashion.",
+    "Fitness-first 25-34s in metro cities.",
+    "Students and first-jobbers hunting for everyday tech.",
+  ];
+  for (let i = 0; i < campaigns.length; i++) {
+    const c = campaigns[i];
+    await prisma.campaignBrief.create({ data: {
+      campaignId: c.id,
+      keyMessage: `Celebrate what ${c.brandName} already does well — show it in an ordinary day, not a studio.`,
+      targetAudience: rc(briefAudiences, i),
+      guidelines: [
+        "Shoot in natural light, morning routine",
+        "Use the product naturally, no scripted demo",
+        "Mention the hydration benefits once",
+      ],
+      deliverables: ["Duration: 20–40 sec", "Format: Instagram Reel (9:16)", "One story frame with the link sticker"],
+      notes: ["Avoid beauty filters", "Keep the tone authentic and conversational"],
+    } });
+  }
+
+  // ---------------------------- lead deliverables --------------------------
+  const dKinds = ["REEL", "STORY", "POST", "INTEGRATED_VIDEO", "DEDICATED_VIDEO", "SHORT"] as const;
+  const dNotes = ["Needs script", "Pending shoot", "Awaiting brand approval", "Ready to post"];
+  for (let i = 0; i < leadRows.length; i++) {
+    for (let j = 0; j < 2; j++) {
+      const kind = dKinds[(i + j * 2) % dKinds.length];
+      await prisma.leadDeliverable.create({ data: {
+        leadId: leadRows[i].id,
+        platform: kind === "INTEGRATED_VIDEO" || kind === "DEDICATED_VIDEO" || kind === "SHORT" ? "YOUTUBE" : "INSTAGRAM",
+        kind, quantity: 1 + ((i + j) % 3), visits: 1 + (i % 2),
+        note: rc(dNotes, i + j),
+        link: (i + j) % 3 === 0 ? `https://instagram.com/p/${leadRows[i].id.slice(-8)}${j}` : null,
+      } });
+    }
+  }
+
+  // -------------------------------- bookings -------------------------------
+  // Videographer slots are hourly; editor jobs are quoted per batch of videos.
+  const projectTypes = ["Instagram Reels", "Brand Shoot", "YouTube Vlog"];
+  const shootCities = ["Hauz Khas Village, Delhi", "Bandra West, Mumbai", "Indiranagar, Bengaluru", "Koregaon Park, Pune"];
+  for (let i = 0; i < 10; i++) {
+    const isEditor = i % 2 === 1;
+    const hours = isEditor ? 0 : 2 + (i % 3);
+    const total = isEditor ? 1500 * (2 + (i % 4)) : 5000 * (1 + (i % 2)) + 1500;
+    await prisma.booking.create({ data: {
+      creatorId: creators[(i * 4) % creators.length].id,
+      bookedById: rc(allUsers, i).id,
+      service: isEditor ? "EDITOR" : "VIDEOGRAPHER",
+      scheduledAt: daysAhead(i - 2), hours, total,
+      projectType: rc(projectTypes, i),
+      location: isEditor ? null : rc(shootCities, i),
+      brief: isEditor
+        ? "Fast pacing, trending audio, keep the bloopers out."
+        : "Golden-hour exteriors plus two interior setups.",
+      addons: (isEditor ? ["subtitles", "fast"] : ["editor", "raw"]) as never,
+      status: rc(["pending", "confirmed", "confirmed", "done"], i),
+    } });
+  }
+
+  // ----------------------- landing pages (+ link rows) ---------------------
+  const themeNames = ["MODERN", "DARK", "CLEAN"] as const;
+  const layoutNames = ["CENTERED", "LEFT"] as const;
+  for (let i = 0; i < 8; i++) {
+    const c = creators[i];
+    const page = await prisma.landingPage.create({ data: {
+      creatorId: c.id,
+      slug: c.handle.replace(/^@/, "").replace(/\s+/g, "").toLowerCase(),
+      headline: `${c.niche} creator, ${c.location}`,
+      bio: `Hi! I'm ${c.name.split(" ")[0]}, a ${(c.niche ?? "lifestyle").toLowerCase()} creator. I love making aesthetic vlogs and UGC for brands I truly believe in. Let's create something beautiful together! ✨`,
+      theme: themeNames[i % themeNames.length],
+      layout: layoutNames[i % layoutNames.length],
+      fontStyle: "Inter / Modern Sans",
+      contactTime: "10:00 AM - 2:00 PM IST",
+      services: ["UGC Videos", "Paid Campaigns", "Barter Campaigns", "Tutorials"] as never,
+      hideInsights: i % 3 === 0, published: i % 4 !== 0,
+    } });
+    const links = [
+      ["Instagram", `https://instagram.com/${page.slug}`],
+      ["YouTube", `https://youtube.com/@${page.slug}`],
+      ["Media kit", `https://socy.io/${page.slug}/kit`],
+    ];
+    for (let j = 0; j < links.length; j++) {
+      await prisma.landingLink.create({
+        data: { pageId: page.id, label: links[j][0], url: links[j][1], sortOrder: j },
+      });
+    }
+  }
+
   // --------------------------- subscription plans -------------------------
   // The revenue screen renders a plan name and price per agency; these are the
   // catalogue rows behind it (prices in USD/interval, matching the design).
@@ -311,6 +448,10 @@ async function main() {
     leads: await prisma.lead.count(), campaigns: await prisma.campaign.count(), invoices: await prisma.invoice.count(),
     contacts: await prisma.contact.count(), contracts: await prisma.contract.count(), reminders: await prisma.reminder.count(),
     polls: await prisma.poll.count(), leaves: await prisma.leave.count(), channels: await prisma.chatChannel.count(), calendar: await prisma.calendarContent.count(),
+    payoutDetails: await prisma.payoutDetail.count(), rateCards: await prisma.rateCard.count(),
+    campaignBriefs: await prisma.campaignBrief.count(), leadDeliverables: await prisma.leadDeliverable.count(),
+    bookings: await prisma.booking.count(), landingPages: await prisma.landingPage.count(),
+    landingLinks: await prisma.landingLink.count(),
   };
   // eslint-disable-next-line no-console
   console.log("Seed complete:", counts);

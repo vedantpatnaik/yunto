@@ -11,8 +11,18 @@ import Svg, {
   Stop,
 } from "react-native-svg";
 import { Abs, Screen, Txt } from "../../../src/ui/Frame";
-import { fonts, gradients } from "../../../src/theme";
-import { useChannels, useMessages, useUsers } from "../../../src/api/hooks";
+import { colors, fonts, gradients } from "../../../src/theme";
+import {
+  useCampaignBriefs,
+  useCampaigns,
+  useChannels,
+  useCreate,
+  useMessages,
+  useSendMessage,
+  useUpdate,
+  useUsers,
+  type CampaignBrief as BriefRecord,
+} from "../../../src/api/hooks";
 
 /**
  * Campaign Brief — Figma 7333:16942 "chat" (375x875), traced 1:1.
@@ -93,27 +103,38 @@ const SECTIONS = [
 ] as const;
 
 /**
- * Brief copy. The backend has no brief model — ChatChannel/Message carry only a
- * plain `body` — so the paragraphs and bullets stay the design's literals while
- * everything the schema does model (channel, sender, time, participants) is
- * live below.
+ * Brief copy. `CampaignBrief` (one row per campaign) now backs every word of
+ * this card — keyMessage / targetAudience are the two paragraphs and the three
+ * String[] columns are the bullet lists, in the order drawn here. The literals
+ * below are the seed a campaign with no brief row yet opens on, so an unsaved
+ * card looks exactly as the design draws it and saving keeps what is on screen.
+ *
+ * Heights are the design's line count x the 24pt line height, so each field is
+ * an input of exactly the box the text already occupied — nothing reflows.
  */
 const KEY_MESSAGE = "Celebrating your natural glow and how\nour serum enhances it effortlessly.";
 const TARGET_AUDIENCE = "Gen Z & young millennial women\nlooking for minimal, effective skincare.";
 
-const GUIDELINES = [
-  { y: 473, w: 176.77, text: "Morning skincare routine" },
-  { y: 503, w: 204.86, text: "Use product naturally in your\nbathroom" },
-  { y: 557.5, w: 216.58, text: "Mention the hydration benefits" },
+/** Which String[] column a bullet row belongs to, and its slot in that array. */
+type ListKey = "guidelines" | "deliverables" | "notes";
+type BulletSpec = {
+  list: ListKey; index: number; y: number; w: number; h: number; text: string;
+};
+
+const GUIDELINES: BulletSpec[] = [
+  { list: "guidelines", index: 0, y: 473, w: 176.77, h: 24, text: "Morning skincare routine" },
+  { list: "guidelines", index: 1, y: 503, w: 204.86, h: 48, text: "Use product naturally in your\nbathroom" },
+  { list: "guidelines", index: 2, y: 557.5, w: 216.58, h: 24, text: "Mention the hydration benefits" },
 ];
-const DELIVERABLES = [
-  { y: 648, w: 143.42, text: "Duration: 20–40 sec" },
-  { y: 678.5, w: 207.73, text: "Format: Instagram Reel (9:16)" },
+const DELIVERABLES: BulletSpec[] = [
+  { list: "deliverables", index: 0, y: 648, w: 143.42, h: 24, text: "Duration: 20–40 sec" },
+  { list: "deliverables", index: 1, y: 678.5, w: 207.73, h: 24, text: "Format: Instagram Reel (9:16)" },
 ];
-const NOTES = [
-  { y: 769, w: 179.53, text: "Avoid using beauty filters" },
-  { y: 799, w: 172.44, text: "Keep tone authentic and\nconversational" },
+const NOTES: BulletSpec[] = [
+  { list: "notes", index: 0, y: 769, w: 179.53, h: 24, text: "Avoid using beauty filters" },
+  { list: "notes", index: 1, y: 799, w: 172.44, h: 48, text: "Keep tone authentic and\nconversational" },
 ];
+const BULLETS: BulletSpec[] = [...GUIDELINES, ...DELIVERABLES, ...NOTES];
 
 /* -------------------------------- helpers --------------------------------- */
 /** "11:55 AM" — the clock format the card header uses. */
@@ -198,14 +219,35 @@ function Avatar({
 /**
  * One list item. The spec exports the item text at x=67 inside a list frame at
  * x=45; the 22pt indent is Figma's unordered marker, redrawn here as the dot.
+ *
+ * The text is an input rather than a label — same x/y/width, same 15pt Inter at
+ * lineHeight 24 in INK_BODY, and a height fixed to the design's line count, so
+ * the editable row occupies exactly the box the static row did.
  */
-function Bullet({ y, w, children }: { y: number; w: number; children: string }) {
+function Bullet({
+  spec,
+  value,
+  onChangeText,
+  editable,
+}: {
+  spec: BulletSpec;
+  value: string;
+  onChangeText: (next: string) => void;
+  editable: boolean;
+}) {
   return (
     <Fragment>
-      <Abs x={CX(55)} y={CY(y) + 10} w={4} h={4} radius={2} bg={INK_BODY} />
-      <Txt x={CX(67)} y={CY(y)} w={w} size={15} font="inter" color={INK_BODY} lineHeight={24}>
-        {children}
-      </Txt>
+      <Abs x={CX(55)} y={CY(spec.y) + 10} w={4} h={4} radius={2} bg={INK_BODY} />
+      <TextInput
+        value={value}
+        onChangeText={onChangeText}
+        editable={editable}
+        multiline
+        style={[
+          styles.field,
+          { left: CX(67), top: CY(spec.y), width: spec.w, height: spec.h },
+        ]}
+      />
     </Fragment>
   );
 }
@@ -213,7 +255,9 @@ function Bullet({ y, w, children }: { y: number; w: number; children: string }) 
 /* --------------------------------- screen --------------------------------- */
 export default function CampaignBrief() {
   const router = useRouter();
-  const { channelId } = useLocalSearchParams<{ channelId?: string }>();
+  /* `id` is the campaign whose brief this card edits — active-campaigns and the
+     agency campaign detail both push it. `channelId` still selects the thread. */
+  const { channelId, id } = useLocalSearchParams<{ channelId?: string; id?: string }>();
 
   const { data: channels = [] } = useChannels();
   const channel = channels.find((c) => c.id === channelId) ?? channels[0];
@@ -230,10 +274,64 @@ export default function CampaignBrief() {
   const participants = users.slice(0, 2);
   const overflow = users.length ? users.length - participants.length : 2;
 
-  // Messages are read-only over the API (GET /channels/:id/messages), so the
-  // composer holds the draft until a create endpoint exists.
+  /* ------------------------- the brief being edited ---------------------- */
+  /* CampaignBrief is unique per campaign, so this card always edits exactly one
+     row: PATCH when the campaign already has a brief, POST the first one
+     otherwise. A deep link with no id falls back to the first campaign, the same
+     way the channel above resolves when no channelId is passed. */
+  const { data: campaigns = [] } = useCampaigns();
+  const campaign = campaigns.find((c) => c.id === id) ?? campaigns[0];
+  const { data: briefs = [] } = useCampaignBriefs();
+  const record = briefs.find((b) => b.campaignId === campaign?.id);
+
+  /* Typed edits are held as overrides, so each field adopts its saved value the
+     moment /campaign-briefs lands — no effect, and the geometry never moves. A
+     failed save leaves this untouched, so the typed brief survives the retry. */
+  const [edits, setEdits] = useState<Record<string, string | undefined>>({});
+  const setField = (key: string, next: string) =>
+    setEdits((e) => ({ ...e, [key]: next }));
+
+  /* Once a row exists its columns are authoritative — a bullet the user cleared
+     stays cleared rather than re-seeding from the design's copy. Only a campaign
+     with no brief at all opens on the literals. */
+  const slotOf = (list: string[], i: number) => (i < list.length ? list[i] : "");
+  const paragraph = (key: "keyMessage" | "targetAudience", seed: string) =>
+    edits[key] ?? (record ? record[key] ?? "" : seed);
+  const bulletValue = (b: BulletSpec) =>
+    edits[`${b.list}.${b.index}`] ?? (record ? slotOf(record[b.list], b.index) : b.text);
+  const listValue = (list: ListKey) =>
+    BULLETS.filter((b) => b.list === list)
+      .map((b) => bulletValue(b).trim())
+      .filter((s) => s.length > 0);
+
+  const createBrief = useCreate<BriefRecord>("campaign-briefs");
+  const updateBrief = useUpdate<BriefRecord>("campaign-briefs");
+  const sendMessage = useSendMessage(channel?.id ?? null);
+
   const [draft, setDraft] = useState("");
-  const onSendMessage = () => setDraft("");
+  const saving = createBrief.isPending || updateBrief.isPending || sendMessage.isPending;
+  const failed = createBrief.isError || updateBrief.isError || sendMessage.isError;
+
+  /* Send is the frame's only action, so it commits both halves of the screen:
+     the edited brief card (only when something was actually changed, so merely
+     chatting never writes the seed copy into an empty campaign) and the composer
+     line, if one was typed. Nothing is cleared unless its write succeeded. */
+  const onSendMessage = () => {
+    if (saving) return;
+    if (campaign && Object.keys(edits).length > 0) {
+      const data = {
+        keyMessage: paragraph("keyMessage", KEY_MESSAGE).trim() || null,
+        targetAudience: paragraph("targetAudience", TARGET_AUDIENCE).trim() || null,
+        guidelines: listValue("guidelines"),
+        deliverables: listValue("deliverables"),
+        notes: listValue("notes"),
+      };
+      if (record) updateBrief.mutate({ id: record.id, data });
+      else createBrief.mutate({ campaignId: campaign.id, ...data });
+    }
+    const body = draft.trim();
+    if (body && channel) sendMessage.mutate(body, { onSuccess: () => setDraft("") });
+  };
 
   return (
     <Screen height={FRAME_H} background="#F7F0E4" scroll>
@@ -315,24 +413,46 @@ export default function CampaignBrief() {
         ))}
 
         {/* ------------------------- Section bodies ------------------------- */}
-        <Txt
-          x={CX(49)} y={CY(245)} w={281} size={15} font="inter"
-          color={INK_BODY} lineHeight={24}
-        >
-          {KEY_MESSAGE}
-        </Txt>
-        <Txt
-          x={CX(49)} y={CY(359)} w={281} size={15} font="inter"
-          color={INK_BODY} lineHeight={24}
-        >
-          {TARGET_AUDIENCE}
-        </Txt>
+        {/* Both paragraphs are inputs at the spec's x/y/width, in the same 15pt
+            Inter / lineHeight 24 / INK_BODY ramp, boxed to their two-line height
+            (2 x 24) so the editable block occupies the static block's exact box. */}
+        <TextInput
+          value={paragraph("keyMessage", KEY_MESSAGE)}
+          onChangeText={(t) => setField("keyMessage", t)}
+          editable={!saving}
+          multiline
+          style={[styles.field, { left: CX(49), top: CY(245), width: 281, height: 48 }]}
+        />
+        <TextInput
+          value={paragraph("targetAudience", TARGET_AUDIENCE)}
+          onChangeText={(t) => setField("targetAudience", t)}
+          editable={!saving}
+          multiline
+          style={[styles.field, { left: CX(49), top: CY(359), width: 281, height: 48 }]}
+        />
 
-        {[...GUIDELINES, ...DELIVERABLES, ...NOTES].map((b) => (
-          <Bullet key={b.text} y={b.y} w={b.w}>
-            {b.text}
-          </Bullet>
+        {BULLETS.map((b) => (
+          <Bullet
+            key={`${b.list}.${b.index}`}
+            spec={b}
+            value={bulletValue(b)}
+            onChangeText={(t) => setField(`${b.list}.${b.index}`, t)}
+            editable={!saving}
+          />
         ))}
+
+        {/* Save failed — the retry is the send button itself and every edit is
+            still in state. This sits inside the card's own bottom padding (the
+            sections stop at CY(847)=741 of the 766pt content), so nothing above
+            it moves and it is absent unless a write actually failed. */}
+        {failed ? (
+          <Txt
+            x={CX(49)} y={748} w={281} size={11} weight="medium" font="inter"
+            color={colors.danger} lineHeight={14} numberOfLines={1}
+          >
+            Could not save the brief. Tap send to try again.
+          </Txt>
+        ) : null}
       </ScrollView>
 
       {/* -------------------------------- Top Nav --------------------------- */}
@@ -373,11 +493,15 @@ export default function CampaignBrief() {
         placeholder={`Message #${channelName}`}
         placeholderTextColor={INK_PLACEHOLDER}
         returnKeyType="send"
+        editable={!saving}
         style={styles.input}
       />
       <Pressable
         onPress={onSendMessage}
-        style={({ pressed }) => [styles.sendButton, pressed && styles.pressed]}
+        /* Inert while a write is in flight, so a double tap cannot post the
+           brief twice or duplicate the message. */
+        disabled={saving}
+        style={({ pressed }) => [styles.sendButton, (pressed || saving) && styles.pressed]}
       >
         <LinearGradient
           colors={[
@@ -467,6 +591,20 @@ const styles = StyleSheet.create({
     shadowRadius: 6,
     shadowOffset: { width: 0, height: 2 },
     elevation: 1,
+  },
+  /* Brief body copy, now editable: the spec's 15pt Inter at lineHeight 24 in
+     INK_BODY, with the platform's default input padding zeroed so the glyphs
+     land on the same baseline the static text did. Each field supplies its own
+     left/top/width/height from the spec. */
+  field: {
+    position: "absolute",
+    padding: 0,
+    fontFamily: fonts.inter,
+    fontSize: 15,
+    lineHeight: 24,
+    color: INK_BODY,
+    textAlignVertical: "top",
+    includeFontPadding: false,
   },
 
   /* Top Nav */

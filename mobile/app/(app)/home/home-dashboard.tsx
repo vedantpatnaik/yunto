@@ -114,7 +114,16 @@ function whenLabel(iso: string): string {
 }
 
 /** Indian short money — 120000 -> "₹1.2L", 34000 -> "₹34K". */
+/**
+ * Compact currency for the fixed-width summary tiles.
+ *
+ * The tile fits about four glyphs at its 28pt weight — the design's sample is
+ * "₹34K". A decimal is only affordable below ten lakh; above that it overflows
+ * and the value renders clipped as "₹16…", so the decimal is dropped there.
+ */
 function inrShort(n: number): string {
+  if (n >= 10_000_000) return `₹${Math.round(n / 10_000_000)}Cr`;
+  if (n >= 1_000_000) return `₹${Math.round(n / 100_000)}L`;
   if (n >= 100_000) return `₹${(n / 100_000).toFixed(1)}L`;
   if (n >= 1_000) return `₹${Math.round(n / 1_000)}K`;
   return `₹${n}`;

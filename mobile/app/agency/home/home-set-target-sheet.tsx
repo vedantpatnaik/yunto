@@ -3,7 +3,6 @@ import { Image, Pressable, StyleSheet, TextInput } from "react-native";
 import { useRouter } from "expo-router";
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import { useQueryClient } from "@tanstack/react-query";
 import { Abs, Screen, Txt } from "../../../src/ui/Frame";
 import { fonts } from "../../../src/theme";
 import {
@@ -12,8 +11,9 @@ import {
   useLeads,
   useMe,
   useNotifications,
+  useUpdateMe,
   type Invoice,
-  type User,
+  type MePatch,
 } from "../../../src/api/hooks";
 
 /**
@@ -98,6 +98,12 @@ const FIELD_LINE = "#e8e8e8";
 const CLOSE_BG = "#f8f8f8";
 const CLOSE_INK = "#555555";
 const CTA = "#312b28";
+/**
+ * The frame draws no error state — it has no node for one. This colour paints a
+ * single line in the sheet's empty 355..383 band below the CTA, and only while
+ * a save has actually failed, so the resting design is byte-for-byte the spec.
+ */
+const ERROR_INK = "#b3261e";
 
 /** Header wash: "Gradient" 375x256, #f9e4e8 @20% -> transparent, top to bottom. */
 const WASH = ["#f9e4e833", "#f9e4e800"] as const;
@@ -209,16 +215,18 @@ const FieldLabel = ({ y, children }: { y: number; children: string }) => (
 /* --------------------------------- screen --------------------------------- */
 export default function HomeSetTargetSheetScreen() {
   const router = useRouter();
-  const qc = useQueryClient();
 
   const { data: me } = useMe();
   const { data: leads = [], isLoading: leadsLoading } = useLeads();
   const { data: invoices = [], isLoading: invoicesLoading } = useInvoices();
   const { data: notifications } = useNotifications();
+  const save = useUpdateMe();
 
   const [frequency, setFrequency] = useState<Frequency>("Monthly");
   /** null until the field is touched, so the prefill can follow the frequency. */
   const [typed, setTyped] = useState<string | null>(null);
+  /** Set only when a save is rejected; cleared on the next attempt. */
+  const [error, setError] = useState<string | null>(null);
 
   const newLeads = leads.filter((l) => l.status === "NEW").length;
 
@@ -242,23 +250,29 @@ export default function HomeSetTargetSheetScreen() {
   const amount = typed ?? (target != null ? `${target}` : "");
   const digits = Number(amount.replace(/[^0-9]/g, ""));
 
+  /** Nothing to send until an amount is typed, and no double submits in flight. */
+  const canSave = digits > 0 && !save.isPending;
+
   /**
-   * setRevenueTarget. The API mounts users as read-plus-create only (no
-   * PATCH /users/:id), so the new goal is written straight into the `me` cache:
-   * the home dashboard re-reads it from there and the sheet closes, which is
-   * exactly the behaviour the mutation is specified to have.
+   * setRevenueTarget. PATCH /auth/me writes targetMonthly / targetYearly on the
+   * caller's own User row — the row is chosen from the token, so this sheet
+   * cannot address anyone else's record. useUpdateMe seeds the ["me"] query with
+   * the server's response, so the MONTHLY TARGET card behind the scrim is
+   * already showing the saved figure by the time the sheet closes.
+   *
+   * A rejection leaves `typed` and `frequency` untouched and the sheet open, so
+   * the amount the user entered is still there to retry.
    */
   const submit = () => {
-    if (!digits) return;
-    qc.setQueryData<User>(["me"], (prev) =>
-      prev
-        ? {
-            ...prev,
-            ...(frequency === "Yearly" ? { targetYearly: digits } : { targetMonthly: digits }),
-          }
-        : prev,
-    );
-    router.back();
+    if (!canSave) return;
+    setError(null);
+    const patch: Partial<MePatch> =
+      frequency === "Yearly" ? { targetYearly: digits } : { targetMonthly: digits };
+    save.mutate(patch, {
+      onSuccess: () => router.back(),
+      onError: (e) =>
+        setError(e instanceof Error && e.message ? e.message : "Couldn't save your target."),
+    });
   };
 
   const dash = (loading: boolean, value: string) => (loading ? "—" : value);
@@ -488,18 +502,32 @@ export default function HomeSetTargetSheetScreen() {
         </Pressable>
 
         {/* ----------------------------- CTA ----------------------------- */}
+        {/* Same 0.5 dim the empty-amount state already used, now also while the
+            PATCH is in flight — no new visual vocabulary, and no double submit. */}
         <Pressable
           onPress={submit}
-          disabled={!digits}
+          disabled={!canSave}
           style={({ pressed }) => [
             styles.cta,
-            { opacity: digits ? (pressed ? 0.9 : 1) : 0.5 },
+            { opacity: canSave ? (pressed ? 0.9 : 1) : 0.5 },
           ]}
         >
           <Txt x={0} y={18} w={301} size={16} weight="bold" font="inter" color={WHITE} lineHeight={19.36} align="center">
             Set Target
           </Txt>
         </Pressable>
+
+        {/* Failure notice. Absent unless a save was rejected, and it sits in the
+            blank band the frame leaves between the CTA (ends y=354.72) and the
+            sheet's own bottom edge (y=383), so no spec node ever moves. */}
+        {error ? (
+          <Txt
+            x={37} y={360} w={301} size={11} weight="medium" font="inter"
+            color={ERROR_INK} lineHeight={16} align="center" numberOfLines={1}
+          >
+            {error}
+          </Txt>
+        ) : null}
       </Abs>
     </Screen>
   );

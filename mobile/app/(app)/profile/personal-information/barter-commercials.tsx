@@ -12,7 +12,14 @@ import Svg, {
 } from "react-native-svg";
 import { Abs, Screen, Txt } from "../../../../src/ui/Frame";
 import { fonts } from "../../../../src/theme";
-import { useCreators, useMe } from "../../../../src/api/hooks";
+import {
+  useCreate,
+  useCreators,
+  useMe,
+  useRateCards,
+  useUpdate,
+  type RateCard,
+} from "../../../../src/api/hooks";
 
 /**
  * Personal Information — Barter Commercials (expanded) — Figma 7358:29159.
@@ -29,6 +36,11 @@ import { useCreators, useMe } from "../../../../src/api/hooks";
  * 602pt block at the card's own 30pt stack gap, growing the card, the Bank
  * Details row and the canvas by one step each. Every coordinate below is a raw
  * frame coordinate from the spec.
+ *
+ * Persistence: the barter terms live on the creator's RateCard row — one row per
+ * creator, shared with the Commercials screen, which owns the rupee rates while
+ * this screen owns `acceptsBarter` / `barterValue` / `barterFormats`. The chips
+ * and the value field are seeded from that row, and "Addd" writes it back.
  */
 
 /* ------------------------------- geometry -------------------------------- */
@@ -107,6 +119,9 @@ const PLATFORM_GLYPH = "#FF4AA1";
 const CARET_INK = "#7D7D7D";
 const ADD_ANOTHER_INK = "#1F1A17";
 const CTA_BG = "#312B28";
+/** Not a spec token — the frame paints no error state. Only ever drawn in the
+ *  25pt of card padding under the CTA, so the traced layout never moves. */
+const ERROR_INK = "#B42318";
 
 /* -------------------------------- backdrop -------------------------------- */
 /** Frame fill: the beige linear base plus four radial tints, stretched to the
@@ -307,11 +322,41 @@ const DELIVERABLES: ChipSpec[] = [
 /** The two pills the spec paints in the selected #F0E2FF state. */
 const SPEC_SELECTED = ["Reel", "Story"];
 
+/** The DeliverableKind members the seven chips stand for — the values stored in
+ *  RateCard.barterFormats. */
+type BarterKind =
+  | "REEL"
+  | "STORY"
+  | "CAROUSEL"
+  | "STATIC_POST"
+  | "DEDICATED_VIDEO"
+  | "EVENT_APPEARANCE"
+  | "UGC";
+
+/** Undefined for any label that is not one of the seven pills. */
+const CHIP_KIND: Record<string, BarterKind | undefined> = {
+  Reel: "REEL",
+  Story: "STORY",
+  Carousel: "CAROUSEL",
+  "Static Post": "STATIC_POST",
+  "Dedicated Video": "DEDICATED_VIDEO",
+  "Event Appearance": "EVENT_APPEARANCE",
+  UGC: "UGC",
+};
+
+/** Enum member -> chip label. Kinds the chip set cannot express (POST, COLLAB,
+ *  INTEGRATED_VIDEO, SHORT) have no pill and read back as undefined. */
+const chipLabelOf = (kind: string): string | undefined =>
+  DELIVERABLES.find((chip) => CHIP_KIND[chip.label] === kind)?.label;
+
+const digitsOf = (s: string) => s.replace(/[^0-9]/g, "");
+
 interface BarterDeal {
   /** null until the creator overrides the platform their record already reports. */
   platform: string | null;
-  deliverables: string[];
-  valueInr: string;
+  /** null until edited — the block shows the saved rate card until then. */
+  deliverables: string[] | null;
+  valueInr: string | null;
 }
 
 function DealBlock({
@@ -319,6 +364,8 @@ function DealBlock({
   platform,
   deliverables,
   valueInr,
+  busy,
+  error,
   onCyclePlatform,
   onToggle,
   onChangeValue,
@@ -330,6 +377,10 @@ function DealBlock({
   platform: string;
   deliverables: string[];
   valueInr: string;
+  /** A save is in flight — the CTA is inert until it settles. */
+  busy: boolean;
+  /** Why the last save of this block failed, if it did. */
+  error?: string;
   onCyclePlatform: () => void;
   onToggle: (label: string) => void;
   onChangeValue: (next: string) => void;
@@ -339,7 +390,10 @@ function DealBlock({
 }) {
   return (
     <>
-      {/* --------------------------- SELECT PLATFORM -------------------------- */}
+      {/* --------------------------- SELECT PLATFORM --------------------------
+          Display-only: RateCard stores one barter offer per creator and has no
+          platform column, so cycling this re-labels the field but is deliberately
+          not persisted. The value shown is the creator's own platform. */}
       <Caption x={41} y={top} w={297}>
         SELECT PLATFORM
       </Caption>
@@ -471,12 +525,31 @@ function DealBlock({
       <Pressable
         onPress={onSubmit}
         onLongPress={onRemove}
-        style={({ pressed }) => [styles.cta, { top: top + D_CTA }, pressed && styles.pressed]}
+        disabled={busy}
+        style={({ pressed }) => [styles.cta, { top: top + D_CTA }, (pressed || busy) && styles.pressed]}
       >
         <Txt x={63.25} y={17} w={36} size={14} weight="medium" font="inter" color="#FFFFFF" lineHeight={16.94} align="center">
           Addd
         </Txt>
       </Pressable>
+
+      {/* Failure notice — drawn only when a save fails, in the card padding
+          below the CTA. Nothing typed is cleared; "Addd" retries. */}
+      {error ? (
+        <Txt
+          x={41}
+          y={top + D_CTA + 54}
+          w={297}
+          size={12}
+          weight="medium"
+          font="inter"
+          color={ERROR_INK}
+          lineHeight={14.52}
+          numberOfLines={2}
+        >
+          {error}
+        </Txt>
+      ) : null}
     </>
   );
 }
@@ -490,12 +563,40 @@ export default function PersonalInformationBarterCommercials() {
 
   const { data: me } = useMe();
   const { data: creators = [] } = useCreators();
+  const { data: rateCards = [], isPending: cardsLoading } = useRateCards();
+
+  const createRateCard = useCreate<RateCard>("rate-cards");
+  const updateRateCard = useUpdate<RateCard>("rate-cards");
+  const saving = createRateCard.isPending || updateRateCard.isPending;
+
+  /** Which block's save failed, and why. Cleared on the next attempt. */
+  const [error, setError] = useState<{ index: number; text: string } | null>(null);
 
   /** The signed-in creator's own row in the roster. */
   const creator = useMemo(
     () => creators.find((c) => c.name === me?.name) ?? creators[0],
     [creators, me],
   );
+
+  /** The creator's rate card — `creatorId` is unique server-side, so at most one. */
+  const card = useMemo(
+    () => rateCards.find((rc) => rc.creatorId === creator?.id),
+    [rateCards, creator],
+  );
+
+  /* What the record already holds. Until /rate-cards lands — or if the creator
+     has no row yet — the chips keep the spec's Reel + Story pair, so nothing
+     moves on load and the frame renders exactly as traced. */
+  const savedDeliverables = useMemo(
+    () =>
+      card
+        ? (card.barterFormats ?? [])
+            .map(chipLabelOf)
+            .filter((label): label is string => label !== undefined)
+        : SPEC_SELECTED,
+    [card],
+  );
+  const savedValue = card?.barterValue != null ? String(card.barterValue) : "";
 
   /** The platform the creator's record already reports — the dropdown's value. */
   const livePlatform = creator?.platform ? titleCase(creator.platform) : "Instagram";
@@ -510,17 +611,18 @@ export default function PersonalInformationBarterCommercials() {
     return uniq.length > 0 ? uniq : [livePlatform];
   }, [creators, livePlatform]);
 
-  /* One deal is open in the spec, with Reel and Story already picked. Each
-     deal keeps `platform: null` until it is overridden, so the field shows the
-     spec literal while /creators is in flight, adopts the live record the
-     moment it lands, and never moves any geometry. */
+  /* One deal is open in the spec. Every field of it starts null — "not edited"
+     — so the block shows the saved rate card (and the spec literals while the
+     fetches are in flight), adopts the live record the moment it lands, and
+     never moves any geometry. The first keystroke on a field materialises it. */
   const [deals, setDeals] = useState<BarterDeal[]>([
-    { platform: null, deliverables: SPEC_SELECTED, valueInr: "" },
+    { platform: null, deliverables: null, valueInr: null },
   ]);
 
   const patch = (index: number, next: Partial<BarterDeal>) =>
     setDeals((list) => list.map((deal, i) => (i === index ? { ...deal, ...next } : deal)));
 
+  /* An appended deal is a fresh draft, not another copy of the saved record. */
   const addBarterDeal = () =>
     setDeals((list) => [...list, { platform: null, deliverables: [], valueInr: "" }]);
 
@@ -534,17 +636,53 @@ export default function PersonalInformationBarterCommercials() {
 
   const toggleDeliverable = (index: number, label: string) =>
     setDeals((list) =>
-      list.map((deal, i) =>
-        i === index
-          ? {
-              ...deal,
-              deliverables: deal.deliverables.includes(label)
-                ? deal.deliverables.filter((d) => d !== label)
-                : [...deal.deliverables, label],
-            }
-          : deal,
-      ),
+      list.map((deal, i) => {
+        if (i !== index) return deal;
+        /* The first toggle materialises the saved set into the draft. */
+        const current = deal.deliverables ?? savedDeliverables;
+        return {
+          ...deal,
+          deliverables: current.includes(label)
+            ? current.filter((d) => d !== label)
+            : [...current, label],
+        };
+      }),
     );
+
+  /* The RateCard row carries ONE barter offer — a rupee value and a format list
+     — so "Addd" publishes the block it sits under as the creator's barter terms:
+     PATCH when the row exists, POST the first time. Blocks appended with
+     "＋ Add Another Barter Deal" stay drafts until one of them is submitted. */
+  const submitDeal = (index: number) => {
+    if (saving) return;
+    const deal = deals[index];
+    /* Without the creator and their existing row, a POST here would try to
+       create a second rate card and hit the unique creatorId — so wait. */
+    if (!creator || cardsLoading) {
+      setError({ index, text: "Couldn't save — your profile is still loading. Try again in a moment." });
+      return;
+    }
+    setError(null);
+
+    const labels = deal.deliverables ?? savedDeliverables;
+    const digits = digitsOf(deal.valueInr ?? savedValue);
+    const barter = {
+      acceptsBarter: true,
+      barterValue: digits ? Number(digits) : null,
+      barterFormats: labels
+        .map((label) => CHIP_KIND[label])
+        .filter((kind): kind is BarterKind => kind !== undefined),
+    };
+
+    const done = {
+      onSuccess: () => router.back(),
+      /* Stay on the screen and keep every keystroke — "Addd" retries. */
+      onError: (e: Error) => setError({ index, text: `Couldn't save — ${e.message}` }),
+    };
+
+    if (card) updateRateCard.mutate({ id: card.id, data: barter }, done);
+    else createRateCard.mutate({ creatorId: creator.id, ...barter }, done);
+  };
 
   /* The card, the Bank Details row and the canvas each grow by one block step
      per extra deal — the accordion below simply shifts down. */
@@ -615,13 +753,15 @@ export default function PersonalInformationBarterCommercials() {
             key={i}
             top={BLOCK_Y0 + i * BLOCK_STEP}
             platform={platform}
-            deliverables={deal.deliverables}
-            valueInr={deal.valueInr}
+            deliverables={deal.deliverables ?? savedDeliverables}
+            valueInr={deal.valueInr ?? savedValue}
+            busy={saving}
+            error={error?.index === i ? error.text : undefined}
             onCyclePlatform={() => cyclePlatform(i, platform)}
             onToggle={(label) => toggleDeliverable(i, label)}
-            onChangeValue={(next) => patch(i, { valueInr: next })}
+            onChangeValue={(next) => patch(i, { valueInr: digitsOf(next) })}
             onAddAnother={addBarterDeal}
-            onSubmit={() => router.back()}
+            onSubmit={() => submitDeal(i)}
             onRemove={() => removeBarterDeal(i)}
           />
         );

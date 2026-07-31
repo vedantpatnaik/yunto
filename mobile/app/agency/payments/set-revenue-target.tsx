@@ -4,7 +4,6 @@ import { useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import Svg, { Circle } from "react-native-svg";
-import { useQueryClient } from "@tanstack/react-query";
 import { Abs, Screen, Txt } from "../../../src/ui/Frame";
 import { fonts } from "../../../src/theme";
 import {
@@ -17,9 +16,9 @@ import {
   useMe,
   useNotifications,
   useReminders,
+  useUpdateMe,
   type Campaign,
   type Creator,
-  type User,
 } from "../../../src/api/hooks";
 
 /**
@@ -310,7 +309,7 @@ function CreatorRow({ y, c }: { y: number; c: Creator }) {
 /* --------------------------------- screen --------------------------------- */
 export default function AgencySetRevenueTargetScreen() {
   const router = useRouter();
-  const qc = useQueryClient();
+  const saveTarget = useUpdateMe();
 
   const { data: me } = useMe();
   const { data: invoices } = useInvoices();
@@ -323,6 +322,8 @@ export default function AgencySetRevenueTargetScreen() {
   const [frequency, setFrequency] = useState<Frequency>("Monthly");
   /** null until the field is touched, so the prefill can follow the frequency. */
   const [typed, setTyped] = useState<string | null>(null);
+  /** Save failure, surfaced under the CTA. Null whenever there is nothing wrong. */
+  const [error, setError] = useState<string | null>(null);
 
   /**
    * Revenue is the agency's own cut — Invoice.agencyFee on settled invoices —
@@ -379,17 +380,28 @@ export default function AgencySetRevenueTargetScreen() {
   const amount = typed ?? (stored != null ? inr(stored) : "");
   const digits = Number(amount.replace(/[^0-9]/g, ""));
 
+  const saving = saveTarget.isPending;
+  const canSave = digits > 0 && !saving;
+
+  /**
+   * Persist the goal onto the signed-in user via PATCH /auth/me. Which column is
+   * written follows the frequency picker, matching the two the User row stores.
+   * On success the hook seeds the ["me"] cache with the fresh row, so the
+   * revenue card behind the sheet is already correct as it closes.
+   */
   const submit = () => {
-    if (!digits) return;
-    // The API exposes no PATCH /users/:id, so the new goal is written into the
-    // `me` cache — the revenue card behind re-reads it and the sheet closes,
-    // exactly as a persisted target would behave.
-    qc.setQueryData<User>(["me"], (prev) =>
-      prev
-        ? { ...prev, ...(frequency === "Yearly" ? { targetYearly: digits } : { targetMonthly: digits }) }
-        : prev,
+    if (!canSave) return;
+    setError(null);
+    saveTarget.mutate(
+      frequency === "Yearly" ? { targetYearly: digits } : { targetMonthly: digits },
+      {
+        onSuccess: () => router.back(),
+        // `typed` is deliberately left alone — the sheet stays open showing
+        // exactly what was entered so the save can be retried.
+        onError: (e: unknown) =>
+          setError(e instanceof Error && e.message ? e.message : "Couldn't save your target."),
+      },
     );
-    router.back();
   };
 
   return (
@@ -786,10 +798,10 @@ export default function AgencySetRevenueTargetScreen() {
         {/* ------------------------------- CTA ------------------------------ */}
         <Pressable
           onPress={submit}
-          disabled={!digits}
+          disabled={!canSave}
           style={({ pressed }) => ({
             position: "absolute", left: 37, top: 299.72, width: 301, height: 55, borderRadius: 100,
-            backgroundColor: "#312b28", opacity: digits ? (pressed ? 0.9 : 1) : 0.5,
+            backgroundColor: "#312b28", opacity: canSave ? (pressed ? 0.9 : 1) : 0.5,
             shadowColor: "#312b28", shadowOpacity: 0.25, shadowRadius: 20,
             shadowOffset: { width: 0, height: 8 }, elevation: 6,
           })}
@@ -798,6 +810,20 @@ export default function AgencySetRevenueTargetScreen() {
             Set Target
           </Txt>
         </Pressable>
+
+        {/*
+          Failure message. Occupies the sheet's empty bottom padding (the CTA
+          ends at 354.72, the sheet at 383), so the design is untouched in its
+          normal state — this renders only after a save actually fails.
+        */}
+        {error ? (
+          <Txt
+            x={37} y={360} w={301} size={11} weight="medium" font="inter"
+            color="#b42318" lineHeight={16.5} align="center" numberOfLines={2}
+          >
+            {error}
+          </Txt>
+        ) : null}
       </Abs>
     </Screen>
   );

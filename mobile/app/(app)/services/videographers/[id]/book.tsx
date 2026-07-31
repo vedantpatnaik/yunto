@@ -11,9 +11,16 @@ import Svg, {
   Stop,
 } from "react-native-svg";
 import { Abs, Screen, Txt } from "../../../../../src/ui/Frame";
-import { fonts, gradients } from "../../../../../src/theme";
-import { useCreate, useCreators, inr } from "../../../../../src/api/hooks";
-import type { Contract, Creator } from "../../../../../src/api/hooks";
+import { colors, fonts, gradients } from "../../../../../src/theme";
+import {
+  useBookings,
+  useCreate,
+  useCreators,
+  useMe,
+  useUpdate,
+  inr,
+} from "../../../../../src/api/hooks";
+import type { Booking, Creator } from "../../../../../src/api/hooks";
 
 /**
  * Confirm videographer booking — Figma 7506:45348 (375x875), traced 1:1.
@@ -55,12 +62,16 @@ const TOTAL_INK = "#7e57c2";
 const BUTTON_INK = "#312b28";
 
 /* ------------------------------- form model ------------------------------- */
-/** Time-slot chips — x is relative to the clipped 335pt strip at (20, 310). */
+/**
+ * Time-slot chips — x is relative to the clipped 335pt strip at (20, 310).
+ * `hour` is the 24h hour the chip stands for and is what the saved booking's
+ * `scheduledAt` carries; it is not drawn anywhere.
+ */
 const SLOTS = [
-  { label: "08:00 AM", x: 0, w: 96.92, tw: 62.92 },
-  { label: "10:00 AM", x: 106.92, w: 94.09, tw: 60.09 },
-  { label: "12:00 PM", x: 211.02, w: 92.55, tw: 58.55 },
-  { label: "02:00 PM", x: 313.56, w: 95.63, tw: 61.63 },
+  { label: "08:00 AM", x: 0, w: 96.92, tw: 62.92, hour: 8 },
+  { label: "10:00 AM", x: 106.92, w: 94.09, tw: 60.09, hour: 10 },
+  { label: "12:00 PM", x: 211.02, w: 92.55, tw: 58.55, hour: 12 },
+  { label: "02:00 PM", x: 313.56, w: 95.63, tw: 61.63, hour: 14 },
 ] as const;
 const SLOTS_W = 409.19;
 
@@ -132,8 +143,38 @@ const ADDONS: Addon[] = [
 
 /** "Base Price (2 Hrs)" is ₹5,000 in the frame — the 2-hour videographer tier. */
 const BASE_PRICE = 5000;
-const BASE_LABEL = "Base Price (2 Hrs)";
-const SHOOT_HOURS = "2 Hrs Shoot";
+const BASE_HOURS = 2;
+const BASE_LABEL = `Base Price (${BASE_HOURS} Hrs)`;
+const SHOOT_HOURS = `${BASE_HOURS} Hrs Shoot`;
+
+/**
+ * DISPLAY ONLY — the date row is not bound to state and never changes.
+ *
+ * The traced frame draws a chevron on that row but ships no picker surface, so
+ * there is no control to make controlled; inventing a calendar sheet would add
+ * UI the design does not have. The value is still real rather than decorative:
+ * a brand-new booking is written for this date with the selected slot's hour on
+ * it, and re-saving a booking that already exists keeps that row's own date
+ * untouched — so nothing here is faked into the database.
+ */
+const BOOKING_DATE_LABEL = "Thursday, 20 Jun 2026";
+/** Local-time midnight of the label above; built from parts so the calendar
+ *  day cannot slide a day either way in a negative UTC offset. */
+const newBookingDate = () => new Date(2026, 5, 20);
+
+/** What the frame ships selected before anything has been saved. */
+const DEFAULT_SLOT = 1; // 10:00 AM
+const DEFAULT_TYPE = 0; // Instagram Reels
+const DEFAULT_LOCATION = "Hauz Khas Village, Delhi";
+
+/** Per-field edits, layered over whatever the saved booking holds. */
+interface Draft {
+  slot?: number;
+  type?: number;
+  location?: string;
+  brief?: string;
+  addons?: Record<string, boolean>;
+}
 
 /** Breakdown rows start at y=995 and step 29pt; four fit above the subtotal. */
 const LINE_Y = 995;
@@ -252,20 +293,62 @@ export default function ConfirmVideographerBooking() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { data: creators = [] } = useCreators();
-  const createContract = useCreate<Contract>("contracts");
+  const { data: bookings = [] } = useBookings();
+  const { data: me } = useMe();
+  const createBooking = useCreate<Booking>("bookings");
+  const updateBooking = useUpdate<Booking>("bookings");
 
   const creator: Creator | undefined = useMemo(
     () => creators.find((c) => c.id === id) ?? creators[0],
     [creators, id],
   );
 
-  const [slot, setSlot] = useState(1); // frame ships 10:00 AM selected
-  const [type, setType] = useState(0); // ...and Instagram Reels
-  const [location, setLocation] = useState("Hauz Khas Village, Delhi");
-  const [brief, setBrief] = useState("");
-  const [addons, setAddons] = useState<Record<string, boolean>>(() =>
-    Object.fromEntries(ADDONS.map((a) => [a.key, a.initial] as const)),
+  /* The caller's own videographer slot with this creator, if one is booked.
+     /bookings comes back sorted scheduledAt-desc, so this is the most recent
+     one and the form edits it instead of stacking a duplicate on every visit.
+     The `bookedById` test is what keeps that safe: the list endpoint returns
+     everyone's rows, so matching on creator alone would let one user re-save
+     another user's booking. Until /auth/me resolves nothing matches, which
+     falls back to writing a new row — never to editing a stranger's. */
+  const booked = useMemo(
+    () =>
+      creator && me
+        ? bookings.find(
+            (b) =>
+              b.creatorId === creator.id &&
+              b.service === "VIDEOGRAPHER" &&
+              b.bookedById === me.id,
+          )
+        : undefined,
+    [bookings, creator, me],
   );
+
+  /* The values behind the form. Every field below reads `draft.x ?? saved.x`,
+     so it adopts what is stored the moment /bookings lands and shows the
+     frame's own defaults until then — no effect, no flicker, and no geometry
+     ever moves. A failed save leaves `draft` untouched, so whatever was typed
+     survives for the retry. */
+  const saved = useMemo(() => {
+    const hour = booked ? new Date(booked.scheduledAt).getHours() : -1;
+    const slotIndex = SLOTS.findIndex((s) => s.hour === hour);
+    const typeIndex = TYPES.findIndex((t) => t.label === booked?.projectType);
+    return {
+      slot: slotIndex < 0 ? DEFAULT_SLOT : slotIndex,
+      type: typeIndex < 0 ? DEFAULT_TYPE : typeIndex,
+      location: booked?.location ?? DEFAULT_LOCATION,
+      brief: booked?.brief ?? "",
+      addons: Object.fromEntries(
+        ADDONS.map((a) => [a.key, booked ? booked.addons.includes(a.key) : a.initial] as const),
+      ),
+    };
+  }, [booked]);
+
+  const [draft, setDraft] = useState<Draft>({});
+  const slot = draft.slot ?? saved.slot;
+  const type = draft.type ?? saved.type;
+  const location = draft.location ?? saved.location;
+  const brief = draft.brief ?? saved.brief;
+  const addons = draft.addons ?? saved.addons;
 
   const { lines, subtotal, total } = useMemo(() => {
     const rows = [{ label: BASE_LABEL, amount: BASE_PRICE }].concat(
@@ -275,17 +358,35 @@ export default function ConfirmVideographerBooking() {
     return { lines: rows.slice(0, MAX_LINES), subtotal: sum, total: totalOf(sum) };
   }, [addons]);
 
+  const saving = createBooking.isPending || updateBooking.isPending;
+  const failed = createBooking.isError || updateBooking.isError;
+
+  /* Writes the booking this screen quotes: PATCHes the creator's existing
+     videographer slot, or POSTs the first one. Everything the form collects has
+     a column — the slot as the hour of `scheduledAt`, the chips as
+     `projectType`, and the switched-on add-ons as `addons` — so the quoted
+     `total` is stored alongside the inputs that produced it. */
   const submit = () => {
-    if (!creator || createContract.isPending) return;
-    createContract.mutate(
-      {
-        kind: "CREATOR",
-        title: `${TYPES[type].label} shoot — ${creator.name}`,
-        amount: total,
-        status: "pending",
-      },
-      { onSuccess: () => router.back() },
-    );
+    if (!creator || saving) return;
+
+    const when = booked ? new Date(booked.scheduledAt) : newBookingDate();
+    when.setHours(SLOTS[slot].hour, 0, 0, 0);
+
+    const data: Partial<Booking> = {
+      creatorId: creator.id,
+      service: "VIDEOGRAPHER",
+      scheduledAt: when.toISOString(),
+      hours: BASE_HOURS,
+      total,
+      projectType: TYPES[type].label,
+      location,
+      brief,
+      addons: ADDONS.filter((a) => addons[a.key]).map((a) => a.key),
+    };
+    const done = { onSuccess: () => router.back() };
+
+    if (booked) updateBooking.mutate({ id: booked.id, data }, done);
+    else createBooking.mutate(me ? { ...data, bookedById: me.id } : data, done);
   };
 
   return (
@@ -357,8 +458,9 @@ export default function ConfirmVideographerBooking() {
       <Abs x={37} y={271} w={16} h={16} center>
         <Feather name="calendar" size={16} color={INK} />
       </Abs>
+      {/* Display only — see BOOKING_DATE_LABEL. */}
       <Txt x={63} y={271} w={146} size={13} weight="semibold" font="inter" color={INK} lineHeight={15.73} numberOfLines={1}>
-        Thursday, 20 Jun 2026
+        {BOOKING_DATE_LABEL}
       </Txt>
       <Abs x={323.23} y={271} w={16} h={16} center>
         <Feather name="chevron-down" size={16} color={ICON_MUTED} />
@@ -382,7 +484,7 @@ export default function ConfirmVideographerBooking() {
             onBg={SLOT_ON_BG}
             onLine={SLOT_ON_LINE}
             onInk={SLOT_ON_INK}
-            onPress={() => setSlot(i)}
+            onPress={() => setDraft((d) => ({ ...d, slot: i }))}
           />
         ))}
       </ScrollView>
@@ -406,7 +508,7 @@ export default function ConfirmVideographerBooking() {
             onBg={TYPE_ON_BG}
             onLine={TYPE_ON_LINE}
             onInk={TYPE_ON_INK}
-            onPress={() => setType(i)}
+            onPress={() => setDraft((d) => ({ ...d, type: i }))}
           />
         ))}
       </ScrollView>
@@ -429,8 +531,8 @@ export default function ConfirmVideographerBooking() {
       </Abs>
       <TextInput
         value={location}
-        onChangeText={setLocation}
-        placeholder="Hauz Khas Village, Delhi"
+        onChangeText={(v) => setDraft((d) => ({ ...d, location: v }))}
+        placeholder={DEFAULT_LOCATION}
         placeholderTextColor={ICON_MUTED}
         style={styles.locationInput}
       />
@@ -443,7 +545,7 @@ export default function ConfirmVideographerBooking() {
       <Abs x={20} y={594} w={335} h={80} radius={16} bg={GLASS_60} border={GLASS_LINE} borderWidth={1} />
       <TextInput
         value={brief}
-        onChangeText={setBrief}
+        onChangeText={(v) => setDraft((d) => ({ ...d, brief: v }))}
         placeholder={"Describe your requirement, moodboard link,\nor any specific details..."}
         placeholderTextColor="#888888"
         multiline
@@ -497,7 +599,7 @@ export default function ConfirmVideographerBooking() {
           <Toggle
             y={a.toggleY}
             on={!!addons[a.key]}
-            onPress={() => setAddons((prev) => ({ ...prev, [a.key]: !prev[a.key] }))}
+            onPress={() => setDraft((d) => ({ ...d, addons: { ...addons, [a.key]: !addons[a.key] } }))}
           />
           {a.divider !== null ? <Abs x={37} y={a.divider} w={301} h={1} bg={ROW_LINE} /> : null}
         </Fragment>
@@ -562,16 +664,37 @@ export default function ConfirmVideographerBooking() {
       />
       <Pressable
         onPress={submit}
-        disabled={!creator || createContract.isPending}
+        disabled={!creator || saving}
         style={({ pressed }) => [
           styles.ctaButton,
-          { top: CTA_Y + 16, opacity: !creator || createContract.isPending ? 0.5 : pressed ? 0.9 : 1 },
+          { top: CTA_Y + 16, opacity: !creator || saving ? 0.5 : pressed ? 0.9 : 1 },
         ]}
       >
         <Txt x={98.5} y={16} w={138} size={16} weight="bold" font="inter" color="#ffffff" lineHeight={19.36} align="center">
           Confirm Booking
         </Txt>
       </Pressable>
+
+      {/* Save failed. The retry is the CTA itself and nothing typed is cleared,
+          so this sits in the 52pt the fading bar leaves below the button
+          (bottom 1258) — no node above it moves, and it is absent unless the
+          write actually failed. */}
+      {failed ? (
+        <Txt
+          x={20}
+          y={1266}
+          w={335}
+          size={12}
+          weight="medium"
+          font="inter"
+          color={colors.danger}
+          lineHeight={15}
+          numberOfLines={2}
+          align="center"
+        >
+          Could not save this booking. Tap Confirm Booking to try again.
+        </Txt>
+      ) : null}
     </Screen>
   );
 }

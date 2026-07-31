@@ -49,6 +49,8 @@ model User {
   attendance    Attendance[]
   notifications Notification[]
   attachments   Attachment[]
+  payoutDetail  PayoutDetail?
+  bookings      Booking[]
 }
 
 model Team {
@@ -132,6 +134,9 @@ model Creator {
 
   campaignLinks CampaignCreator[]
   calendar      CalendarContent[]
+  rateCard      RateCard?
+  landingPage   LandingPage?
+  bookings      Booking[]
 }
 
 // --------------------------------- Leads --------------------------------
@@ -173,6 +178,8 @@ model Lead {
   owner          User?      @relation(fields: [ownerId], references: [id])
   createdAt      DateTime   @default(now())
   updatedAt      DateTime   @updatedAt
+
+  deliverables LeadDeliverable[]
 }
 
 // ------------------------------- Campaigns ------------------------------
@@ -201,6 +208,7 @@ model Campaign {
   creators  CampaignCreator[]
   invoices  Invoice[]
   contracts Contract[]
+  brief     CampaignBrief?
 }
 
 model CampaignCreator {
@@ -415,4 +423,190 @@ model CalendarContent {
   scheduledAt DateTime
   status      String   @default("scheduled")
   createdAt   DateTime @default(now())
+}
+
+// --------------------------- Payout / billing ---------------------------
+/// A user's own payout account plus the business identity stamped on the
+/// invoices they raise — Personal Information > Bank Details and the invoice
+/// "Your Details" form.
+///
+/// `accountNumber` is sensitive, so this model is deliberately NOT wired to the
+/// generic crudRouter: routes/payout.routes.ts exposes it only at /payout-details
+/// with every query scoped to the caller's own userId. There is no list-all and
+/// no /:id lookup, so one user's account can never be read by another.
+///
+/// Every column is nullable because the two screens fill in different halves of
+/// the row at different times, and a PATCH must be able to create the row.
+model PayoutDetail {
+  id                String   @id @default(cuid())
+  userId            String   @unique
+  user              User     @relation(fields: [userId], references: [id])
+  /// Bank Details card.
+  accountHolderName String?
+  bankName          String?
+  accountNumber     String?
+  ifsc              String?
+  upiId             String?
+  verified          Boolean  @default(false)
+  /// Invoice "Your Details" — the seller's billing identity.
+  legalName         String?
+  tradeName         String?
+  gstNumber         String?
+  mobile            String?
+  pincode           String?
+  state             String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+// ------------------------------- Rate cards -----------------------------
+/// The content formats a creator is booked for, across both platforms. Shared
+/// by the barter chip set and the lead deliverables sheet.
+enum DeliverableKind {
+  REEL
+  POST
+  STORY
+  CAROUSEL
+  STATIC_POST
+  COLLAB
+  INTEGRATED_VIDEO
+  DEDICATED_VIDEO
+  SHORT
+  UGC
+  EVENT_APPEARANCE
+}
+
+/// A creator's published rate card — one whole-rupee price per deliverable —
+/// plus whether they take barter and at what notional value. One row per
+/// creator, so Commercials and Barter Commercials edit the same record.
+model RateCard {
+  id             String            @id @default(cuid())
+  creatorId      String            @unique
+  creator        Creator           @relation(fields: [creatorId], references: [id])
+  reelRate       Int               @default(0)
+  postRate       Int               @default(0)
+  storyRate      Int               @default(0)
+  integratedRate Int               @default(0)
+  dedicatedRate  Int               @default(0)
+  shortRate      Int               @default(0)
+  acceptsBarter  Boolean           @default(false)
+  /// Notional rupee value the creator will accept a barter deal at.
+  barterValue    Int?
+  /// The deliverables offered on barter — the selected chips.
+  barterFormats  DeliverableKind[]
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+}
+
+// ----------------------------- Campaign brief ---------------------------
+/// The structured brief posted into a campaign thread. Key message and target
+/// audience are paragraphs; guidelines / deliverables / notes are the bullet
+/// lists the brief card renders.
+model CampaignBrief {
+  id             String   @id @default(cuid())
+  campaignId     String   @unique
+  campaign       Campaign @relation(fields: [campaignId], references: [id])
+  keyMessage     String?
+  targetAudience String?
+  guidelines     String[]
+  deliverables   String[]
+  notes          String[]
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+// ---------------------------- Lead deliverables -------------------------
+/// One deliverable agreed on a lead — a row of the "Select your deliverables"
+/// sheet (platform, format, how many, how many visits) plus the submitted link.
+model LeadDeliverable {
+  id        String          @id @default(cuid())
+  leadId    String
+  lead      Lead            @relation(fields: [leadId], references: [id])
+  platform  Platform        @default(INSTAGRAM)
+  kind      DeliverableKind
+  quantity  Int             @default(1)
+  visits    Int             @default(1)
+  note      String?
+  link      String?
+  createdAt DateTime        @default(now())
+
+  @@index([leadId])
+}
+
+// -------------------------------- Bookings ------------------------------
+enum ServiceKind {
+  VIDEOGRAPHER
+  EDITOR
+}
+
+/// A paid service slot booked with a creator — the videographer and editor
+/// "Confirm Booking" forms. `total` is the quoted rupee total the summary shows.
+model Booking {
+  id          String      @id @default(cuid())
+  creatorId   String
+  creator     Creator     @relation(fields: [creatorId], references: [id])
+  bookedById  String?
+  bookedBy    User?       @relation(fields: [bookedById], references: [id])
+  service     ServiceKind
+  scheduledAt DateTime
+  hours       Int         @default(2)
+  total       Int         @default(0)
+  /// "Instagram Reels" / "Brand Shoot" / "YouTube Vlog" — the project chips.
+  projectType String?
+  location    String?
+  brief       String?
+  /// Add-on keys switched on in the form ("editor", "subtitles", ...).
+  addons      String[]
+  status      String      @default("pending")
+  createdAt   DateTime    @default(now())
+
+  @@index([creatorId])
+}
+
+// ------------------------------ Landing page ----------------------------
+enum LandingTheme {
+  MODERN
+  DARK
+  CLEAN
+}
+
+enum LandingLayout {
+  CENTERED
+  LEFT
+}
+
+/// A creator's public landing page (socy.io/<slug>) — the Edit Content and
+/// Themes tabs of the landing-page editor.
+model LandingPage {
+  id           String        @id @default(cuid())
+  creatorId    String        @unique
+  creator      Creator       @relation(fields: [creatorId], references: [id])
+  slug         String        @unique
+  headline     String?
+  bio          String?
+  theme        LandingTheme  @default(MODERN)
+  layout       LandingLayout @default(CENTERED)
+  fontStyle    String?
+  contactTime  String?
+  services     String[]
+  hideInsights Boolean       @default(false)
+  published    Boolean       @default(false)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  links LandingLink[]
+}
+
+/// One link row on a landing page. Sorted by `sortOrder`, not createdAt — the
+/// creator reorders these, so /landing-links passes an explicit CrudOptions.
+model LandingLink {
+  id        String      @id @default(cuid())
+  pageId    String
+  page      LandingPage @relation(fields: [pageId], references: [id])
+  label     String
+  url       String
+  sortOrder Int         @default(0)
+  createdAt DateTime    @default(now())
+
+  @@index([pageId])
 }
