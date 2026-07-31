@@ -1,7 +1,8 @@
 import type { ReactNode } from "react";
+import { useState } from "react";
 import type { LucideIcon } from "lucide-react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { useAgencies, useCampaignFull, useCampaigns, useCreators, type Creator } from "@/api/hooks";
+import { useAgencies, useCampaignFull, useCampaigns, useCreators, useUpdate, type Creator } from "@/api/hooks";
 import {
   ChevronLeft,
   Search,
@@ -123,11 +124,16 @@ function CreatorCard({
 }
 
 /* --------------------------------- modal ------------------------------- */
-function StarRow({ top }: { top: number }) {
+function StarRow({ top, value, onRate }: { top: number; value: number; onRate: (n: number) => void }) {
   return (
     <div className="absolute left-[28px] flex w-[243px] justify-between" style={{ top }}>
       {Array.from({ length: 5 }, (_, i) => (
-        <Star key={i} className="h-[36.8px] w-[36.8px] fill-[#E8E6E6] text-[#E8E6E6]" strokeWidth={1} />
+        <Star
+          key={i}
+          onClick={() => onRate(i + 1)}
+          className={`h-[36.8px] w-[36.8px] cursor-pointer ${i < value ? "fill-[#FDD835] text-[#FDD835]" : "fill-[#E8E6E6] text-[#E8E6E6]"}`}
+          strokeWidth={1}
+        />
       ))}
     </div>
   );
@@ -176,6 +182,25 @@ export default function RatingCreatorPage() {
   /* the creator this modal is rating — ?creator= or the first card. */
   const ratingTarget = allCreators.find((c) => c.id === params.get("creator")) ?? cards[0];
   const selectedCount = ratingTarget ? 1 : 0;
+
+  /* four star answers -> mean rating persisted on the CampaignCreator link
+     (the same nested-update shape the campaign screens already use). */
+  const [answers, setAnswers] = useState<number[]>([0, 0, 0, 0]);
+  const canSubmit = answers.every((a) => a > 0) && !!ratingTarget && !!campaignId;
+  const updateCampaign = useUpdate("campaigns");
+  const submitRating = async () => {
+    if (!canSubmit || !ratingTarget || !campaignId) return;
+    const rating = Math.round((answers.reduce((s, a) => s + a, 0) / answers.length) * 10) / 10;
+    try {
+      await updateCampaign.mutateAsync({
+        id: campaignId,
+        data: { creators: { updateMany: { where: { creatorId: ratingTarget.id }, data: { rating } } } },
+      });
+      navigate(-1);
+    } catch {
+      /* keep the stars as entered so the user can retry */
+    }
+  };
   return (
     <>
       {/* ===================== underlying creators page ===================== */}
@@ -272,13 +297,25 @@ export default function RatingCreatorPage() {
             {q.label}
           </div>
         ))}
-        {QUESTIONS.map((q) => (
-          <StarRow key={q.starsTop} top={q.starsTop} />
+        {QUESTIONS.map((q, qi) => (
+          <StarRow
+            key={q.starsTop}
+            top={q.starsTop}
+            value={answers[qi]}
+            onRate={(n) => setAnswers((a) => a.map((v, i) => (i === qi ? n : v)))}
+          />
         ))}
 
-        {/* submit */}
-        <button className="absolute left-[28px] top-[583px] flex h-[45px] w-[199px] items-center justify-center rounded-[24px] bg-black/95">
-          <span className="text-[20px] font-normal leading-none text-white">Submit Rating</span>
+        {/* submit — averages the four answers onto this campaign's creator link */}
+        <button
+          onClick={submitRating}
+          disabled={!canSubmit || updateCampaign.isPending}
+          className={`absolute left-[28px] top-[583px] flex h-[45px] w-[199px] items-center justify-center rounded-[24px] bg-black/95 ${canSubmit ? "" : "opacity-40"}`}
+          title={canSubmit ? undefined : "Rate all four questions first"}
+        >
+          <span className="text-[20px] font-normal leading-none text-white">
+            {updateCampaign.isPending ? "Saving…" : "Submit Rating"}
+          </span>
         </button>
       </div>
     </>

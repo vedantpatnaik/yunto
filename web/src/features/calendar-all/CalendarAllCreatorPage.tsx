@@ -150,7 +150,9 @@ export default function CalendarAllCreatorPage() {
 
       {/* Neha Kapoor viewer chip — 749,334 · 227×39 · white r=21 */}
       <div
-        onClick={() => creatorList[0] && navigate(`/creators/detail?id=${creatorList[0].id}`)}
+        onClick={() =>
+          navigate(creatorList[0] ? `/creators/detail?id=${creatorList[0].id}` : "/creators")
+        }
         className="absolute left-[749px] top-[334px] h-[39px] w-[227px] rounded-[21px] border-[0.6px] border-[#D9D9D9] bg-white cursor-pointer"
       >
         <span className="absolute left-[7px] top-[8px] h-[20px] w-[20px] rounded-full bg-gradient-to-br from-[#C8E6FF] to-[#C8B3ED]" />

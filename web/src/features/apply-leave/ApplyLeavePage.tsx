@@ -156,6 +156,25 @@ const CHIP_COLORS = [
   { bg: "#D4CFFF", color: "#1A0C9A" },
 ];
 
+/**
+ * Background chrome hit-targets in 1440×1024 frame coords. The dim modal
+ * overlay sits above the whole page, so the underlying controls can never
+ * receive clicks directly — the overlay's click handler hit-tests these
+ * instead, closing the modal INTO the clicked control's destination.
+ * Controls fully hidden behind the modal card are excluded (unreachable).
+ */
+const HOTSPOTS: { x: number; y: number; w: number; h: number; to: string }[] = [
+  { x: 488, y: 151, w: 45, h: 45, to: "/search" }, // search circle
+  { x: 541, y: 150, w: 72, h: 48, to: "/people" }, // people-count pill
+  { x: 1299, y: 153, w: 90, h: 32, to: "/calendar" }, // date pill
+  { x: 242, y: 233, w: 107, h: 45, to: "/people" }, // People tab
+  { x: 357, y: 233, w: 122, h: 45, to: "/people/leaves" }, // Leaves tab
+  { x: 890, y: 233, w: 108, h: 45, to: "/people/leaves" }, // month pill → leaves calendar
+  { x: 1263, y: 223, w: 101, h: 28, to: "/people/leaves" }, // On-leave month pill
+  { x: 1263, y: 476, w: 101, h: 28, to: "/people/leaves" }, // Events month pill
+  { x: 1262, y: 731, w: 101, h: 28, to: "/people/leaves" }, // Holidays month pill
+];
+
 function DayChip({ x, y, bg, letter, color }: { x: number; y: number; bg: string; letter: string; color: string }) {
   return (
     <div
@@ -623,7 +642,19 @@ export default function ApplyLeavePage() {
       </Txt>
 
       {/* ================= dim scrim + modal ================= */}
-      <div onClick={() => navigate(-1)} className="absolute inset-0 z-50" style={{ background: "rgba(0,0,0,0.5)" }} />
+      <div
+        onClick={(e) => {
+          // Hit-test the dimmed background: a click landing on a real control
+          // underneath routes there; anywhere else dismisses the modal.
+          const r = e.currentTarget.getBoundingClientRect();
+          const x = ((e.clientX - r.left) / r.width) * 1440;
+          const y = ((e.clientY - r.top) / r.height) * 1024;
+          const hit = HOTSPOTS.find((h) => x >= h.x && x <= h.x + h.w && y >= h.y && y <= h.y + h.h);
+          navigate(hit ? hit.to : -1 as never);
+        }}
+        className="absolute inset-0 z-50"
+        style={{ background: "rgba(0,0,0,0.5)" }}
+      />
       <div
         ref={cardRef}
         className="absolute z-50 rounded-[24px] bg-white shadow-[0_24px_70px_rgba(0,0,0,0.28)]"

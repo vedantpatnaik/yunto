@@ -1,0 +1,13 @@
+import { chromium } from 'playwright';
+const b=await chromium.launch();
+const p=await (await b.newContext({viewport:{width:390,height:844}})).newPage();
+const errs=[];
+p.on('pageerror',e=>errs.push(e.message.slice(0,120)));
+p.on('console',m=>{if(m.type()==='error')errs.push('console: '+m.text().slice(0,110))});
+await p.goto('http://localhost:8099',{waitUntil:'networkidle',timeout:30000});
+await p.waitForTimeout(2500);
+const txt=await p.evaluate(()=>document.body.innerText.replace(/\s+/g,' ').slice(0,180));
+console.log('rendered text:', txt || '(empty)');
+await p.screenshot({path:'/tmp/rn-login.png'});
+console.log('errors:', errs.length?errs.slice(0,3).join(' | '):'NONE');
+await b.close();
