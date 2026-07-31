@@ -204,7 +204,7 @@ function MetaChip({ x, w, iconX, icon, textX, textW, label, onPress }: {
 
 /** Section header: 16pt semibold title with a trailing 20pt chevron. */
 function SectionHead({ y, w, title, chevron }: {
-  y: number; w: number; title: string; chevron: "chevron-down" | "chevron-right";
+  y: number; w: number; title: string; chevron: "chevron-up" | "chevron-right";
 }) {
   return (
     <Fragment>
@@ -330,7 +330,7 @@ export default function LeadPaymentSummary() {
         </Abs>
 
         <QuickAction x={39} name="phone" onPress={() => openUrl(tel(contact?.phone))} />
-        <QuickAction x={95} name="send" onPress={() => openUrl(whatsapp(contact?.phone))} />
+        <QuickAction x={95} name="message-circle" onPress={() => openUrl(whatsapp(contact?.phone))} />
         <QuickAction x={151} name="mail" onPress={() => openUrl(mailto(contact?.email))} />
 
         {/* --------------------- Segmented tabs (y=331) --------------------- */}
@@ -413,7 +413,8 @@ export default function LeadPaymentSummary() {
 
         {/* -------------------------- Brand Message ------------------------- */}
         <Abs x={15} y={CY(517)} w={345} h={168} radius={20} bg="#ffffff" border={BORDER_50} borderWidth={1} />
-        <SectionHead y={549} w={120.2} title="Brand Message" chevron="chevron-down" />
+        {/* Expanded, so the disclosure chevron points up (Vector 325,556.5 10x5). */}
+        <SectionHead y={549} w={120.2} title="Brand Message" chevron="chevron-up" />
         <Txt x={35} y={CY(581)} w={305} size={14} font="inter" color={MUTED} lineHeight={21}>
           {BRAND_MESSAGE}
         </Txt>

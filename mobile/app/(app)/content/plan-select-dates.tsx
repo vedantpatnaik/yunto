@@ -48,6 +48,12 @@ const GRID_SPAN = 192;
 /** Column origins, straight from the seven weekday tracks (step 41.857). */
 const COL_X = [41, 82.86, 124.71, 166.57, 208.43, 250.29, 292.14];
 const TRACK_W = 41.86;
+/**
+ * A selected day paints a 41.86x36 stadium ("Background+Shadow", r18) that fills
+ * its whole weekday track, so a run of picked days reads as one continuous band.
+ * The pressable itself stays the 36pt cell, so the pill bleeds 2.93pt each side.
+ */
+const PILL_BLEED = (TRACK_W - CELL) / 2;
 
 const WEEKDAYS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
 const MONTHS = [
@@ -350,7 +356,7 @@ export default function PlanSelectDates() {
         onPress={() => router.push("/content/all-ideas" as never)}
         style={({ pressed }) => [styles.secondaryButton, pressed && styles.pressed]}
       >
-        <Feather name="file-text" size={20} color="#141416" />
+        <Feather name="share" size={20} color="#141416" />
       </Pressable>
 
       <Pressable onPress={generate} style={({ pressed }) => [styles.cta, pressed && styles.pressed]}>
@@ -443,8 +449,8 @@ const styles = StyleSheet.create({
   },
   dayPill: {
     position: "absolute",
-    left: 0,
-    right: 0,
+    left: -PILL_BLEED,
+    right: -PILL_BLEED,
     top: 0,
     bottom: 0,
     borderRadius: CELL / 2,

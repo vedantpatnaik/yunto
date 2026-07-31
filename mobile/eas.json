@@ -8,13 +8,13 @@
       "developmentClient": true,
       "distribution": "internal",
       "env": {
-        "EXPO_PUBLIC_API_URL": "http://13.233.112.94/api"
+        "EXPO_PUBLIC_API_URL": "http://13.202.99.173/api"
       }
     },
     "preview": {
       "distribution": "internal",
       "env": {
-        "EXPO_PUBLIC_API_URL": "http://13.233.112.94/api"
+        "EXPO_PUBLIC_API_URL": "http://13.202.99.173/api"
       },
       "android": {
         "buildType": "apk"

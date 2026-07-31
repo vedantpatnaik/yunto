@@ -444,48 +444,39 @@ export default function LeadDetailDeliverablesSheet() {
           >
             {lead?.brandName ?? (isLoading ? "" : "Zostel Trip")}
           </Txt>
+          {/* The design's row is SPACE_BETWEEN inside 39..336, so the amount is
+              anchored to its right edge rather than to the 45.58pt "₹1.2L" hugs
+              — a wider live figure grows leftwards instead of ellipsing. */}
           <Txt
-            x={290.42}
+            x={200}
             y={135}
-            w={45.58}
+            w={136}
             size={18}
             weight="bold"
             font="inter"
             color={INK_TITLE}
             lineHeight={21.78}
+            align="right"
             numberOfLines={1}
           >
             {budget ? lakh(budget) : "₹1.2L"}
           </Txt>
 
-          <Abs x={39} y={197} w={49.17} h={27} radius={12} bg={PAID_TINT} />
-          <Txt
-            x={51}
-            y={203}
-            w={25.17}
-            size={12}
-            weight="semibold"
-            font="inter"
-            color={PAID_INK}
-            lineHeight={14.52}
-            numberOfLines={1}
-          >
-            {lead ? title(lead.dealType ?? "PAID") : "Paid"}
-          </Txt>
-          <Abs x={96.17} y={197} w={84.38} h={27} radius={12} bg={STATUS_TINT} />
-          <Txt
-            x={108.17}
-            y={203}
-            w={60.38}
-            size={12}
-            weight="semibold"
-            font="inter"
-            color={STATUS_INK}
-            lineHeight={14.52}
-            numberOfLines={1}
-          >
-            {lead ? title(lead.status) : "Contacted"}
-          </Txt>
+          {/* Both chips hug their label — 12pt of padding either side and an 8pt
+              gap, which reproduces the spec's 49.17 / 84.38 boxes for "Paid" and
+              "Contacted" while letting any other deal type or status fit. */}
+          <Abs x={39} y={197} h={27} row gap={8}>
+            <View style={[styles.chip, { backgroundColor: PAID_TINT }]}>
+              <Txt size={12} weight="semibold" font="inter" color={PAID_INK} lineHeight={14.52}>
+                {lead ? title(lead.dealType ?? "PAID") : "Paid"}
+              </Txt>
+            </View>
+            <View style={[styles.chip, { backgroundColor: STATUS_TINT }]}>
+              <Txt size={12} weight="semibold" font="inter" color={STATUS_INK} lineHeight={14.52}>
+                {lead ? title(lead.status) : "Contacted"}
+              </Txt>
+            </View>
+          </Abs>
 
           <ActionDisc x={39} icon="phone" />
           <ActionDisc x={95} icon="message-circle" />
@@ -977,7 +968,19 @@ export default function LeadDetailDeliverablesSheet() {
       <Abs x={45} y={398} w={20} h={20} center>
         <MaterialCommunityIcons name={PLATFORMS[platform].icon} size={20} color="#000000" />
       </Abs>
-      <Txt x={65} y={400} w={78} size={14} weight="medium" font="inter" color="#000000" lineHeight={16}>
+      {/* The spec centres the platform name in its 78pt slot, which is what puts
+          the gap between it and the 20pt mark at 45. */}
+      <Txt
+        x={65}
+        y={400}
+        w={78}
+        size={14}
+        weight="medium"
+        font="inter"
+        color="#000000"
+        lineHeight={16}
+        align="center"
+      >
         {platform}
       </Txt>
       <Caret x={311} y={398} />
@@ -1145,6 +1148,14 @@ const styles = StyleSheet.create({
     shadowRadius: 20,
     shadowOffset: { width: 0, height: 4 },
     elevation: 1,
+  },
+  /** Deal-type / status pill: 12pt padding either side of a 27pt-tall label. */
+  chip: {
+    height: 27,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    alignItems: "center",
+    justifyContent: "center",
   },
   disc: {
     shadowColor: "#000000",

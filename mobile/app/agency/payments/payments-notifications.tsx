@@ -41,6 +41,24 @@ import {
 
 type IconName = ComponentProps<typeof Feather>["name"];
 
+/**
+ * Feather ships no rupee sign, but the spec draws one for both money icons —
+ * the payment card's 22pt pill (VECTOR 11x16.5) and the INVOICE row's 20pt pill
+ * (VECTOR 10x15) — so those two render the ₹ glyph as text at the icon's size.
+ */
+const RUPEE = "₹" as const;
+type Glyph = IconName | typeof RUPEE;
+
+function Icon({ name, size, color }: { name: Glyph; size: number; color: string }) {
+  return name === RUPEE ? (
+    <Txt size={size} weight="medium" font="inter" color={color}>
+      {RUPEE}
+    </Txt>
+  ) : (
+    <Feather name={name} size={size} color={color} />
+  );
+}
+
 /* -------------------------------- geometry -------------------------------- */
 const FRAME_W = 375;
 const FRAME_H = 876;

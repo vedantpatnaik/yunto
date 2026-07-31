@@ -19,8 +19,10 @@ import { useCreators, useMe } from "../../../src/api/hooks";
  *
  * The AI content-plan setup form. Everything lives in one 343x890 glass card at
  * (16,106); its parent "Main" frame is only 651 tall and clipsContent, so the
- * card scrolls inside that window while the header, the floating AI CTA at
- * (267,627) and the "Select Dates" button at (181,769) stay pinned to the frame.
+ * card scrolls inside that window while the header and the "Select Dates"
+ * button at (181,769) stay pinned to the frame. ("Floating CTA" at (267,627) is
+ * an empty 64x64 frame in Figma — no fill, no stroke, no children — so it draws
+ * nothing and is not built.)
  *
  * Coordinates below are raw frame coordinates from the spec. CX/CY rebase them
  * into the card's scroll content so the numbers in this file stay the numbers in
@@ -60,7 +62,7 @@ const LILAC_LINE = "rgba(230,230,250,0.8)";
 const LILAC_LINE_90 = "rgba(230,230,250,0.9)";
 const CARD_LINE = "rgba(43,34,64,0.06)";
 
-/** The AI badge gradient, reused by the floating CTA the frame ships empty. */
+/** The AI badge gradient. */
 const AI_GRADIENT = ["#fff0f5", "#e6e6fa"] as const;
 /** Selected time-range pill. */
 const RANGE_GRADIENT = ["#e6e6fa", "#f3ebff"] as const;
@@ -81,23 +83,29 @@ const RANGES: { key: TimeRange; label: string; x: number }[] = [
   { key: "custom", label: "Custom", x: 260.25 },
 ];
 
+/**
+ * Chip labels are hug-width TEXT nodes in Figma, so only their origin is pinned
+ * here. Pinning Figma's measured hug width too would clip them: the shipped
+ * Inter renders a touch wider than Figma measures, which wrapped "YouTube" onto
+ * a second line inside its 39pt chip.
+ */
 const PLATFORMS = [
-  { key: "instagram", label: "Instagram", x: 37, y: 655, w: 122.98, tx: 76, ty: 666, tw: 66.98 },
-  { key: "youtube", label: "YouTube", x: 169.98, y: 655, w: 92, tx: 186.98, ty: 666, tw: 58 },
-  { key: "linkedin", label: "LinkedIn", x: 37, y: 704, w: 90.5, tx: 54, ty: 715, tw: 56.5 },
-  { key: "x", label: "X", x: 137.5, y: 704, w: 43.81, tx: 154.5, ty: 715, tw: 9.81 },
+  { key: "instagram", label: "Instagram", x: 37, y: 655, w: 122.98, tx: 76, ty: 666 },
+  { key: "youtube", label: "YouTube", x: 169.98, y: 655, w: 92, tx: 186.98, ty: 666 },
+  { key: "linkedin", label: "LinkedIn", x: 37, y: 704, w: 90.5, tx: 54, ty: 715 },
+  { key: "x", label: "X", x: 137.5, y: 704, w: 43.81, tx: 154.5, ty: 715 },
 ] as const;
 
 const CONTENT_TYPES = [
-  { key: "post", label: "Post", x: 37, y: 798, w: 63.66, tx: 54, ty: 807, tw: 29.66,
+  { key: "post", label: "Post", x: 37, y: 798, w: 63.66, tx: 54, ty: 807,
     bg: "#f3e8ff", line: "#e6d5f7", ink: "#5b3e85" },
-  { key: "reel", label: "Reel", x: 110.66, y: 798, w: 63, tx: 127.66, ty: 807, tw: 29,
+  { key: "reel", label: "Reel", x: 110.66, y: 798, w: 63, tx: 127.66, ty: 807,
     bg: "#ffe8ec", line: "#f5d5dc", ink: "#853e4b" },
-  { key: "carousel", label: "Carousel", x: 183.52, y: 798, w: 93.55, tx: 200.52, ty: 807, tw: 59.55,
+  { key: "carousel", label: "Carousel", x: 183.52, y: 798, w: 93.55, tx: 200.52, ty: 807,
     bg: "#fff3cd", line: "#f0dfad", ink: "#7a6014" },
-  { key: "image", label: "Image", x: 37, y: 843, w: 75.11, tx: 54, ty: 852, tw: 41.11,
+  { key: "image", label: "Image", x: 37, y: 843, w: 75.11, tx: 54, ty: 852,
     bg: "#e0f2ec", line: "#c9e6da", ink: "#1c4030" },
-  { key: "story", label: "Story", x: 122.11, y: 843, w: 71, tx: 139.11, ty: 852, tw: 37,
+  { key: "story", label: "Story", x: 122.11, y: 843, w: 71, tx: 139.11, ty: 852,
     bg: "#e6f0ff", line: "#d0e1fa", ink: "#224a75" },
 ] as const;
 
@@ -376,11 +384,14 @@ export default function PlanGenerator() {
           />
 
           {/* ---------------------------- Dropdowns ------------------------- */}
+          {/* Both values run from the 16pt inset to the chevron container at
+              x=109.5, so 92.5 is the field's content box. Figma's hug widths
+              (57.06 / 49) sit right on the glyph advance and clipped here. */}
           <Pressable onPress={cycleFocus} style={[styles.dropdown, { left: CX(37), top: CY(552) }]}>
             <Txt
               x={17}
               y={15.5}
-              w={57.06}
+              w={92.5}
               size={14}
               weight="medium"
               font="inter"
@@ -409,7 +420,7 @@ export default function PlanGenerator() {
             <Txt
               x={17}
               y={15.5}
-              w={49}
+              w={92.5}
               size={14}
               weight="medium"
               font="inter"
@@ -445,15 +456,16 @@ export default function PlanGenerator() {
                     },
                   ]}
                 />
+                {/* The 16x16 glyph on the Instagram chip is a 10.67x7.33 tick,
+                    not a brand mark — it is the chip's "selected" marker. */}
                 {p.key === "instagram" ? (
                   <Abs x={CX(54)} y={CY(666.5)} w={16} h={16} center>
-                    <Feather name="instagram" size={16} color={skin.ink} />
+                    <Feather name="check" size={16} color={skin.ink} />
                   </Abs>
                 ) : null}
                 <Txt
                   x={CX(p.tx)}
                   y={CY(p.ty)}
-                  w={p.tw}
                   size={14}
                   weight="medium"
                   font="inter"
@@ -489,7 +501,6 @@ export default function PlanGenerator() {
                 <Txt
                   x={CX(t.tx)}
                   y={CY(t.ty)}
-                  w={t.tw}
                   size={14}
                   weight="medium"
                   font="inter"
@@ -535,17 +546,6 @@ export default function PlanGenerator() {
             )}
           </Abs>
         </ScrollView>
-
-        {/* --------------------------- Floating CTA ------------------------- */}
-        <Pressable onPress={submit} style={styles.fab}>
-          <LinearGradient
-            colors={AI_GRADIENT}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.fabFill}
-          />
-          <MaterialCommunityIcons name="creation-outline" size={28} color={AI_TINT} />
-        </Pressable>
       </Abs>
 
       {/* -------------------------------- Header ---------------------------- */}
@@ -642,7 +642,10 @@ const styles = StyleSheet.create({
     position: "absolute",
     left: CX(54),
     top: CY(403.25),
-    width: 263,
+    // 269 = the 301pt field minus its 16pt insets. Figma's TEXT node hugs to
+    // 263 because the placeholder happens to end there; holding the text to
+    // that measurement pushed "themes..." onto a third line here.
+    width: 269,
     height: 77.5,
     padding: 0,
     fontFamily: fonts.inter,
@@ -714,23 +717,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: INK_TAG,
   },
-
-  /* ------------------------------ floating CTA ---------------------------- */
-  fab: {
-    position: "absolute",
-    left: 267,
-    top: 627 - MAIN.y,
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 1,
-    borderColor: HAIRLINE_80,
-    overflow: "hidden",
-    elevation: 8,
-  },
-  fabFill: { position: "absolute", left: 0, top: 0, right: 0, bottom: 0 },
 
   /* --------------------------------- header ------------------------------- */
   backButton: {

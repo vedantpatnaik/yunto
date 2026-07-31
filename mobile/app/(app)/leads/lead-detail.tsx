@@ -273,7 +273,7 @@ function ManagerAvatar({ uri }: { uri?: string }) {
 
 /** Section header: 16pt semibold title with a trailing chevron. */
 function SectionHead({ y, w, title, chevron }: {
-  y: number; w: number; title: string; chevron: "chevron-down" | "chevron-right";
+  y: number; w: number; title: string; chevron: "chevron-up" | "chevron-right";
 }) {
   return (
     <Fragment>
@@ -398,7 +398,7 @@ export default function LeadDetail() {
         </Abs>
 
         <QuickAction x={39} y={CY(248)} name="phone" onPress={() => openUrl(tel(contact?.phone))} />
-        <QuickAction x={95} y={CY(248)} name="send" onPress={() => openUrl(whatsapp(contact?.phone))} />
+        <QuickAction x={95} y={CY(248)} name="message-circle" onPress={() => openUrl(whatsapp(contact?.phone))} />
         <QuickAction x={151} y={CY(248)} name="mail" onPress={() => openUrl(mailto(contact?.email))} />
 
         {/* --------------------- Segmented tabs (y=331) --------------------- */}
@@ -469,7 +469,7 @@ export default function LeadDetail() {
 
         {/* -------------------------- Brand Message ------------------------- */}
         <Abs x={15} y={CY(517)} w={345} h={168} radius={20} bg="#ffffff" />
-        <SectionHead y={549} w={120.2} title="Brand Message" chevron="chevron-down" />
+        <SectionHead y={549} w={120.2} title="Brand Message" chevron="chevron-up" />
         <Txt x={35} y={CY(581)} w={305} size={14} font="inter" color={MUTED} lineHeight={21}>
           {BRAND_MESSAGE}
         </Txt>

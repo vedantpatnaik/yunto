@@ -18,7 +18,7 @@ import { useMe, usePayoutDetail, useSavePayoutDetail } from "../../../src/api/ho
  * Your Details — Figma 7358:30364 (375x875).
  *
  * The seller's own billing identity, stamped onto every invoice they raise.
- * Glass header (back chevron + centred title), then "Main Content" at y=106:
+ * Glass header (back arrow + centred title), then "Main Content" at y=106:
  * a 327x147 mint "Info Banner" nudging unregistered sellers towards GST, and a
  * 327x551 "Details Form" card holding six fields on a 96pt step — Full Name,
  * Trade Name, GST Number, Mobile Number, then Pincode | State side by side.
@@ -30,8 +30,8 @@ import { useMe, usePayoutDetail, useSavePayoutDetail } from "../../../src/api/ho
  * Persistence: the six fields are the "Your Details" half of the caller's
  * PayoutDetail row (legalName / tradeName / gstNumber / mobile / pincode /
  * state), saved through the singleton /payout-details endpoint. The frame
- * authors no Save button — the back chevron is its only action — so the
- * chevron commits the edits and only then pops. Nothing is written when the
+ * authors no Save button — the back arrow is its only action — so the
+ * arrow commits the edits and only then pops. Nothing is written when the
  * form was not touched, and a failed write keeps the user on the screen with
  * every keystroke intact.
  */
@@ -215,7 +215,7 @@ export default function InvoiceYourDetails() {
   const state = draft.state ?? detail?.state ?? "Maharashtra";
 
   /**
-   * The chevron is this frame's only action, so it saves before it pops. An
+   * The arrow is this frame's only action, so it saves before it pops. An
    * untouched form goes straight back rather than writing the placeholder
    * defaults, and a rejected write stays put with the typed values still in
    * `draft` — the platform alert is the only way to report it without adding a
@@ -247,7 +247,7 @@ export default function InvoiceYourDetails() {
         disabled={save.isPending}
         style={({ pressed }) => [styles.back, (pressed || save.isPending) && styles.pressed]}
       >
-        <Ionicons name="chevron-back" size={20} color={BACK_INK} />
+        <Ionicons name="arrow-back" size={20} color={BACK_INK} />
       </Pressable>
       <Txt
         x={79.5}

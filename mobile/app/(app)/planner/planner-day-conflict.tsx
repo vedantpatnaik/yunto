@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { Pressable, StyleSheet } from "react-native";
+import { Pressable, StyleSheet, Text } from "react-native";
 import type { ViewStyle } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
@@ -392,9 +392,15 @@ export default function PlannerDayConflict() {
         numberOfLines={2}
       >
         {entry?.title ?? SPEC_TITLE}
+        {/*
+         * "Vertical Divider" — the caret parked at the end of the title. Figma
+         * bakes it in as a 2x22 rect at 145,261.8, i.e. the end of the sample
+         * string's second line; with a live title of any other length that rect
+         * floats in the middle of the empty card. Rendered inline instead so it
+         * always sits where the text actually ends, which is what it depicts.
+         */}
+        <Text style={styles.caret}>{"|"}</Text>
       </Txt>
-      {/* Vertical Divider — the caret parked at the end of the title. */}
-      <Abs x={145.03} y={261.8} w={2} h={22} bg={ACCENT} />
       <Txt
         x={45}
         y={298.59}
@@ -560,6 +566,9 @@ export default function PlannerDayConflict() {
 const styles = StyleSheet.create({
   backdrop: { position: "absolute", left: 0, top: 0 },
   pressed: { opacity: 0.9 },
+
+  /** Vertical Divider — #c9a7ff caret riding the end of the title text. */
+  caret: { color: ACCENT },
 
   /** Active day chip fill — the gradient rides inside the 56x69 r20 chip. */
   activeChip: { position: "absolute", left: 0, top: 0, right: 0, bottom: 0, borderRadius: 20 },

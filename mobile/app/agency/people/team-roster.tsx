@@ -197,7 +197,7 @@ export default function TeamRoster() {
         onPress={() => router.back()}
         style={({ pressed }) => [styles.backButton, pressed && styles.pressed]}
       >
-        <Feather name="chevron-left" size={16} color={BACK_ICON} />
+        <Feather name="arrow-left" size={16} color={BACK_ICON} />
       </Pressable>
       <Txt
         x={72} y={28} w={222} size={20} weight="medium" font="inter"
@@ -224,7 +224,8 @@ export default function TeamRoster() {
         Team
       </Txt>
       <Abs x={302} y={135} w={36} h={36} radius={18} bg={GLASS_60} center style={styles.chipShadow}>
-        <Feather name="chevron-down" size={20} color={CHEVRON_INK} />
+        {/* Card is the "Basics (Expanded)" variant — the disclosure points up. */}
+        <Feather name="chevron-up" size={20} color={CHEVRON_INK} />
       </Abs>
 
       {/* HorizontalBorder — 1pt top rule above the team row */}
@@ -242,7 +243,7 @@ export default function TeamRoster() {
           end={{ x: 1, y: 1 }}
           style={styles.teamAvatar}
         >
-          <Feather name="users" size={18} color={AVATAR_INK} />
+          <Feather name="briefcase" size={18} color={AVATAR_INK} />
         </LinearGradient>
 
         <Txt
@@ -252,10 +253,12 @@ export default function TeamRoster() {
           {team?.name ?? (isLoading ? "Loading…" : "No team")}
         </Txt>
         <View style={styles.editIcon}>
-          <Feather name="edit-2" size={12} color={EDIT_INK} />
+          <Feather name="edit" size={12} color={EDIT_INK} />
         </View>
+        {/* w = the frame's 163pt subtitle Container, not the sample's 84pt text
+            box: a real workspace name ("Bloom Media House") needs the room. */}
         <Txt
-          x={76} y={40.5} w={84} size={12} weight="medium" font="inter"
+          x={76} y={40.5} w={163} size={12} weight="medium" font="inter"
           color={SUB_INK} lineHeight={18} numberOfLines={1}
         >
           {agency?.name ?? ""}

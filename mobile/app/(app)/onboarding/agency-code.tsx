@@ -157,7 +157,7 @@ export default function AgencyCodeScreen() {
         style={SHADOW_CIRCLE}
       />
       <Abs x={133.5} y={241} w={32} h={32} center>
-        <Ionicons name="briefcase-outline" size={32} color={INK} />
+        <Ionicons name="business-outline" size={32} color={INK} />
       </Abs>
       <Txt
         x={99.5} y={277} w={100} size={11} weight="bold" font="inter"
@@ -167,7 +167,9 @@ export default function AgencyCodeScreen() {
       </Txt>
 
       {/* Creator Circle */}
-      <Abs x={175.5} y={216} w={100} h={100} style={SHADOW_CIRCLE}>
+      {/* The wrapper carries the circle's drop shadow, so it must be round too —
+          a square-cornered host paints a square halo over the background. */}
+      <Abs x={175.5} y={216} w={100} h={100} radius={50} style={SHADOW_CIRCLE}>
         <LinearGradient
           colors={["rgba(255,255,255,0.9)", "rgba(219,234,254,0.5)"]}
           start={{ x: 0, y: 0 }}

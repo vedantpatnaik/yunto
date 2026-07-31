@@ -86,7 +86,8 @@ const sameDay = (a: Date, b: Date) => a.toDateString() === b.toDateString();
 /* -------------------------------- primitives ------------------------------ */
 /**
  * A selectable card. Selected cards take the design's gradient plus its solid
- * white hairline; unselected ones are the translucent glass chip.
+ * white hairline and the tinted halo the frame drops under them (0,8 / 24);
+ * unselected ones are the translucent glass chip.
  */
 function Tile({
   x, y, w, h, selected, gradient, onPress, children,
@@ -111,6 +112,8 @@ function Tile({
           style={{
             position: "absolute", left: 0, top: 0, right: 0, bottom: 0,
             borderRadius: 20, borderWidth: 1, borderColor: "#ffffff",
+            shadowColor: gradient[1].slice(0, 7), shadowOpacity: 0.5,
+            shadowRadius: 24, shadowOffset: { width: 0, height: 8 }, elevation: 3,
           }}
         />
       ) : (
@@ -195,7 +198,7 @@ export default function AgencyAddReminderScreen() {
           shadowRadius: 2.7, shadowOffset: { width: 0, height: 0.9 }, elevation: 2,
         })}
       >
-        <Ionicons name="chevron-back" size={16} color={BACK_INK} />
+        <Ionicons name="arrow-back" size={16} color={BACK_INK} />
       </Pressable>
       <Txt
         x={72} y={28} w={222} size={20} weight="medium" font="inter"

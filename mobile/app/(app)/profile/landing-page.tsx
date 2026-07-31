@@ -228,7 +228,7 @@ export default function LandingPageEditContentScreen() {
         onPress={() => router.back()}
         style={({ pressed }) => [styles.backButton, pressed && styles.pressed]}
       >
-        <Feather name="chevron-left" size={20} color={ICON_INK} />
+        <Feather name="arrow-left" size={20} color={ICON_INK} />
       </Pressable>
       <Txt
         x={100} y={30} w={154} size={16} weight="bold" font="inter"
@@ -277,13 +277,19 @@ export default function LandingPageEditContentScreen() {
           )}
         </Abs>
 
-        <Txt
-          x={128} y={oy(228.5)} w={114.94} size={22} weight="bold" font="inter"
-          color={INK} lineHeight={26.62} letterSpacing={-0.5} numberOfLines={1}
-        >
-          {name}
-        </Txt>
-        <Abs x={248.94} y={oy(232.5)} w={18} h={18} center>
+        {/* Name + badge: the spec's row (7358:27419) hugs its content with a
+            6pt gap, so the badge trails the live name rather than parking at
+            the x the sample name happened to measure. 207 is the card's own
+            content width (360 - 25 padding - 128), so a long name ellipsizes
+            instead of shoving the badge past the card edge. */}
+        <Abs x={128} y={oy(228.5)} w={207} row gap={6}>
+          <Txt
+            size={22} weight="bold" font="inter" color={INK}
+            lineHeight={26.62} letterSpacing={-0.5} numberOfLines={1}
+            style={styles.nameText}
+          >
+            {name}
+          </Txt>
           <Feather name="check-circle" size={18} color={VERIFIED} />
         </Abs>
         <Txt
@@ -318,8 +324,11 @@ export default function LandingPageEditContentScreen() {
         <Abs x={40} y={oy(442)} w={40} h={40} radius={14} bg="#ffffff" center style={styles.agencyIconShadow}>
           <Feather name="briefcase" size={18} color={AGENCY_INK} />
         </Abs>
+        {/* 239 = the card's content width (360 - 25 padding - 96). The spec's
+            207.05 is only the hug width of the sample name; a real agency name
+            is longer and would ellipsize inside a box the card has room for. */}
         <Txt
-          x={96} y={oy(442)} w={207.05} size={15} weight="bold" font="inter"
+          x={96} y={oy(442)} w={239} size={15} weight="bold" font="inter"
           color={INK} lineHeight={18.15} numberOfLines={1}
         >
           {`Managed by ${agencyName}`}
@@ -493,6 +502,9 @@ const styles = StyleSheet.create({
   },
   avatarImage: { position: "absolute", left: 0, top: 0, width: 72, height: 72, borderRadius: 34 },
 
+  /** Lets a long creator name give way to the verified badge beside it. */
+  nameText: { flexShrink: 1 },
+
   agencyIconShadow: {
     shadowColor: AGENCY_INK,
     shadowOpacity: 0.1,
@@ -509,11 +521,15 @@ const styles = StyleSheet.create({
     elevation: 1,
   },
 
+  /* The field's padding box: 335 - 21 either side. The spec's TEXT node is
+     259 wide because that is what its five authored lines hug in Figma, but
+     the same lines lay out 2pt wider here, so a 259pt box wraps line one and
+     pushes the fifth line out of the 120pt run. 293 keeps every break intact. */
   bioInput: {
     position: "absolute",
     left: 21,
     top: 21,
-    width: 259,
+    width: 293,
     height: 120,
     padding: 0,
     fontFamily: fonts.inter,

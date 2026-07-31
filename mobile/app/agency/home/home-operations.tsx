@@ -89,7 +89,8 @@ const DARK = "#1f1a17"; // filled circular buttons
 const ON_DARK = "#f8f5ef"; // glyphs on those buttons
 const PRESENCE = "#05df72";
 const PINK = "#ffcdea"; // notification badge + FAB
-const ACTIVE_DOT = "#e36eb2";
+const ACTIVE_DOT = "#e36eb2"; // active tab glyph + its dot
+const TAB_IDLE = "#9a8ea3"; // the other three tab glyphs
 
 const ALERT_BG = "#e2ebe2";
 const ALERT_ORB = "rgba(212,226,212,0.3)"; // #d4e2d4 @ 30%
@@ -192,7 +193,14 @@ function agoLabel(iso: string, now: number): string {
 }
 
 /* ------------------------------- primitives ------------------------------- */
-/** Section heading — Geist 500 22 / 33 at -0.55 tracking, rendered in Inter. */
+/**
+ * Section heading — Geist 500 22 / 33 at -0.55 tracking, rendered in Inter.
+ *
+ * Inter sets wider than Geist at the same size, so a heading given the spec
+ * node's own width wraps onto a second line. Call sites pass the widened box
+ * (there is only empty canvas to the right of every heading) and the single
+ * line is pinned here so no substitution can ever reflow it.
+ */
 function Heading({ x, y, w, children }: { x: number; y: number; w: number; children: string }) {
   return (
     <Txt
@@ -205,6 +213,7 @@ function Heading({ x, y, w, children }: { x: number; y: number; w: number; child
       color={INK}
       lineHeight={33}
       letterSpacing={-0.55}
+      numberOfLines={1}
     >
       {children}
     </Txt>
@@ -662,11 +671,13 @@ export default function HomeOperations() {
               <Abs x={254} y={-15} w={96} h={96} radius={48} bg={ALERT_ORB} />
 
               <Abs x={21} y={21.75} w={40} h={40} radius={20} bg={GLASS_50} center>
-                {/* 16.54 square + 3.31 marker — the pipeline glyph. */}
-                <Feather name="users" size={20} color={INK} />
+                {/* 16.54 star + its 3.31 companion mark — the sparkle glyph. */}
+                <MaterialCommunityIcons name="creation-outline" size={20} color={INK} />
               </Abs>
 
-              <Txt x={77} y={21} w={149} size={16} weight="medium" font="inter" color={INK} lineHeight={24} numberOfLines={1}>
+              {/* Spec box is 149 wide, which clips this string once Geist falls
+                  back to Inter; the run to the arrow button leaves room to 272. */}
+              <Txt x={77} y={21} w={195} size={16} weight="medium" font="inter" color={INK} lineHeight={24} numberOfLines={1}>
                 {`${newLeads} new ${newLeads === 1 ? "lead" : "leads"} waiting`}
               </Txt>
               <Txt x={77} y={46.5} w={124} size={12} weight="regular" font="inter" color={INK_70} lineHeight={16}>
@@ -674,12 +685,13 @@ export default function HomeOperations() {
               </Txt>
 
               <Abs x={282} y={25.75} w={32} h={32} radius={16} bg={DARK} center>
-                <Feather name="arrow-up-right" size={16} color={ON_DARK} />
+                {/* 9.33 square in a 16 box — a level arrow, not the diagonal. */}
+                <Feather name="arrow-right" size={16} color={ON_DARK} />
               </Abs>
             </Pressable>
 
             {/* -------------------- 3. Performance (303 → 482) ---------------------- */}
-            <Heading x={24} y={303} w={127}>
+            <Heading x={24} y={303} w={170}>
               Performance
             </Heading>
 
@@ -745,7 +757,19 @@ export default function HomeOperations() {
                 <Abs x={13} y={7} w={20} h={20} radius={10} bg={DELTA_DISC} center>
                   <Feather name="arrow-up-right" size={12} color={INK} />
                 </Abs>
-                <Txt x={39} y={6.25} w={48.95} size={13} weight="bold" font="inter" color={INK} lineHeight={19.5}>
+                {/* 48.95 fits the design's "+12.4%" and nothing wider, so the
+                    box runs up to the divider at 95.95 and holds one line. */}
+                <Txt
+                  x={39}
+                  y={6.25}
+                  w={56}
+                  size={13}
+                  weight="bold"
+                  font="inter"
+                  color={INK}
+                  lineHeight={19.5}
+                  numberOfLines={1}
+                >
                   {`${money.deltaPct >= 0 ? "+" : ""}${money.deltaPct.toFixed(1)}%`}
                 </Txt>
                 <Abs x={95.95} y={9.5} w={1} h={15} bg={RULE} />
@@ -785,6 +809,7 @@ export default function HomeOperations() {
                     : oneDecimalK(money.thisMonth)}
                 </Txt>
 
+                {/* Label is textCase UPPER in the spec — "SET TARGET". */}
                 <Pressable onPress={() => router.push("/agency/payments/set-revenue-target")} style={styles.setTarget}>
                   <Abs x={13} y={9.5} w={10} h={10} center>
                     <Feather name="target" size={10} color={INK} />
@@ -801,7 +826,7 @@ export default function HomeOperations() {
                     letterSpacing={0.5}
                     align="center"
                   >
-                    Set Target
+                    SET TARGET
                   </Txt>
                 </Pressable>
 
@@ -843,7 +868,7 @@ export default function HomeOperations() {
             </Abs>
 
             {/* ------------------- 5. Top Creators (847 → 1070) --------------------- */}
-            <Heading x={24} y={847} w={125}>
+            <Heading x={24} y={847} w={170}>
               Top Creators
             </Heading>
             <Txt x={306.44} y={860} w={44.56} size={14} weight="semibold" font="inter" color={INK_60} lineHeight={20}>
@@ -902,7 +927,7 @@ export default function HomeOperations() {
             </Abs>
 
             {/* ---------------- 7. Explore Services (1373 → 1532) ------------------ */}
-            <Heading x={27} y={1373} w={165}>
+            <Heading x={27} y={1373} w={220}>
               Explore Services
             </Heading>
             <Pressable onPress={() => router.push("/agency/campaigns/campaign-requests")} style={styles.seeRequest}>
@@ -936,7 +961,7 @@ export default function HomeOperations() {
             </Pressable>
 
             {/* -------------------- 8. Reminders (1576 → 1761) --------------------- */}
-            <Heading x={27} y={1576} w={106}>
+            <Heading x={27} y={1576} w={170}>
               Reminders
             </Heading>
             <Pressable onPress={() => router.push("/agency/profile/reminders-list")} style={styles.remindersSeeAll}>
@@ -1023,7 +1048,8 @@ export default function HomeOperations() {
       </Txt>
 
       <Abs x={267} y={62} w={40} h={40} radius={20} bg={DARK} center>
-        <Feather name="inbox" size={20} color={ON_DARK} />
+        {/* Envelope body 16.67x13.33 over a 16.67-wide flap — the mail glyph. */}
+        <Feather name="mail" size={20} color={ON_DARK} />
       </Abs>
 
       <Pressable onPress={() => router.push("/agency/profile/notifications")} style={styles.bellButton}>
@@ -1033,19 +1059,22 @@ export default function HomeOperations() {
 
       {/* ============================== tab bar ============================== */}
       <Abs x={9} y={765} w={357} h={72} radius={32} bg={GLASS_54} style={styles.tabBar}>
+        {/* Home is the current tab, so its glyph carries the accent the dot does. */}
         <Abs x={25} y={24} w={24} h={24} center>
-          <Feather name="home" size={24} color={INK} />
+          <Feather name="home" size={24} color={ACTIVE_DOT} />
         </Abs>
         <Abs x={35} y={52} w={4} h={4} radius={2} bg={ACTIVE_DOT} />
 
         <Pressable onPress={() => router.push("/agency/payments/invoice-reminders")} style={[styles.tabItem, { left: 106 }]}>
-          <Feather name="credit-card" size={24} color={INK} />
+          {/* 20x16 tray over a 20x3 slot at y=12 — inbox, not a card. */}
+          <Feather name="inbox" size={24} color={TAB_IDLE} />
         </Pressable>
         <Pressable onPress={() => router.push("/agency/people/people-overview")} style={[styles.tabItem, { left: 227 }]}>
-          <Feather name="users" size={24} color={INK} />
+          <Feather name="users" size={24} color={TAB_IDLE} />
         </Pressable>
         <Pressable onPress={() => router.push("/agency/profile/profile-home")} style={[styles.tabItem, { left: 308 }]}>
-          <Feather name="user" size={24} color={INK} />
+          {/* Single 18x20 vector spanning 3..21 / 2..22 — a bell. */}
+          <Feather name="bell" size={24} color={TAB_IDLE} />
         </Pressable>
       </Abs>
 

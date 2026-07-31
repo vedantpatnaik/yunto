@@ -277,8 +277,14 @@ export default function MessageThread() {
         <Abs x={0} y={2} w={16} h={16} center>
           <Feather name="hash" size={16} color={INK_META} />
         </Abs>
+        {/*
+         * 108.42 is the hug width of the design's "Baseskincare"; real channel
+         * names are longer and were being cut to "Miniso Cam…". The nav has no
+         * right-hand control, so the title runs to a 20pt right margin
+         * (150 + 205 = 355) — short names render exactly as drawn.
+         */}
         <Txt
-          x={20} y={0} w={108.42}
+          x={20} y={0} w={205}
           size={17} weight="bold" font="inter" color={INK_TITLE}
           lineHeight={20.57} letterSpacing={-0.3} numberOfLines={1}
         >
@@ -297,8 +303,13 @@ export default function MessageThread() {
 
         {/* Card header — the message that opened the thread and who else is in it. */}
         <Avatar x={25} y={25} size={44} paint={gradients.avatarA} stroke={2} />
+        {/*
+         * 30.41 is the hug width of the design's "Dev" — a real author name
+         * collapsed to "K…". The name runs up to the participant stack, whose
+         * first disc sits at card-relative 234, less an 8pt gap.
+         */}
         <Txt
-          x={81} y={28.5} w={30.41}
+          x={81} y={28.5} w={145}
           size={16} weight="bold" font="inter" color={INK_TITLE} lineHeight={19.36}
           numberOfLines={1}
         >
@@ -592,7 +603,7 @@ const styles = StyleSheet.create({
     shadowRadius: 6,
     shadowOffset: { width: 0, height: 4 },
   },
-  navHeading: { position: "absolute", left: 130, top: 30, width: 128.42, height: 20 },
+  navHeading: { position: "absolute", left: 130, top: 30, width: 225, height: 20 },
 
   card: {
     overflow: "hidden",

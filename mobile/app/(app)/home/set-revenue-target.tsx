@@ -193,7 +193,13 @@ export default function SetRevenueTargetScreen() {
   const saving = saveTarget.isPending;
 
   const submit = () => {
-    if (!digits || saving) return;
+    if (saving) return;
+    // The design draws one Button state — solid #312b28 — even with the field
+    // empty, so the CTA never dims on an empty amount; it asks for one instead.
+    if (!digits) {
+      Alert.alert("Enter an amount", "Type how much you want to earn.");
+      return;
+    }
     // Both columns are written from one annual figure so they can never drift
     // apart — the home dashboard reads targetMonthly, the reports targetYearly.
     const targetYearly = digits * PER_YEAR[frequency];
@@ -269,7 +275,7 @@ export default function SetRevenueTargetScreen() {
           <Abs x={241} y={-18} w={120} h={120} radius={60} bg="rgba(255,255,255,0.22)" />
 
           <Abs x={18} y={45.11} w={46} h={46} radius={23} bg="rgba(255,248,241,0.74)" center>
-            <Ionicons name="flash-outline" size={22} color={INK} />
+            <Ionicons name="notifications-outline" size={22} color={INK} />
           </Abs>
           <Txt
             x={76} y={17} w={92.89} size={11} weight="bold" font="inter"
@@ -422,7 +428,7 @@ export default function SetRevenueTargetScreen() {
             alignItems: "center", justifyContent: "center", opacity: pressed ? 0.7 : 1,
           })}
         >
-          <Ionicons name="close" size={14} color="#555555" />
+          <Ionicons name="close" size={20} color="#555555" />
         </Pressable>
 
         {/* ------------------------- Amount field -------------------------- */}
@@ -471,13 +477,12 @@ export default function SetRevenueTargetScreen() {
         {/* ------------------------------ CTA ------------------------------ */}
         <Pressable
           onPress={submit}
-          disabled={!digits || saving}
+          disabled={saving}
           style={({ pressed }) => ({
             position: "absolute", left: 37, top: 299.72, width: 301, height: 55,
             borderRadius: 100, backgroundColor: "#312b28",
-            // Same two opacity stops the design already uses for enabled /
-            // disabled — in-flight simply reuses the disabled one.
-            opacity: digits && !saving ? (pressed ? 0.9 : 1) : 0.5,
+            // Solid at rest, per the design; only an in-flight save dims it.
+            opacity: saving ? 0.5 : pressed ? 0.9 : 1,
             shadowColor: "#312b28", shadowOpacity: 0.25, shadowRadius: 20,
             shadowOffset: { width: 0, height: 8 }, elevation: 6,
           })}

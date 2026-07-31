@@ -141,10 +141,15 @@ const openUrl = (url?: string) => {
 };
 
 /* --------------------------------- pieces --------------------------------- */
-/** 21pt hug pill — "Barter" / "Budget ₹1.2L" / "Zostel Trip". */
-function Tag({ label }: { label: string }) {
+/**
+ * 21pt hug pill — "Barter" / "Budget ₹1.2L" / "Zostel Trip". The last pill in a
+ * row carries the brand name, which real data makes longer than the design's
+ * sample; `shrink` lets it ellipsise inside the 231pt row rather than be sliced
+ * through its rounded end by the row's clip.
+ */
+function Tag({ label, shrink }: { label: string; shrink?: boolean }) {
   return (
-    <View style={styles.tag}>
+    <View style={[styles.tag, shrink ? styles.shrink : null]}>
       <Txt size={10} font="inter" color={META_INK} lineHeight={15} numberOfLines={1}>
         {label}
       </Txt>
@@ -181,17 +186,24 @@ function LeadCard({ top, status, name, date, tags, onOpen, onCall, onWhatsApp }:
       {/* Avatar — the design ships an empty 44pt image placeholder. */}
       <Abs x={17} y={17} w={44} h={44} radius={22} bg={AVATAR_FILL} border={WHITE} borderWidth={1} />
 
-      <Txt
-        x={73} y={21} w={87} size={14} weight="bold" font="inter"
-        color={NAME_INK} lineHeight={20} letterSpacing={-0.35} numberOfLines={1}
-      >
-        {name}
-      </Txt>
-      <Abs x={166} y={25} w={12} h={12} center>
-        <Feather name="target" size={12} color={META_ICON} />
-      </Abs>
-      <Abs x={180} y={25} w={12} h={12} center>
-        <Feather name="users" size={12} color={META_ICON} />
+      {/*
+       * Name + platform icons. Figma hugs the name and sets the two 12pt icons
+       * 6pt after it inside a 119pt block, so the pair tracks the real name
+       * instead of sitting at the sample's 87pt width; a long name shrinks and
+       * ellipsises exactly where the design caps it.
+       */}
+      <Abs x={73} y={21} w={119} h={20} row gap={6}>
+        <Txt
+          size={14} weight="bold" font="inter"
+          color={NAME_INK} lineHeight={20} letterSpacing={-0.35} numberOfLines={1}
+          style={styles.shrink}
+        >
+          {name}
+        </Txt>
+        <View style={styles.metaIcons}>
+          <Feather name="instagram" size={12} color={META_ICON} />
+          <Feather name="video" size={12} color={META_ICON} />
+        </View>
       </Abs>
       <Txt
         x={73} y={41} w={119} size={12} font="inter"
@@ -215,8 +227,8 @@ function LeadCard({ top, status, name, date, tags, onOpen, onCall, onWhatsApp }:
 
       {/* Tag row — 12pt gaps put the pills at 13 / 73 / 164, as designed. */}
       <Abs x={13} y={86} w={231} h={21} row gap={12} style={styles.clip}>
-        {tags.map((t) => (
-          <Tag key={t} label={t} />
+        {tags.map((t, i) => (
+          <Tag key={t} label={t} shrink={i === tags.length - 1} />
         ))}
       </Abs>
 
@@ -305,7 +317,7 @@ export default function LeadsList() {
         onPress={() => router.back()}
         style={({ pressed }) => [styles.backButton, pressed && styles.pressed]}
       >
-        <Feather name="chevron-left" size={16} color={BACK_ICON} />
+        <Feather name="arrow-left" size={16} color={BACK_ICON} />
       </Pressable>
       <Txt
         x={72} y={28} w={192} size={20} weight="medium" font="inter"
@@ -405,6 +417,9 @@ const styles = StyleSheet.create({
   fill: { position: "absolute", left: 0, top: 0, right: 0, bottom: 0 },
   clip: { overflow: "hidden" },
   upper: { textTransform: "uppercase" },
+  shrink: { flexShrink: 1 },
+  /** The 26x12 icon pair — 12pt glyphs on the design's 2pt gap. */
+  metaIcons: { flexDirection: "row", alignItems: "center", gap: 2 },
   /** The banner's second style run: Geist 400, rendered in Inter. */
   bannerRest: { fontFamily: fonts.inter },
 

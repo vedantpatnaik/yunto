@@ -22,10 +22,12 @@ import { useMe } from "../../../src/api/hooks";
  *    key art). Native screens get the real keyboard, so a hidden TextInput
  *    sits over the code row instead.
  *  - The frame's surfaces are the pre-875 style — flat white with 1px black
- *    hairlines over a mesh-gradient image. Those are restyled to the
+ *    hairlines over a mesh-gradient image. Those *fills* are restyled to the
  *    875-generation glass language of agency-code (7485:43519): the Soft
  *    Dreamy Background blobs, white/60 glass fills with white hairlines and
- *    the #b794f4 accent on inputs. Coordinates are untouched.
+ *    the #b794f4 accent on the code boxes. Coordinates, corner radii and the
+ *    frame's own colours (progress #1a9461, link #60a5fa, the success card)
+ *    stay verbatim.
  */
 
 /* --------------------------- 875-generation tokens ------------------------ */
@@ -43,6 +45,8 @@ const GLASS_LINE = "rgba(255,255,255,0.8)";
 const TITLE_INK = "#101010";
 const STEP_INK = "#373837";
 const TRACK = "#dee3de";
+/** Progress fill 765:11138 — the frame's own green, also the success mark. */
+const PROGRESS = "#1a9461";
 const PHONE_LINK = "#60a5fa";
 const SUCCESS_BODY = "#b6b6b6";
 
@@ -217,7 +221,7 @@ export default function VerifyOtp() {
 
       {/* ---- Step card — 765:11133 ---------------------------------------- */}
       <Abs
-        x={14} y={109} w={338} h={54} radius={14}
+        x={14} y={109} w={338} h={54} radius={8}
         bg={GLASS_FILL} border={GLASS_LINE} borderWidth={1}
         style={{
           shadowColor: ACCENT, shadowOpacity: 0.12, shadowRadius: 24,
@@ -230,11 +234,11 @@ export default function VerifyOtp() {
       </Txt>
       {/* Progress track 765:11137 + fill 765:11138 (step 4 of 4 → full) */}
       <Abs x={31} y={142} w={309} h={8} radius={4} bg={TRACK} />
-      <Abs x={31} y={142} w={309} h={8} radius={4} bg={ACCENT} />
+      <Abs x={31} y={142} w={309} h={8} radius={4} bg={PROGRESS} />
 
       {/* ---- Instruction card — 765:11139 --------------------------------- */}
       <Abs
-        x={16} y={176} w={343} h={78} radius={14}
+        x={16} y={176} w={343} h={78} radius={12}
         bg={GLASS_FILL} border={GLASS_LINE} borderWidth={1}
         style={{
           shadowColor: ACCENT, shadowOpacity: 0.12, shadowRadius: 24,
@@ -390,23 +394,17 @@ export default function VerifyOtp() {
         <Abs x={0} y={0} w={375} h={812} bg="rgba(0,0,0,0.7)">
           {/* verify card 1885:5110 */}
           <Abs
-            x={16} y={294} w={343} h={224} radius={32}
-            bg="rgba(255,255,255,0.92)" border="rgba(255,255,255,0.9)" borderWidth={1}
+            x={16} y={294} w={343} h={224} radius={12}
+            bg={colors.white} border={colors.ink} borderWidth={1}
           />
-          {/* image 14 1887:3108 — the frame's confirmation mark */}
+          {/* image 14 1887:3108 — a raster badge in the export, so it is drawn
+              at the same box in the frame's green with a white tick. */}
           <Abs x={150} y={312} w={75} h={75}>
             <Svg width={75} height={75} viewBox="0 0 75 75">
-              <Circle
-                cx={37.5}
-                cy={37.5}
-                r={35.5}
-                stroke={ACCENT}
-                strokeWidth={3}
-                fill="rgba(183,148,244,0.15)"
-              />
+              <Circle cx={37.5} cy={40} r={24} fill={PROGRESS} />
               <Path
-                d="M23 38.5 33.5 49 52 30.5"
-                stroke={ACCENT}
+                d="M27 40.5 34.5 48 48.5 33"
+                stroke={colors.white}
                 strokeWidth={4}
                 strokeLinecap="round"
                 strokeLinejoin="round"

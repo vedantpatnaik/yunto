@@ -2,7 +2,12 @@ import type { ReactNode } from "react";
 import { useMemo, useState } from "react";
 import { Image, Pressable, ScrollView, StyleSheet } from "react-native";
 import { useRouter } from "expo-router";
-import { Feather, Ionicons } from "@expo/vector-icons";
+import {
+  Feather,
+  Ionicons,
+  MaterialCommunityIcons,
+  MaterialIcons,
+} from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import Svg, {
   Defs,
@@ -146,6 +151,17 @@ function deadlineOf(timeline?: string): string {
 const clampPct = (n: number) => (n > 100 ? 100 : n < 0 ? 0 : n);
 
 /* -------------------------------- backdrop -------------------------------- */
+/**
+ * Figma's radial fills are ellipses (separate x/y radii). `rx`/`ry` on
+ * <RadialGradient> are honoured only by react-native-svg's native backends —
+ * they are not SVG attributes, so the DOM renderer drops them and falls back to
+ * r="50%", which collapses every glow to a fraction of its size. The portable
+ * spelling is a circular gradient of radius `rx` squashed to `ry` by a
+ * gradientTransform, which both backends read.
+ */
+const ellipse = (cy: number, rx: number, ry: number) =>
+  `matrix(1 0 0 ${ry / rx} 0 ${cy * (1 - ry / rx)})`;
+
 /** The frame fill: a warm vertical base plus four soft radial glows. */
 function Backdrop() {
   return (
@@ -155,19 +171,47 @@ function Backdrop() {
           <Stop offset="0" stopColor="#F7F0E4" />
           <Stop offset="1" stopColor="#F4EBDD" />
         </SvgLinear>
-        <RadialGradient id="pink" cx="285" cy="542.5" rx="1027.5" ry="568.75" gradientUnits="userSpaceOnUse">
+        <RadialGradient
+          id="pink"
+          cx={285}
+          cy={542.5}
+          r={1027.5}
+          gradientTransform={ellipse(542.5, 1027.5, 568.75)}
+          gradientUnits="userSpaceOnUse"
+        >
           <Stop offset="0" stopColor="#F7B7DA" stopOpacity="0.34" />
           <Stop offset="0.26" stopColor="#F7B7DA" stopOpacity="0" />
         </RadialGradient>
-        <RadialGradient id="blue" cx="90" cy="367.5" rx="967.5" ry="533.75" gradientUnits="userSpaceOnUse">
+        <RadialGradient
+          id="blue"
+          cx={90}
+          cy={367.5}
+          r={967.5}
+          gradientTransform={ellipse(367.5, 967.5, 533.75)}
+          gradientUnits="userSpaceOnUse"
+        >
           <Stop offset="0" stopColor="#BACDF4" stopOpacity="0.36" />
           <Stop offset="0.24" stopColor="#BACDF4" stopOpacity="0" />
         </RadialGradient>
-        <RadialGradient id="gold" cx="292.5" cy="157.5" rx="1338.75" ry="735" gradientUnits="userSpaceOnUse">
+        <RadialGradient
+          id="gold"
+          cx={292.5}
+          cy={157.5}
+          r={1338.75}
+          gradientTransform={ellipse(157.5, 1338.75, 735)}
+          gradientUnits="userSpaceOnUse"
+        >
           <Stop offset="0" stopColor="#F6D64A" stopOpacity="0.22" />
           <Stop offset="0.2" stopColor="#F6D64A" stopOpacity="0" />
         </RadialGradient>
-        <RadialGradient id="haze" cx="75" cy="87.5" rx="1466.25" ry="805" gradientUnits="userSpaceOnUse">
+        <RadialGradient
+          id="haze"
+          cx={75}
+          cy={87.5}
+          r={1466.25}
+          gradientTransform={ellipse(87.5, 1466.25, 805)}
+          gradientUnits="userSpaceOnUse"
+        >
           <Stop offset="0" stopColor="#FFFFFF" stopOpacity="0.72" />
           <Stop offset="0.24" stopColor="#FFFFFF" stopOpacity="0" />
         </RadialGradient>
@@ -207,8 +251,8 @@ function WarmGlass({ p, w, h, r }: { p: string; w: number; h: number; r: number 
           id={`${p}p`}
           cx={0.72 * w}
           cy={0.88 * h}
-          rx={0.86 * w}
-          ry={1.59 * h}
+          r={0.86 * w}
+          gradientTransform={ellipse(0.88 * h, 0.86 * w, 1.59 * h)}
           gradientUnits="userSpaceOnUse"
         >
           <Stop offset="0" stopColor="#F7B7DA" stopOpacity="0.4" />
@@ -218,8 +262,8 @@ function WarmGlass({ p, w, h, r }: { p: string; w: number; h: number; r: number 
           id={`${p}g`}
           cx={0.82 * w}
           cy={0.18 * h}
-          rx={0.93 * w}
-          ry={1.72 * h}
+          r={0.93 * w}
+          gradientTransform={ellipse(0.18 * h, 0.93 * w, 1.72 * h)}
           gradientUnits="userSpaceOnUse"
         >
           <Stop offset="0" stopColor="#F6D64A" stopOpacity="0.3" />
@@ -229,8 +273,8 @@ function WarmGlass({ p, w, h, r }: { p: string; w: number; h: number; r: number 
           id={`${p}h`}
           cx={0.18 * w}
           cy={0.2 * h}
-          rx={0.93 * w}
-          ry={1.71 * h}
+          r={0.93 * w}
+          gradientTransform={ellipse(0.2 * h, 0.93 * w, 1.71 * h)}
           gradientUnits="userSpaceOnUse"
         >
           <Stop offset="0" stopColor="#FFFFFF" stopOpacity="0.72" />
@@ -279,12 +323,12 @@ function FluidGraph() {
 
 /* ------------------------------- stat cards ------------------------------- */
 interface StatSpec {
+  /** Offset inside the 345-wide track, which starts at x=15 in the frame. */
   x: number;
   from: string;
   to: string;
   border: string;
   valueY: number;
-  valueW: number;
   labelW: number;
   chipW: number;
   chipBg: string;
@@ -292,21 +336,21 @@ interface StatSpec {
   chipInk: string;
 }
 
-/** Cards 1-3 of "Top: Today's Overview"; card 3 runs past the frame edge. */
+/** Cards 1-3 of "Top: Today's Overview"; card 3 is clipped by the track. */
 const STAT_SPECS: StatSpec[] = [
   {
-    x: 20, from: "#e6aaff80", to: "#fff6fadb", border: GLASS_W62,
-    valueY: 16.77, valueW: 38, labelW: 69.03,
+    x: 5, from: "#e6aaff80", to: "#fff6fadb", border: GLASS_W62,
+    valueY: 16.77, labelW: 69.03,
     chipW: 79.05, chipBg: "#fadaff", chipTextW: 47.05, chipInk: "#7b1fa2",
   },
   {
-    x: 162, from: "#d5ffd7", to: "#fafbffe0", border: GLASS_W90,
-    valueY: 17, valueW: 67.92, labelW: 53.78,
+    x: 147, from: "#d5ffd7", to: "#fafbffe0", border: GLASS_W90,
+    valueY: 17, labelW: 53.78,
     chipW: 62.16, chipBg: "rgba(223,255,224,0.92)", chipTextW: 30.16, chipInk: "#2e7d32",
   },
   {
-    x: 304, from: "#bfd3ff7a", to: "#fafbffe0", border: GLASS_W90,
-    valueY: 16.77, valueW: 69, labelW: 72.53,
+    x: 289, from: "#bfd3ff7a", to: "#fafbffe0", border: GLASS_W90,
+    valueY: 16.77, labelW: 72.53,
     chipW: 61.97, chipBg: "rgba(236,247,255,0.88)", chipTextW: 29.97, chipInk: "#1565c0",
   },
 ];
@@ -331,10 +375,12 @@ function StatCard({
         end={{ x: 0.5, y: 1 }}
         style={StyleSheet.absoluteFill}
       />
+      {/* Figma sizes this box to its sample string; live totals are longer, so
+          it spans the card's inner width instead of clipping to an ellipsis. */}
       <Txt
         x={17}
         y={spec.valueY}
-        w={spec.valueW}
+        w={96}
         size={26}
         weight="bold"
         font="inter"
@@ -759,7 +805,7 @@ export default function HomeDashboard() {
               <Abs x={241} y={-18} w={120} h={120} radius={999} bg="rgba(255,255,255,0.22)" />
 
               <Abs x={18} y={45.11} w={46} h={46} radius={999} bg="rgba(255,248,241,0.74)" center>
-                <Feather name="zap" size={22} color={INK} />
+                <MaterialCommunityIcons name="bell-ring-outline" size={22} color={INK} />
               </Abs>
 
               <Txt
@@ -793,7 +839,7 @@ export default function HomeDashboard() {
               </Txt>
 
               <Pressable onPress={goToLeads} style={styles.priorityArrow}>
-                <Feather name="arrow-up-right" size={20} color={ICON_ON_DARK} />
+                <Feather name="arrow-right" size={20} color={ICON_ON_DARK} />
               </Pressable>
 
               <Abs x={18} y={132.23} w={94.52} h={32} radius={999} bg="rgba(255,248,241,0.62)" border={GLASS_W60} borderWidth={1}>
@@ -818,8 +864,10 @@ export default function HomeDashboard() {
               Today’s Summary
             </Heading>
 
-            {/* ---------------- 3. stat cards (353.23 → 473.23) --------------------- */}
-            <Abs x={0} y={353.23} w={FRAME_W} h={120}>
+            {/* ---------------- 3. stat cards (353.23 → 473.23) ---------------------
+                "Top: Today's Overview" is 345 wide and clipsContent, so card 3
+                is cut off at x=360 rather than running to the frame edge. */}
+            <Abs x={15} y={353.23} w={345} h={120} style={styles.clip}>
               <ScrollView
                 horizontal
                 showsHorizontalScrollIndicator={false}
@@ -872,7 +920,7 @@ export default function HomeDashboard() {
               y={660.24}
               from="#e5daefdb"
               to="#f9f4fcf0"
-              icon={<Feather name="phone" size={16} color={INK} />}
+              icon={<MaterialCommunityIcons name="forum-outline" size={16} color={INK} />}
               count={pad2(pipeline.contacted)}
               label="Contacted"
               onPress={goToLeads}
@@ -882,7 +930,7 @@ export default function HomeDashboard() {
               y={660.24}
               from="#bfd3ffb8"
               to="#f5f9ffeb"
-              icon={<Feather name="check-circle" size={16} color={INK} />}
+              icon={<MaterialCommunityIcons name="check-decagram-outline" size={16} color={INK} />}
               count={pad2(pipeline.won)}
               label="Won"
               onPress={goToLeads}
@@ -1324,7 +1372,7 @@ export default function HomeDashboard() {
           onPress={() => router.push("/reminders/reminders")}
           style={[styles.tabItem, { left: 278.38 }]}
         >
-          <Feather name="check-circle" size={20} color="#9a8ea3" />
+          <MaterialIcons name="list-alt" size={20} color="#9a8ea3" />
         </Pressable>
         <Txt x={267.88} y={51.5} w={55} size={12} weight="medium" font="inter" color="#9a8ea3" lineHeight={11} align="center">
           Reminder
@@ -1387,7 +1435,7 @@ const styles = StyleSheet.create({
     borderColor: GLASS_W60,
   },
 
-  statTrack: { width: 449, height: 120 },
+  statTrack: { width: 424, height: 120 },
   statCard: {
     overflow: "hidden",
     shadowColor: "#4A3722",

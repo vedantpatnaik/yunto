@@ -358,7 +358,9 @@ export default function AgencySignInScreen() {
           hitSlop={10}
           style={{ position: "absolute", left: 253, top: 18, width: 15, height: 15 }}
         >
-          <Ionicons name={reveal ? "eye-off-outline" : "eye-outline"} size={15} color={EYE_ICON} />
+          {/* At rest the password is masked, which the design marks with the
+              struck-through eye; revealing it swaps to the plain eye. */}
+          <Ionicons name={reveal ? "eye-outline" : "eye-off-outline"} size={15} color={EYE_ICON} />
         </Pressable>
       </Abs>
 
@@ -449,16 +451,24 @@ export default function AgencySignInScreen() {
 
       {/* -------------------------------- OR rule ---------------------------- */}
       <Abs x={45} y={590} w={120.77} h={1} bg={RULE} />
+      {/*
+        Figma's box is exactly 19 wide, which is a hair under what "OR" needs at
+        12/1.2 tracking once RN adds the trailing letter-space — it wrapped to
+        two lines. Widened to 24 and centred on the same 187.27 axis so the
+        glyphs land where the design puts them and stay on one line.
+      */}
       <Txt
-        x={177.77}
+        x={175.27}
         y={581.5}
-        w={19}
+        w={24}
         size={12}
         weight="semibold"
         font="inter"
         color={OR_INK}
         lineHeight={18}
         letterSpacing={1.2}
+        align="center"
+        numberOfLines={1}
       >
         OR
       </Txt>

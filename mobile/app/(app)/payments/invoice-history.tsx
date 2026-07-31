@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import type { ComponentProps } from "react";
 import { Pressable, StyleSheet } from "react-native";
 import { useRouter } from "expo-router";
-import { Ionicons } from "@expo/vector-icons";
+import { Feather, Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import Svg, {
   Defs,
@@ -90,18 +90,44 @@ const pillFor = (status: string): PillKey =>
 /**
  * The 48x48 icon tile cycles four tints down the stack (red, orange, purple,
  * teal) independently of status — the spec's two PAID cards carry different
- * tiles. Vector paths are not in the spec, so the glyphs are matched to each
- * SVG's bounding aspect.
+ * tiles. Vector paths are not in the spec, but each glyph's stroke bounds pin
+ * the source icon exactly (all four are lucide, drawn at 20/24 scale):
+ *   18x20 + 17.8x8   -> shopping-bag   (Feather draws the same paths)
+ *   20x20 + 4x4      -> sparkles
+ *   20x19.07         -> star
+ *   20x16            -> wind
+ * Feather is lucide's ancestor and matches three of them path-for-path; only
+ * the sparkle has no Feather glyph, so that one comes from Ionicons.
  */
+type TileIcon =
+  | { set: "feather"; name: ComponentProps<typeof Feather>["name"] }
+  | { set: "ion"; name: ComponentProps<typeof Ionicons>["name"] };
+
 const TILES: {
   fill: readonly [string, string];
   ink: string;
-  icon: ComponentProps<typeof Ionicons>["name"];
+  icon: TileIcon;
 }[] = [
-  { fill: ["rgba(254,202,202,0.6)", "rgba(254,202,202,0.2)"], ink: "#B91C1C", icon: "bag-outline" },
-  { fill: ["rgba(255,237,213,0.8)", "rgba(255,237,213,0.3)"], ink: "#C2410C", icon: "pricetag-outline" },
-  { fill: ["rgba(243,232,255,0.8)", "rgba(243,232,255,0.3)"], ink: "#7E22CE", icon: "heart-outline" },
-  { fill: ["rgba(204,251,241,0.8)", "rgba(204,251,241,0.3)"], ink: "#047857", icon: "briefcase-outline" },
+  {
+    fill: ["rgba(254,202,202,0.6)", "rgba(254,202,202,0.2)"],
+    ink: "#B91C1C",
+    icon: { set: "feather", name: "shopping-bag" },
+  },
+  {
+    fill: ["rgba(255,237,213,0.8)", "rgba(255,237,213,0.3)"],
+    ink: "#C2410C",
+    icon: { set: "ion", name: "sparkles-outline" },
+  },
+  {
+    fill: ["rgba(243,232,255,0.8)", "rgba(243,232,255,0.3)"],
+    ink: "#7E22CE",
+    icon: { set: "feather", name: "star" },
+  },
+  {
+    fill: ["rgba(204,251,241,0.8)", "rgba(204,251,241,0.3)"],
+    ink: "#047857",
+    icon: { set: "feather", name: "wind" },
+  },
 ];
 
 /* --------------------------------- helpers -------------------------------- */
@@ -211,7 +237,11 @@ function InvoiceCard({ row, top, tone }: { row: Row; top: number; tone: number }
           style={styles.tileFill}
         />
         <Abs x={0} y={0} w={48} h={48} center>
-          <Ionicons name={tile.icon} size={20} color={tile.ink} />
+          {tile.icon.set === "feather" ? (
+            <Feather name={tile.icon.name} size={20} color={tile.ink} />
+          ) : (
+            <Ionicons name={tile.icon.name} size={20} color={tile.ink} />
+          )}
         </Abs>
       </Abs>
 
@@ -269,7 +299,8 @@ export default function InvoiceHistory() {
         onPress={() => router.back()}
         style={({ pressed }) => [styles.back, pressed && styles.pressed]}
       >
-        <Ionicons name="chevron-back" size={20} color="#1C1C1E" />
+        {/* Spec: 11.67x11.67 stroke in a 20pt box — a full arrow, not a chevron. */}
+        <Feather name="arrow-left" size={20} color="#1C1C1E" />
       </Pressable>
       <Txt
         x={79.5} y={30} w={236} align="center"
@@ -287,9 +318,10 @@ export default function InvoiceHistory() {
       </Txt>
       <Pressable
         onPress={() => router.push("/payments/invoice-create")}
-        style={({ pressed }) => [styles.add, pressed && styles.pressed]}
+        style={({ pressed }) => [styles.action, pressed && styles.pressed]}
       >
-        <Ionicons name="add" size={16} color={ICON_INK} />
+        {/* Spec: 12x12 stroke in a 16pt box — the sliders glyph, not a plus. */}
+        <Ionicons name="options-outline" size={16} color={ICON_INK} />
       </Pressable>
 
       {/* ============================ Invoice cards ========================== */}
@@ -331,7 +363,7 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
     elevation: 1,
   },
-  add: {
+  action: {
     position: "absolute",
     left: 311,
     top: 106,

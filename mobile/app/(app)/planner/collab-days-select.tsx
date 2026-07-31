@@ -113,7 +113,7 @@ const BADGE_SHADOW = {
   elevation: 3,
 } as const;
 
-/** #00000026 / 8px / y+4 — the dark tick badge on a picked day. */
+/** #00000026 / 8px / y+4 — the dark plus badge on a picked day. */
 const TICK_SHADOW = {
   shadowColor: colors.ink,
   shadowOpacity: 0.15,
@@ -270,16 +270,15 @@ function InfoDark() {
   );
 }
 
-/** Tick inside the dark 20pt badge — 7x7 vector, white at 1. */
-function Tick() {
+/** Plus inside the dark 20pt badge — 7358:21957, a 7x7 vector, white at 1. */
+function Plus() {
   return (
     <Svg width={12} height={12} viewBox="0 0 12 12">
       <Path
-        d="M2.5 6.3 4.9 8.7 9.5 3.1"
+        d="M3 6h6M6 3v6"
         stroke={colors.white}
         strokeWidth={1}
         strokeLinecap="round"
-        strokeLinejoin="round"
         fill="none"
       />
     </Svg>
@@ -605,7 +604,7 @@ export default function CollabDaysSelect() {
               center
               style={TICK_SHADOW}
             >
-              <Tick />
+              <Plus />
             </Abs>
           </View>
         );
@@ -752,7 +751,10 @@ export default function CollabDaysSelect() {
       <Txt
         x={52.5}
         y={770}
-        w={255}
+        /* Spec box is 255 wide and the line measures 252.5 in Figma; RN's Inter
+           runs a hair wider and wrapped "future." onto a second line, spilling
+           out of the 44pt card. Widen to the parent row's right edge (324). */
+        w={271.5}
         size={12}
         weight="regular"
         font="inter"

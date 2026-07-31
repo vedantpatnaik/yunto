@@ -138,7 +138,7 @@ interface Slot {
 const SLOTS: readonly Slot[] = [
   { y: 242, h: 154, subLines: 1, chipY: 66, btnY: 102, icons: ["phone", "message-circle", "instagram"] },
   { y: 408, h: 170, subLines: 2, chipY: 82, btnY: 118, icons: ["phone", "message-circle", "more-horizontal"] },
-  { y: 590, h: 170, subLines: 2, chipY: 82, btnY: 118, icons: ["copy", "more-horizontal"] },
+  { y: 590, h: 170, subLines: 2, chipY: 82, btnY: 118, icons: ["file-text", "more-horizontal"] },
 ];
 
 /* ------------------------------ derivations ------------------------------- */
@@ -342,7 +342,7 @@ export default function LeadHistory() {
         onPress={() => router.back()}
         style={({ pressed }) => [styles.back, pressed && styles.pressed]}
       >
-        <Feather name="chevron-left" size={20} color={BACK_ICON} />
+        <Feather name="arrow-left" size={20} color={BACK_ICON} />
       </Pressable>
       <Txt
         x={100}

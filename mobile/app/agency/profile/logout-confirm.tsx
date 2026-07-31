@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Image, Pressable } from "react-native";
 import { useRouter } from "expo-router";
 import { useQueryClient } from "@tanstack/react-query";
-import { Ionicons } from "@expo/vector-icons";
+import { Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import Constants from "expo-constants";
 import Svg, { Defs, Ellipse, Polygon, RadialGradient, Rect, Stop } from "react-native-svg";
@@ -95,12 +95,16 @@ function PageDecor() {
       />
       <Svg width={375} height={876} style={{ position: "absolute", left: 0, top: 0 }}>
         <Defs>
+          {/* Inscribed in 7810:26053's own bounds so the wash reaches zero on
+              every edge of the rect — a larger radius leaves the fill still
+              opaque where the rectangle stops and draws a hard vertical seam
+              down the page at x=112.5, which the frame does not have. */}
           <RadialGradient
             id="pageViolet"
             cx="243.75"
             cy="700.8"
-            rx="185"
-            ry="185"
+            rx="131.25"
+            ry="175.2"
             gradientUnits="userSpaceOnUse"
           >
             <Stop offset="0" stopColor="#d7cdff" stopOpacity="0.4" />
@@ -322,11 +326,16 @@ export default function LogoutConfirmScreen() {
         Log Out?
       </Txt>
 
-      {/* --------------------------------- Body ------------------------------ */}
+      {/* --------------------------------- Body ------------------------------
+          Laid out on the copy's parent container (7810:26137, 45 -> 284.92)
+          rather than the TEXT node's own 254, which is the exact ink width of
+          the longest line in Figma: RN measures that line a hair wider and
+          soft-wraps "to" onto a fifth line, pushing the block into the identity
+          row. Same centre (187.5), same four hard-wrapped lines. */}
       <Txt
-        x={60.45}
+        x={45}
         y={293.19}
-        w={254}
+        w={284.92}
         size={13}
         weight="medium"
         font="inter"
@@ -448,7 +457,7 @@ export default function LogoutConfirmScreen() {
         borderWidth={1}
       />
       <Abs x={62} y={510} w={24} h={24} radius={12} bg="rgba(62,125,82,0.12)" center>
-        <Ionicons name="lock-closed-outline" size={12} color={SAFE_ICON} />
+        <Feather name="lock" size={12} color={SAFE_ICON} />
       </Abs>
       <Txt
         x={96}
@@ -496,8 +505,10 @@ export default function LogoutConfirmScreen() {
             borderRadius: 27.25,
           }}
         />
-        <Ionicons
-          name="power-outline"
+        {/* 7810:26158 is the door-and-arrow mark, not a power symbol — its lone
+            13.5x13.5 vector inside an 18x18 box is Feather's "log-out". */}
+        <Feather
+          name="log-out"
           size={18}
           color="#ffffff"
           style={{ position: "absolute", left: 100.1, top: 18.25 }}
@@ -538,9 +549,11 @@ export default function LogoutConfirmScreen() {
           elevation: 1,
         })}
       >
-        <Ionicons
-          name="close"
-          size={16}
+        {/* 7810:26162 — a 10.5x10.5 vector in an 18x18 box: Feather "arrow-left",
+            the "go back" mark the frame shows, not a dismiss cross. */}
+        <Feather
+          name="arrow-left"
+          size={18}
           color={GHOST_INK}
           style={{ position: "absolute", left: 74.58, top: 19.25 }}
         />
@@ -559,11 +572,15 @@ export default function LogoutConfirmScreen() {
         </Txt>
       </Pressable>
 
-      {/* ------------------------------ Build stamp -------------------------- */}
+      {/* ------------------------------ Build stamp --------------------------
+          Sized to the stamp's container (7810:26165, 20 -> 335) rather than the
+          TEXT node's 119, which only fits the frame's own "v2.4.1"; a real
+          version string is longer and was being ellipsised. Centre is 187.5
+          either way. */}
       <Txt
-        x={128}
+        x={20}
         y={751.5}
-        w={119}
+        w={335}
         size={11}
         weight="medium"
         font="inter"

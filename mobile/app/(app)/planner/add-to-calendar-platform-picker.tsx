@@ -509,8 +509,10 @@ export default function AddToCalendarPlatformPicker() {
         borderWidth={1}
         style={fabShadow}
       />
+      {/* iconify-icon 7450:39239 — share/export glyph (vector 13.33x16.67
+          at 41.33/806.67 inside the 20pt box = Feather "share"). */}
       <Abs x={38} y={805} w={20} h={20} center>
-        <Feather name="file-text" size={20} color="#141416" />
+        <Feather name="share" size={20} color="#141416" />
       </Abs>
 
       <View style={[styles.cta, ctaShadow]}>

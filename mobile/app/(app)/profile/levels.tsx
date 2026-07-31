@@ -4,7 +4,14 @@ import { Pressable, StyleSheet, View } from "react-native";
 import { useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import Svg, { Defs, RadialGradient, Rect, Stop } from "react-native-svg";
+import Svg, {
+  Defs,
+  Line,
+  LinearGradient as SvgLinearGradient,
+  RadialGradient,
+  Rect,
+  Stop,
+} from "react-native-svg";
 import { Abs, Screen, Txt } from "../../../src/ui/Frame";
 import { colors } from "../../../src/theme";
 import { useCampaigns } from "../../../src/api/hooks";
@@ -36,7 +43,7 @@ const INK_BODY = "#6B627A";
 const INK_MUTED = "#7A7188";
 const INK_PERK = "#3A2A5A";
 const PERK_ICON = "#8A5A9A";
-const DIVIDER = "rgba(150,140,180,0.5)";
+const RAIL_INK = "#968CB4";
 const GLASS_75 = "rgba(255,255,255,0.75)";
 const BORDER_90 = "rgba(255,255,255,0.9)";
 const WHITE_90 = "rgba(255,255,255,0.9)";
@@ -249,34 +256,88 @@ const PERKS: { label: string; y: number; w: number; icon: IconName }[] = [
 const BRAND_CHIP_Y = 662.27 + PERK_STEP * 3;
 
 /* -------------------------------- backdrop -------------------------------- */
+/**
+ * Figma authors each wash as a very tall ellipse (ry ~3.7x rx), but an SVG
+ * radial gradient carries a single radius: rx/ry are honoured by the native
+ * renderer and dropped by the web one, which then falls back to r=50% and
+ * squashes every wash into a circle. Declaring one radius plus a vertical
+ * gradientTransform gives the same ellipse on both.
+ */
+type Glow = {
+  id: string;
+  color: string;
+  alpha: number;
+  /** stop offset at which the wash has faded to nothing */
+  edge: number;
+  cx: number;
+  cy: number;
+  rx: number;
+  ry: number;
+};
+
+const GLOWS: Glow[] = [
+  { id: "glowBlue", color: "#DCEBFF", alpha: 0.7, edge: 0.6, cx: 300, cy: 875, rx: 382.5, ry: 1417.5 },
+  { id: "glowMint", color: "#D2F5EB", alpha: 0.6, edge: 0.5, cx: 0, cy: 612.5, rx: 408.75, ry: 1531.25 },
+  { id: "glowRose", color: "#FFDAE0", alpha: 0.6, edge: 0.5, cx: 375, cy: 262.5, rx: 408.75, ry: 1531.25 },
+  { id: "glowLilac", color: "#E6E6FA", alpha: 0.8, edge: 0.6, cx: 187.5, cy: 0, rx: 300, ry: 1120 },
+];
+
 /** Frame fill: a lilac base washed with four soft corner glows. */
 function Backdrop() {
   return (
     <Svg width={FRAME_W} height={CONTENT_H} style={styles.backdrop}>
       <Defs>
-        <RadialGradient id="glowBlue" cx="300" cy="875" rx="382.5" ry="1417.5" gradientUnits="userSpaceOnUse">
-          <Stop offset="0" stopColor="#DCEBFF" stopOpacity="0.7" />
-          <Stop offset="0.6" stopColor="#DCEBFF" stopOpacity="0" />
-        </RadialGradient>
-        <RadialGradient id="glowMint" cx="0" cy="612.5" rx="408.75" ry="1531.25" gradientUnits="userSpaceOnUse">
-          <Stop offset="0" stopColor="#D2F5EB" stopOpacity="0.6" />
-          <Stop offset="0.5" stopColor="#D2F5EB" stopOpacity="0" />
-        </RadialGradient>
-        <RadialGradient id="glowRose" cx="375" cy="262.5" rx="408.75" ry="1531.25" gradientUnits="userSpaceOnUse">
-          <Stop offset="0" stopColor="#FFDAE0" stopOpacity="0.6" />
-          <Stop offset="0.5" stopColor="#FFDAE0" stopOpacity="0" />
-        </RadialGradient>
-        <RadialGradient id="glowLilac" cx="187.5" cy="0" rx="300" ry="1120" gradientUnits="userSpaceOnUse">
-          <Stop offset="0" stopColor="#E6E6FA" stopOpacity="0.8" />
-          <Stop offset="0.6" stopColor="#E6E6FA" stopOpacity="0" />
-        </RadialGradient>
+        {GLOWS.map((g) => (
+          <RadialGradient
+            key={g.id}
+            id={g.id}
+            gradientUnits="userSpaceOnUse"
+            cx={g.cx}
+            cy={(g.cy * g.rx) / g.ry}
+            r={g.rx}
+            gradientTransform={`matrix(1 0 0 ${g.ry / g.rx} 0 0)`}
+          >
+            <Stop offset={0} stopColor={g.color} stopOpacity={g.alpha} />
+            <Stop offset={g.edge} stopColor={g.color} stopOpacity={0} />
+          </RadialGradient>
+        ))}
       </Defs>
       <Rect width={FRAME_W} height={CONTENT_H} fill="#FAF8FC" />
-      <Rect width={FRAME_W} height={CONTENT_H} fill="url(#glowBlue)" />
-      <Rect width={FRAME_W} height={CONTENT_H} fill="url(#glowMint)" />
-      <Rect width={FRAME_W} height={CONTENT_H} fill="url(#glowRose)" />
-      <Rect width={FRAME_W} height={CONTENT_H} fill="url(#glowLilac)" />
+      {GLOWS.map((g) => (
+        <Rect key={g.id} width={FRAME_W} height={CONTENT_H} fill={`url(#${g.id})`} />
+      ))}
     </Svg>
+  );
+}
+
+/* ---------------------------------- rail ---------------------------------- */
+const RAIL_Y = 276;
+const RAIL_H = 545.75;
+
+/** Timeline hairline: a 2-on/2-off dashed line, faded out at both ends. */
+function Rail() {
+  return (
+    <Abs x={36} y={RAIL_Y} w={2} h={RAIL_H}>
+      <Svg width={2} height={RAIL_H}>
+        <Defs>
+          <SvgLinearGradient id="rail" gradientUnits="userSpaceOnUse" x1={0} y1={0} x2={0} y2={RAIL_H}>
+            <Stop offset={0} stopColor={RAIL_INK} stopOpacity={0} />
+            <Stop offset={0.1} stopColor={RAIL_INK} stopOpacity={0.5} />
+            <Stop offset={0.9} stopColor={RAIL_INK} stopOpacity={0.5} />
+            <Stop offset={1} stopColor={RAIL_INK} stopOpacity={0} />
+          </SvgLinearGradient>
+        </Defs>
+        <Line
+          x1={1}
+          y1={0}
+          x2={1}
+          y2={RAIL_H}
+          stroke="url(#rail)"
+          strokeWidth={2}
+          strokeDasharray={[2, 2]}
+        />
+      </Svg>
+    </Abs>
   );
 }
 
@@ -473,15 +534,7 @@ export default function Levels() {
       </Txt>
 
       {/* Timeline rail — masked so it fades out at both ends */}
-      <Abs x={36} y={276} w={2} h={545.75}>
-        <LinearGradient
-          colors={["rgba(150,140,180,0)", DIVIDER, DIVIDER, "rgba(150,140,180,0)"] as const}
-          locations={[0, 0.1, 0.9, 1] as const}
-          start={{ x: 0.5, y: 0 }}
-          end={{ x: 0.5, y: 1 }}
-          style={styles.fillAll}
-        />
-      </Abs>
+      <Rail />
 
       {/* Level 5 sits above the active card, Levels 2 and 1 below it */}
       {LEVELS.map((row) => (
@@ -642,6 +695,9 @@ export default function Levels() {
         borderWidth={2}
         style={styles.activeDot}
       />
+      {/* The marker's inner rect spreads a hard 4pt pink shadow over its own
+          white ring, so the ring reads as a halo rather than an outline. */}
+      <Abs x={24} y={535.29} w={24} h={24} radius={12} bg="rgba(255,158,187,0.3)" />
     </Screen>
   );
 }

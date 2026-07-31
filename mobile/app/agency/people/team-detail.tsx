@@ -343,7 +343,8 @@ export default function TeamDetailScreen() {
         onPress={() => router.back()}
         style={({ pressed }) => [styles.back, pressed && styles.pressed]}
       >
-        <Feather name="chevron-left" size={16} color={BACK_ICON} />
+        {/* 9.45x9.45 vector in a 16.2 box = 14/24 — arrow-left, not a chevron */}
+        <Feather name="arrow-left" size={16} color={BACK_ICON} />
       </Pressable>
       <Txt
         x={72} y={28} w={222}

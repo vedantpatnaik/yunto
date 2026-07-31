@@ -2,7 +2,7 @@ import type { ComponentProps } from "react";
 import { useState } from "react";
 import { Alert, Pressable, StyleSheet, TextInput, View } from "react-native";
 import { useRouter } from "expo-router";
-import { Ionicons } from "@expo/vector-icons";
+import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import Svg, {
   Defs,
@@ -170,7 +170,19 @@ function Backdrop() {
 }
 
 /* ----------------------------- accordion rows ----------------------------- */
-type IconName = ComponentProps<typeof Ionicons>["name"];
+/** Tile glyphs span two families: the spec's ruler (Measurements), single
+ *  banknote (Commercials) and landmark (Bank Details) only exist in MDI. */
+type Glyph =
+  | { set: "ion"; name: ComponentProps<typeof Ionicons>["name"] }
+  | { set: "mci"; name: ComponentProps<typeof MaterialCommunityIcons>["name"] };
+
+function TileGlyph({ glyph, color }: { glyph: Glyph; color: string }) {
+  return glyph.set === "mci" ? (
+    <MaterialCommunityIcons name={glyph.name} size={24} color={color} />
+  ) : (
+    <Ionicons name={glyph.name} size={24} color={color} />
+  );
+}
 
 interface SectionSpec {
   key: string;
@@ -180,7 +192,7 @@ interface SectionSpec {
   tile: string;
   /** Tile glyph stroke colour. */
   ink: string;
-  icon: IconName;
+  icon: Glyph;
   label: string;
   /** Sibling route, where one exists. Otherwise the row returns to the list. */
   href?: string;
@@ -193,15 +205,15 @@ const SECTIONS: SectionSpec[] = [
     y: ROW_Y0,
     tile: "#F3E8FF",
     ink: "#9333EA",
-    icon: "person-outline",
+    icon: { set: "ion", name: "person-outline" },
     label: "Basics",
     href: "/profile/personal-information/basics",
   },
-  { key: "language", y: ROW_Y0 + ROW_STEP, tile: "#DBEAFE", ink: "#2563EB", icon: "globe-outline", label: "Language" },
-  { key: "address", y: ROW_Y0 + ROW_STEP * 2, tile: "#CCFBF1", ink: "#0D9488", icon: "location-outline", label: "Address" },
-  { key: "measurements", y: ROW_Y0 + ROW_STEP * 3, tile: "#FFEDD5", ink: "#EA580C", icon: "resize-outline", label: "Measurements" },
-  { key: "commercials", y: ROW_Y0 + ROW_STEP * 4, tile: "#D1FAE5", ink: "#059669", icon: "cash-outline", label: "Commercials" },
-  { key: "barter", y: ROW_Y0 + ROW_STEP * 5, tile: "#FCE7F3", ink: "#DB2777", icon: "gift-outline", label: "Barter Commercials" },
+  { key: "language", y: ROW_Y0 + ROW_STEP, tile: "#DBEAFE", ink: "#2563EB", icon: { set: "ion", name: "language-outline" }, label: "Language" },
+  { key: "address", y: ROW_Y0 + ROW_STEP * 2, tile: "#CCFBF1", ink: "#0D9488", icon: { set: "ion", name: "location-outline" }, label: "Address" },
+  { key: "measurements", y: ROW_Y0 + ROW_STEP * 3, tile: "#FFEDD5", ink: "#EA580C", icon: { set: "mci", name: "ruler" }, label: "Measurements" },
+  { key: "commercials", y: ROW_Y0 + ROW_STEP * 4, tile: "#D1FAE5", ink: "#059669", icon: { set: "mci", name: "cash" }, label: "Commercials" },
+  { key: "barter", y: ROW_Y0 + ROW_STEP * 5, tile: "#FCE7F3", ink: "#DB2777", icon: { set: "ion", name: "gift-outline" }, label: "Barter Commercials" },
 ];
 
 /** Header strip shared by the collapsed rows and the expanded card. */
@@ -214,7 +226,7 @@ function SectionHead({
 }: {
   tile: string;
   ink: string;
-  icon: IconName;
+  icon: Glyph;
   label: string;
   expanded?: boolean;
 }) {
@@ -222,7 +234,7 @@ function SectionHead({
     <>
       {/* Background+Shadow — 48x48 r20 icon tile. */}
       <Abs x={TILE_OFF} y={TILE_OFF} w={TILE_SIZE} h={TILE_SIZE} radius={20} bg={tile} center style={styles.tileShadow}>
-        <Ionicons name={icon} size={24} color={ink} />
+        <TileGlyph glyph={icon} color={ink} />
       </Abs>
 
       {/* Label — Inter 600 16 / 19.36. */}
@@ -500,7 +512,7 @@ export default function PersonalInformationBankDetails() {
         onPress={() => router.back()}
         style={({ pressed }) => [styles.back, pressed && styles.pressed]}
       >
-        <Ionicons name="chevron-back" size={20} color={BACK_INK} />
+        <Ionicons name="arrow-back" size={20} color={BACK_INK} />
       </Pressable>
       <Txt
         x={79.5}
@@ -541,7 +553,13 @@ export default function PersonalInformationBankDetails() {
         onPress={() => router.back()}
         style={({ pressed }) => [styles.expandedHead, pressed && styles.pressed]}
       >
-        <SectionHead tile="#E0E7FF" ink="#4F46E5" icon="business-outline" label="Bank Details" expanded />
+        <SectionHead
+          tile="#E0E7FF"
+          ink="#4F46E5"
+          icon={{ set: "mci", name: "bank-outline" }}
+          label="Bank Details"
+          expanded
+        />
       </Pressable>
 
       {/* ------------------------ Verified Account badge --------------------

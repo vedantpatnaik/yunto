@@ -1,8 +1,9 @@
 import { Pressable, StyleSheet, View } from "react-native";
 import type { ViewStyle } from "react-native";
 import { useRouter } from "expo-router";
-import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
+import { Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
+import Svg, { Circle, Defs, Path, RadialGradient, Rect, Stop } from "react-native-svg";
 import { Screen, Abs, Txt } from "../../../src/ui/Frame";
 
 /**
@@ -16,13 +17,16 @@ import { Screen, Abs, Txt } from "../../../src/ui/Frame";
  * manual -> collab-days-select).
  *
  * Space Grotesk (the 44pt headline) is not a registered face in this app, so
- * that node falls back to Outfit, the primary family. Figma's LAYER_BLUR,
- * BACKGROUND_BLUR and INNER_SHADOW have no React Native equivalent: the three
- * mesh blobs are approximated by stacked discs (see Blob), the two glass
- * surfaces keep their translucent fills without the backdrop blur, and the
- * auto card's white inner highlight is dropped. Every other value — geometry,
- * colour, radius, size, weight, line-height, tracking — is verbatim.
+ * that node falls back to Outfit, the primary family. Figma's BACKGROUND_BLUR
+ * and INNER_SHADOW have no React Native equivalent: the two glass surfaces keep
+ * their translucent fills without the backdrop blur, and the auto card's white
+ * inner highlight is dropped. LAYER_BLUR is reproduced analytically (see
+ * Backdrop). Every other value — geometry, colour, radius, size, weight,
+ * line-height, tracking — is verbatim.
  */
+
+const FRAME_W = 375;
+const FRAME_H = 940;
 
 /** Frame fill: #fff6fb over #f5f3ff. */
 const PAGE_BASE = "#fff6fb";
@@ -67,32 +71,78 @@ const backShadow: ViewStyle = {
 };
 
 /**
- * Stand-in for Figma's 90pt LAYER_BLUR: React Native cannot blur a layer, so
- * three concentric discs at a fraction of the target alpha reproduce the soft
- * falloff of the decorative mesh blobs.
+ * The three decorative mesh discs (Container / Background+Blur), each carrying
+ * a 90pt LAYER_BLUR. React Native cannot blur a layer, but blurring a disc only
+ * softens its edge into a Gaussian ramp, and that is exactly what a radial
+ * gradient can state: alpha holds at the fill's opacity through the middle and
+ * rolls off across the edge. SIGMA is the ramp's width, fitted against Figma's
+ * own render of this frame (mean error ~1.5/255 across the backdrop).
  */
-function Blob({
-  x, y, size, color, opacity,
-}: { x: number; y: number; size: number; color: string; opacity: number }) {
+const SIGMA = 34;
+
+/** Gaussian edge: offset from the disc's edge, in sigma -> surviving alpha. */
+const FALLOFF = [
+  [-2, 0.977], [-1, 0.841], [-0.5, 0.691], [0, 0.5], [0.5, 0.309],
+  [1, 0.159], [1.5, 0.067], [2, 0.023], [3, 0.001],
+] as const;
+
+/** x/y/w/h and fills straight from nodes 7287:3996-3998. */
+const BLOBS = [
+  { id: "blob-violet", cx: 243.75, cy: 103.2, r: 225, color: "#e9d5ff", opacity: 0.7 },
+  { id: "blob-pink", cx: 175, cy: 771.19, r: 250, color: "#fbcfe8", opacity: 0.7 },
+  { id: "blob-gold", cx: 212.5, cy: 459.19, r: 175, color: "#fef08a", opacity: 0.35 },
+] as const;
+
+function Backdrop() {
   return (
-    <>
-      {[0, 1, 2].map((i) => {
-        const inset = i * 40;
-        const s = size - inset * 2;
-        return (
-          <Abs
-            key={i}
-            x={x + inset}
-            y={y + inset}
-            w={s}
-            h={s}
-            radius={s / 2}
-            bg={color}
-            opacity={opacity * 0.42}
-          />
-        );
-      })}
-    </>
+    <Svg width={FRAME_W} height={FRAME_H} style={styles.page}>
+      <Defs>
+        {BLOBS.map((b) => {
+          const outer = b.r + 3 * SIGMA;
+          const stops: [number, number][] = [[0, b.opacity]];
+          for (const [k, a] of FALLOFF) {
+            stops.push([(b.r + k * SIGMA) / outer, b.opacity * a]);
+          }
+          return (
+            <RadialGradient
+              key={b.id}
+              id={b.id}
+              cx={b.cx}
+              cy={b.cy}
+              r={outer}
+              gradientUnits="userSpaceOnUse"
+            >
+              {stops.map(([offset, alpha]) => (
+                <Stop key={offset} offset={offset} stopColor={b.color} stopOpacity={alpha} />
+              ))}
+            </RadialGradient>
+          );
+        })}
+      </Defs>
+      {BLOBS.map((b) => (
+        <Rect key={b.id} width={FRAME_W} height={FRAME_H} fill={`url(#${b.id})`} />
+      ))}
+    </Svg>
+  );
+}
+
+/** iconify-icon 7287:4006 — lucide sparkles, strokeWidth 2 in a 24 viewBox. */
+function Sparkles() {
+  return (
+    <Svg
+      width={24}
+      height={24}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke={INK}
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <Path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z" />
+      <Path d="M20 2v4M22 4h-4" />
+      <Circle cx={4} cy={20} r={2} />
+    </Svg>
   );
 }
 
@@ -100,7 +150,7 @@ export default function PlannerSetupChoice() {
   const router = useRouter();
 
   return (
-    <Screen height={940} background={PAGE_BASE} safeTop={false} scroll style={styles.clip}>
+    <Screen height={FRAME_H} background={PAGE_BASE} safeTop={false} scroll style={styles.clip}>
       {/* ------------------------------------------------- frame fill */}
       <LinearGradient
         colors={PAGE}
@@ -110,9 +160,7 @@ export default function PlannerSetupChoice() {
       />
 
       {/* ------------------------------------- Container / mesh blobs */}
-      <Blob x={18.75} y={-121.8} size={450} color="#e9d5ff" opacity={0.7} />
-      <Blob x={-75} y={521.19} size={500} color="#fbcfe8" opacity={0.7} />
-      <Blob x={37.5} y={284.19} size={350} color="#fef08a" opacity={0.35} />
+      <Backdrop />
 
       {/* ------------------------------------------ Main / Heading 1 */}
       <Txt
@@ -141,7 +189,7 @@ export default function PlannerSetupChoice() {
 
       {/* iconify-icon */}
       <Abs x={80.32} y={421.61} w={24} h={24} center>
-        <MaterialCommunityIcons name="auto-fix" size={24} color={INK} />
+        <Sparkles />
       </Abs>
 
       <Txt
@@ -240,7 +288,7 @@ export default function PlannerSetupChoice() {
 
 const styles = StyleSheet.create({
   clip: { overflow: "hidden" },
-  page: { position: "absolute", left: 0, top: 0, width: 375, height: 940 },
+  page: { position: "absolute", left: 0, top: 0, width: FRAME_W, height: FRAME_H },
   autoCard: {
     position: "absolute",
     left: 28,

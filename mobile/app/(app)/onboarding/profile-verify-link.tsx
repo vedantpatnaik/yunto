@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { Image, Linking, Pressable, Share, View } from "react-native";
-import Svg, { Circle, Path, Rect } from "react-native-svg";
+import Svg, { Circle, Defs, Path, RadialGradient, Rect, Stop } from "react-native-svg";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import { Abs, Screen, Txt } from "../../../src/ui/Frame";
@@ -52,34 +52,51 @@ const STEPS = [
   },
 ];
 
+/** Layer-blur radius shared by the four background discs (7487:43801-43804). */
+const BLUR = 50;
+
+/** Gaussian-ish falloff, sampled with smoothstep from core edge to nothing. */
+const FALLOFF = [0, 0.25, 0.5, 0.75, 1].map((t) => ({
+  t,
+  a: 1 - t * t * (3 - 2 * t),
+}));
+
 /**
  * The four "Overlay+Blur" circles carry a 50px layer blur. React Native has no
- * layer-blur primitive, so each is drawn as concentric discs whose stacked
- * alpha sums to the spec opacity — a soft falloff at the spec's exact centre.
+ * layer-blur primitive, so each is drawn as an SVG radial gradient: the blur
+ * spreads the disc BLUR outwards and eats BLUR inwards, leaving a solid core
+ * that fades smoothly to nothing. Stacking flat discs instead would band.
  */
 function Blob({
   x, y, size, color, opacity,
 }: { x: number; y: number; size: number; color: string; opacity: number }) {
-  const rings = 6;
+  const radius = size / 2 + BLUR;
+  const core = Math.max(size / 2 - BLUR, 0) / radius;
+  const id = `pvlBlob${Math.abs(Math.round(x))}_${Math.abs(Math.round(y))}`;
   return (
-    <>
-      {Array.from({ length: rings }, (_, i) => {
-        const s = (size * (i + 1)) / rings;
-        const inset = (size - s) / 2;
-        return (
-          <Abs
-            key={i}
-            x={x + inset}
-            y={y + inset}
-            w={s}
-            h={s}
-            radius={s / 2}
-            bg={color}
-            opacity={opacity / rings}
-          />
-        );
-      })}
-    </>
+    <Svg
+      width={radius * 2}
+      height={radius * 2}
+      style={{
+        position: "absolute",
+        left: x + size / 2 - radius,
+        top: y + size / 2 - radius,
+      }}
+    >
+      <Defs>
+        <RadialGradient id={id} cx="50%" cy="50%" r="50%">
+          {FALLOFF.map(({ t, a }) => (
+            <Stop
+              key={t}
+              offset={core + (1 - core) * t}
+              stopColor={color}
+              stopOpacity={opacity * a}
+            />
+          ))}
+        </RadialGradient>
+      </Defs>
+      <Circle cx={radius} cy={radius} r={radius} fill={`url(#${id})`} />
+    </Svg>
   );
 }
 
@@ -314,10 +331,10 @@ export default function ProfileVerifyLink() {
         </Icon>
       </Abs>
 
-      {/* iconify-icon 7487:43794 (heart) */}
+      {/* iconify-icon 7487:43794 (star) */}
       <Abs x={127.5} y={317} w={16} h={16}>
         <Icon size={16} stroke="#b28dff">
-          <Path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z" />
+          <Path d="M11.525 2.295a.53.53 0 0 1 .95 0l2.31 4.679a2.123 2.123 0 0 0 1.595 1.16l5.166.756a.53.53 0 0 1 .294.904l-3.736 3.638a2.123 2.123 0 0 0-.611 1.878l.882 5.14a.53.53 0 0 1-.771.56l-4.618-2.428a2.122 2.122 0 0 0-1.973 0L6.396 21.11a.53.53 0 0 1-.77-.56l.881-5.139a2.122 2.122 0 0 0-.611-1.879L2.16 9.795a.53.53 0 0 1 .294-.906l5.165-.755a2.122 2.122 0 0 0 1.597-1.16z" />
         </Icon>
       </Abs>
 

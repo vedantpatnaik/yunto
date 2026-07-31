@@ -37,19 +37,34 @@ import { useMe } from "../../../src/api/hooks";
 /* ------------------------------- geometry -------------------------------- */
 const FRAME_H = 946;
 
+/**
+ * Figma measures a child's offset from its parent's *outer* edge; React Native
+ * lays absolute children out from the parent's padding box, i.e. already inside
+ * the stroke. Every offset below therefore has its parent's stroke subtracted,
+ * or the whole reticle stack drifts down-right by the borders it sits inside.
+ */
+const PREVIEW_STROKE = 1;
+const RETICLE_STROKE = 3;
+
 /** "Camera Preview Container" — 6499:22329. */
 const CAMERA_BOX = { x: 27.5, y: 227.5, size: 320 } as const;
-/** "Scanning Frame" — 6499:22331, offset inside the preview. */
-const RETICLE = { x: 40.75, y: 40.75, size: 238.5 } as const;
+const PREVIEW_INNER = CAMERA_BOX.size - PREVIEW_STROKE * 2; // 318 — "…camera feed"
+/** "Scanning Frame" — 6499:22331, spec offset 40.75 inside the preview. */
+const RETICLE = {
+  x: 40.75 - PREVIEW_STROKE,
+  y: 40.75 - PREVIEW_STROKE,
+  size: 238.5,
+} as const;
+const RETICLE_INNER = RETICLE.size - RETICLE_STROKE * 2; // 232.5
+/** "SVG" 6499:22336 fills the reticle's inner box; "SVG" 6499:22332 is 71.25 in. */
+const GLYPH_OFFSET = 71.25 - RETICLE_STROKE; // 68.25
 /**
- * "Scan Line Animation" — 6499:22335 sits at the reticle's vertical middle
- * (rel y 118.25) and is 232.5 wide, i.e. inset by the reticle's 3pt stroke. It
- * sweeps the full inner height, so it travels +/- that inset-to-middle distance.
+ * "Scan Line Animation" — 6499:22335 sits at the reticle's vertical middle and
+ * sweeps the full inner height, so it travels +/- that middle distance.
  */
-const SCAN_INSET = 3;
 const SCAN_H = 2;
-const SCAN_Y = 118.25;
-const SCAN_TRAVEL = SCAN_Y - SCAN_INSET; // 115.25
+const SCAN_Y = (RETICLE_INNER - SCAN_H) / 2; // 115.25
+const SCAN_TRAVEL = SCAN_Y;
 
 /* ---------------------------- spec colour tokens -------------------------- */
 const BG_ORANGE = "#f2c94c"; // bg / orange
@@ -90,7 +105,7 @@ const PLANNER_URL = `https://${PLANNER_ORIGIN}`;
  */
 function CornerBrackets() {
   return (
-    <Svg width={232.5} height={232.5} style={styles.bracketBoard}>
+    <Svg width={RETICLE_INNER} height={RETICLE_INNER} style={styles.bracketBoard}>
       {[
         "M23.25,46.5 L23.25,23.25 L46.5,23.25",
         "M186,23.25 L209.25,23.25 L209.25,46.5",
@@ -112,14 +127,57 @@ function CornerBrackets() {
 }
 
 /**
- * "SVG" 6499:22332 — the QR mark: a 66pt square and a 54pt square sharing their
- * bottom-right corner, both 4pt stroked, on a 96pt board.
+ * "SVG" 6499:22332 — the QR mark on a 96pt board. Figma reports the two vectors
+ * only by their 66pt / 54pt bounding boxes; the paths themselves are a QR glyph:
+ * three 27pt rounded finder squares on a 12pt gutter, each holding a centre dot,
+ * plus the five-dot data cluster filling the free quadrant. All at the spec's
+ * 4pt weight, which paints the 3pt dots as 7pt blobs.
  */
+const FINDERS = [
+  [15, 15],
+  [54, 15],
+  [15, 54],
+] as const;
+const FINDER = 27;
+const DOT = 7;
+const DOTS = [
+  [28.5, 28.5], // finder centres
+  [67.5, 28.5],
+  [28.5, 67.5],
+  [55.5, 55.5], // data cluster, 67.5 +/- 12
+  [79.5, 55.5],
+  [67.5, 67.5],
+  [55.5, 79.5],
+  [79.5, 79.5],
+] as const;
+
 function QrGlyph() {
   return (
     <Svg width={96} height={96} style={styles.glyphBoard}>
-      <Rect x={15} y={15} width={66} height={66} stroke={GLYPH_LINE} strokeWidth={4} fill="none" />
-      <Rect x={27} y={27} width={54} height={54} stroke={GLYPH_LINE} strokeWidth={4} fill="none" />
+      {FINDERS.map(([x, y]) => (
+        <Rect
+          key={`f${x}-${y}`}
+          x={x}
+          y={y}
+          width={FINDER}
+          height={FINDER}
+          rx={5}
+          stroke={GLYPH_LINE}
+          strokeWidth={4}
+          fill="none"
+        />
+      ))}
+      {DOTS.map(([cx, cy]) => (
+        <Rect
+          key={`d${cx}-${cy}`}
+          x={cx - DOT / 2}
+          y={cy - DOT / 2}
+          width={DOT}
+          height={DOT}
+          rx={2}
+          fill={GLYPH_LINE}
+        />
+      ))}
     </Svg>
   );
 }
@@ -220,7 +278,7 @@ export default function DesktopHandoffScan() {
         radius={32}
         bg={PREVIEW_FILL}
         border={PREVIEW_LINE}
-        borderWidth={1}
+        borderWidth={PREVIEW_STROKE}
         style={styles.previewClip}
       >
         {/* Placeholder for actual camera feed — 6499:22330 */}
@@ -239,7 +297,7 @@ export default function DesktopHandoffScan() {
           h={RETICLE.size}
           radius={28}
           border={RETICLE_LINE}
-          borderWidth={3}
+          borderWidth={RETICLE_STROKE}
         >
           <CornerBrackets />
           <QrGlyph />
@@ -257,11 +315,14 @@ export default function DesktopHandoffScan() {
         </Abs>
       </Abs>
 
-      {/* Instructions — 6499:22344 */}
+      {/* Instructions — 6499:22344. The spec box is 136 x 103, which the system
+          face overruns by a hair, wrapping the trailing "S" onto its own line and
+          into the sentence below; the box is widened about its own centre (187.5)
+          so the centred label lands exactly where the design puts it. */}
       <Txt
-        x={136}
+        x={112.5}
         y={579.5}
-        w={103}
+        w={150}
         size={12}
         font="inter"
         color={INK_LABEL}
@@ -337,16 +398,16 @@ const styles = StyleSheet.create({
 
   /* ----------------------------- camera preview --------------------------- */
   previewClip: { overflow: "hidden" },
-  feed: { position: "absolute", left: 1, top: 1, width: 318, height: 318 },
+  feed: { position: "absolute", left: 0, top: 0, width: PREVIEW_INNER, height: PREVIEW_INNER },
 
   /* -------------------------------- reticle ------------------------------- */
-  bracketBoard: { position: "absolute", left: SCAN_INSET, top: SCAN_INSET },
-  glyphBoard: { position: "absolute", left: 71.25, top: 71.25 },
+  bracketBoard: { position: "absolute", left: 0, top: 0 },
+  glyphBoard: { position: "absolute", left: GLYPH_OFFSET, top: GLYPH_OFFSET },
   scanLine: {
     position: "absolute",
-    left: SCAN_INSET,
+    left: 0,
     top: SCAN_Y,
-    width: 232.5,
+    width: RETICLE_INNER,
     height: SCAN_H,
   },
   scanFill: { flex: 1 },

@@ -96,7 +96,7 @@ export default function OrderSummaryPartial() {
         style={({ pressed }) => [styles.headerBack, pressed && styles.pressed]}
       >
         <Abs x={6} y={6} w={20} h={20} center>
-          <Feather name="arrow-left" size={16} color={colors.ink} />
+          <Feather name="arrow-left" size={20} color={colors.ink} />
         </Abs>
       </Pressable>
 
@@ -119,7 +119,7 @@ export default function OrderSummaryPartial() {
         style={({ pressed }) => [styles.emptySlot, pressed && styles.pressed]}
       >
         <Abs x={109.72} y={118.86} w={32} h={32} radius={16} bg={colors.white} center>
-          <Feather name="plus" size={14} color={colors.ink} />
+          <Feather name="plus" size={20} color={colors.ink} />
         </Abs>
         <Txt
           x={71.72}
@@ -173,8 +173,8 @@ export default function OrderSummaryPartial() {
           onPress={dropEditor}
           style={({ pressed }) => [styles.cancelDot, pressed && styles.pressed]}
         >
-          <Abs x={3.98} y={3.99} w={13.28} h={13.28} center>
-            <Feather name="x" size={10} color={colors.ink} />
+          <Abs x={0} y={0} w={24} h={24} center>
+            <Feather name="x" size={17} color={colors.ink} />
           </Abs>
         </Pressable>
 
@@ -356,6 +356,8 @@ const styles = StyleSheet.create({
     borderRadius: 6.96,
     borderWidth: 1.6,
     borderColor: "#000000",
+    /** The slot reads as a placeholder in the design: dashed, ~5pt on / 5pt off. */
+    borderStyle: "dashed",
   },
 
   editorCard: {
@@ -366,14 +368,20 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 0.58 },
     elevation: 2,
   },
+  /**
+   * 24pt across in the design, and authored with a +8.02° rotation of its own so
+   * it stands upright against the tilted card — hence the counter-rotation here.
+   * Left/top keep the button centred on the same point as the spec's box.
+   */
   cancelDot: {
     position: "absolute",
-    left: 162.53,
-    top: 7.57,
-    width: 21.24,
-    height: 21.24,
-    borderRadius: 10.62,
+    left: 161.15,
+    top: 6.19,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
     backgroundColor: "#FFFFFF",
+    transform: [{ rotate: "8.02deg" }],
   },
 
   done: {

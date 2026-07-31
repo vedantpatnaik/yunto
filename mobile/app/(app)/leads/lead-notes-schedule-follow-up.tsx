@@ -269,20 +269,31 @@ export default function LeadNotesScheduleFollowUpScreen() {
         {lead?.money ?? ""}
       </Txt>
 
-      <Abs x={39} y={197} w={49.17} h={27} radius={12} bg="rgba(193,63,186,0.1)" />
-      <Txt
-        x={51} y={203} w={25.17} size={12} weight="semibold" font="inter"
-        color="#c13fba" lineHeight={14.52} numberOfLines={1}
+      {/* Pills hug their label (12pt sides, 8pt gap — the frame's Paid/Contacted
+          measure exactly that); a fixed width would clip longer live statuses. */}
+      <View
+        style={{
+          position: "absolute", left: 39, top: 197,
+          flexDirection: "row", alignItems: "center", gap: 8,
+        }}
       >
-        {lead?.dealType ? titleCase(lead.dealType) : ""}
-      </Txt>
-      <Abs x={96.17} y={197} w={84.38} h={27} radius={12} bg="rgba(55,118,242,0.1)" />
-      <Txt
-        x={108.17} y={203} w={60.38} size={12} weight="semibold" font="inter"
-        color="#3776f2" lineHeight={14.52} numberOfLines={1}
-      >
-        {lead?.status ? titleCase(lead.status) : ""}
-      </Txt>
+        {([
+          { key: "deal", text: lead?.dealType ? titleCase(lead.dealType) : "", bg: "rgba(193,63,186,0.1)", color: "#c13fba" },
+          { key: "status", text: lead?.status ? titleCase(lead.status) : "", bg: "rgba(55,118,242,0.1)", color: "#3776f2" },
+        ]).map((pill) => (
+          <View
+            key={pill.key}
+            style={{
+              height: 27, borderRadius: 12, backgroundColor: pill.bg,
+              paddingHorizontal: 12, justifyContent: "center",
+            }}
+          >
+            <Txt size={12} weight="semibold" font="inter" color={pill.color} lineHeight={14.52} numberOfLines={1}>
+              {pill.text}
+            </Txt>
+          </View>
+        ))}
+      </View>
 
       {([
         { x: 39, ix: 51, icon: "call-outline" as IconName },
@@ -448,13 +459,18 @@ export default function LeadNotesScheduleFollowUpScreen() {
       {/* --------------------------- Quick presets -------------------------- */}
       {PRESETS.map((p, i) => {
         const on = picked === i;
+        // Only one preset is outlined at a time — the frame renders the box on
+        // "Today" alone (Tomorrow/Next Week carry hidden strokes), so the
+        // outline follows the choice and falls back to Today at rest.
+        const outlined = picked === null ? i === 0 : on;
         return (
           <Pressable
             key={p.label}
             onPress={() => choosePreset(i)}
             style={({ pressed }) => ({
               position: "absolute", left: p.x, top: p.y, width: p.w, height: p.h,
-              borderRadius: 8, borderWidth: 1, borderColor: p.stroke,
+              borderRadius: 8, borderWidth: 1,
+              borderColor: outlined ? p.stroke : "transparent",
               backgroundColor: on ? "#f8f8f8" : "transparent",
               opacity: pressed ? 0.7 : 1,
             })}
@@ -539,7 +555,9 @@ export default function LeadNotesScheduleFollowUpScreen() {
           position: "absolute", left: 37, top: 784, width: 301, height: 55,
           borderRadius: 100, backgroundColor: "#312b28",
           alignItems: "center", justifyContent: "center",
-          opacity: canSubmit ? (pressed ? 0.9 : 1) : 0.5,
+          // The frame authors one solid CTA — it stays solid while the form is
+          // still empty (the tap is guarded below) and only dims in flight.
+          opacity: create.isPending ? 0.5 : pressed ? 0.9 : 1,
         })}
       >
         <Txt

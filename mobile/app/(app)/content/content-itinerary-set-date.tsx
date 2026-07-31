@@ -57,9 +57,9 @@ const SCRIM = "rgba(181,180,185,0.57)";
 const HANDLE = "#e5e5e5";
 const DAY_GRADIENT = ["#a2b5f5", "#8dc49d"] as const;
 
-/** The spec draws "Today" with a lighter stroke than its two siblings. */
+/** Only the selected preset is stroked; the other two boxes render bare. */
 const PRESET_BORDER_ON = "#e4e4e4";
-const PRESET_BORDER_OFF = "#d1d5db";
+const PRESET_BORDER_OFF = "transparent";
 
 /* ------------------------------ date helpers ------------------------------ */
 const WEEKDAY_SHORT = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -358,7 +358,20 @@ export default function ContentItinerarySetDate() {
       <Abs x={97.06} y={228.5} w={16} h={16} center>
         <Feather name="zap" size={16} color="#a48aeb" />
       </Abs>
-      <Txt x={121.06} y={228} w={156.88} size={14} weight="bold" font="inter" color="#4a3a6b" lineHeight={16.94}>
+      {/* Figma measures this label at 156.88pt, but the platform emoji is a few
+          points wider, so the box is widened (still well inside the pill's
+          306.94pt right edge) and pinned to one line instead of wrapping out. */}
+      <Txt
+        x={121.06}
+        y={228}
+        w={172}
+        size={14}
+        weight="bold"
+        font="inter"
+        color="#4a3a6b"
+        lineHeight={16.94}
+        numberOfLines={1}
+      >
         ✨ Generate More Ideas
       </Txt>
 

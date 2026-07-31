@@ -96,25 +96,32 @@ function Backdrop() {
 
 /* ----------------------------- calendar strip ----------------------------- */
 interface DaySlot {
-  /** Card x; every card is 56x69 at strip-relative y=0. */
+  /** Card x; every card is DAY_W x 69 at strip-relative y=0. */
   x: number;
-  labelX: number;
-  labelW: number;
-  dateX: number;
-  dateW: number;
   /** Fallback copy for the loading/empty state. */
   label: string;
   date: string;
 }
 
-/** Six day cards on a 68pt step; text offsets are the design's own centring. */
+/** Day card width; the strip steps by 68. */
+const DAY_W = 56;
+
+/**
+ * Six day cards on a 68pt step.
+ *
+ * Both text nodes are centred on their card in the design — "16" sits at
+ * x=38.28 w=19.45, i.e. centred on 48, which is card x=20 plus DAY_W/2 — so
+ * they are drawn as centred DAY_W lines rather than boxes sized to the sampled
+ * glyphs. Figma's widths are per-string (Inter's "1" is narrower than "2"), and
+ * a live date the design never sampled would wrap inside a 19.45pt box.
+ */
 const DAY_SLOTS: DaySlot[] = [
-  { x: 20, labelX: 38.05, labelW: 19.91, dateX: 38.28, dateW: 19.45, label: "Mo", date: "16" },
-  { x: 88, labelX: 108.2, labelW: 15.59, dateX: 106.88, dateW: 18.23, label: "Tu", date: "17" },
-  { x: 156, labelX: 173.84, labelW: 20.3, dateX: 174.25, dateW: 19.48, label: "We", date: "18" },
-  { x: 224, labelX: 243.72, labelW: 16.55, dateX: 242.27, dateW: 19.45, label: "Th", date: "19" },
-  { x: 292, labelX: 313.73, labelW: 12.52, dateX: 308.25, dateW: 23.48, label: "Fr", date: "20" },
-  { x: 360, labelX: 380.04, labelW: 15.92, dateX: 378.44, dateW: 19.11, label: "Sa", date: "21" },
+  { x: 20, label: "Mo", date: "16" },
+  { x: 88, label: "Tu", date: "17" },
+  { x: 156, label: "We", date: "18" },
+  { x: 224, label: "Th", date: "19" },
+  { x: 292, label: "Fr", date: "20" },
+  { x: 360, label: "Sa", date: "21" },
 ];
 
 /** Mo..Sa, indexed the way the strip runs. */
@@ -170,7 +177,6 @@ export default function PlannerDayEditor() {
   const [pickedIso, setPickedIso] = useState<string | null>(null);
   const [title, setTitle] = useState<string | null>(null);
   const [caption, setCaption] = useState("");
-  const [editingTitle, setEditingTitle] = useState(false);
   const [brandCollab, setBrandCollab] = useState(false);
   const [shiftDay, setShiftDay] = useState(false);
 
@@ -204,7 +210,6 @@ export default function PlannerDayEditor() {
 
   /** No Save CTA in this state, so the title commits when the field blurs. */
   const commitTitle = () => {
-    setEditingTitle(false);
     if (entry && title !== null && title !== entry.title) {
       update.mutate({ id: entry.id, data: { title } });
     }
@@ -297,14 +302,16 @@ export default function PlannerDayEditor() {
           return (
             <Txt
               key={`l-${slot.x}`}
-              x={slot.labelX}
+              x={slot.x}
               y={active ? 12 : 13}
-              w={slot.labelW}
+              w={DAY_W}
               size={13}
               weight="semibold"
               font="inter"
               color={active ? GLASS_80 : MUTED}
               lineHeight={15.73}
+              align="center"
+              numberOfLines={1}
             >
               {day ? WEEKDAY_TWO[day.getDay()] : slot.label}
             </Txt>
@@ -317,14 +324,16 @@ export default function PlannerDayEditor() {
           return (
             <Txt
               key={`d-${slot.x}`}
-              x={slot.dateX}
+              x={slot.x}
               y={active ? 34 : 35}
-              w={slot.dateW}
+              w={DAY_W}
               size={18}
               weight="bold"
               font="inter"
               color={active ? "#ffffff" : INK}
               lineHeight={21.78}
+              align="center"
+              numberOfLines={1}
             >
               {day ? String(day.getDate()) : slot.date}
             </Txt>
@@ -345,21 +354,25 @@ export default function PlannerDayEditor() {
         style={styles.cardShadow}
       />
 
-      {/* Container / Text — the entry title, editable */}
+      {/*
+        Container / Text — the entry title, editable.
+
+        The design's "Vertical Divider" (x=145.03, w=2, LILAC) is the text
+        caret parked after its sample "Scenes...". It is the field's own
+        insertion point, not a decoration: pinned at a fixed x it floats free
+        of any live title of a different length, so the field draws its real
+        caret in the same lilac instead.
+      */}
       <TextInput
         value={titleValue}
         onChangeText={setTitle}
-        onFocus={() => setEditingTitle(true)}
         onBlur={commitTitle}
         multiline
         editable={!isLoading}
         selectionColor={LILAC}
+        cursorColor={LILAC}
         style={styles.titleInput}
       />
-      {/* Vertical Divider — the design's caret, parked after "Scenes..." */}
-      {editingTitle ? null : (
-        <Abs x={145.03} y={261.8} w={2} h={22} bg={LILAC} />
-      )}
 
       {/* Container / caption field */}
       <TextInput
@@ -472,7 +485,7 @@ const styles = StyleSheet.create({
   day: {
     position: "absolute",
     top: 0,
-    width: 56,
+    width: DAY_W,
     height: 69,
     borderRadius: 20,
     overflow: "hidden",

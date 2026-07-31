@@ -53,7 +53,11 @@ const GLASS_60 = "rgba(255,255,255,0.6)";
 const GLASS_65 = "rgba(255,255,255,0.65)";
 const GLASS_70 = "rgba(255,255,255,0.7)";
 const GLASS_80 = "rgba(255,255,255,0.8)";
+const BORDER_50 = "rgba(255,255,255,0.5)";
+const BORDER_60 = "rgba(255,255,255,0.6)";
 const BORDER_70 = "rgba(255,255,255,0.7)";
+const BORDER_90 = "rgba(255,255,255,0.9)";
+const CHIP_ACTIVE_BORDER = "#E2D3EF";
 
 /* ------------------------------ derivations ------------------------------- */
 /**
@@ -251,6 +255,9 @@ function LeadCard({ top, bucket, name, brand, money, meta, open, onToggle }: Car
           end={CARD_GRAD_END}
           style={styles.fill}
         />
+        {/* The card's 1px white stroke, drawn as an overlay so the absolutely
+            positioned children keep their exact frame offsets. */}
+        <View pointerEvents="none" style={styles.cardRim} />
 
         <Txt
           x={16} y={16} w={230}
@@ -361,7 +368,7 @@ export default function Leads() {
         onPress={() => router.back()}
         style={({ pressed }) => [styles.backButton, pressed && styles.pressed]}
       >
-        <Feather name="chevron-left" size={20} color={INK_TITLE} />
+        <Feather name="arrow-left" size={20} color={INK_TITLE} />
       </Pressable>
       <Txt
         x={165.96} y={21.5} w={47.08}
@@ -369,8 +376,10 @@ export default function Leads() {
       >
         Leads
       </Txt>
+      {/* Centred on the title (x 189.5); the box is widened past the design's
+          hug width so three-digit totals stay on one line instead of wrapping. */}
       <Txt
-        x={152.07} y={43.5} w={74.86} align="center"
+        x={104.5} y={43.5} w={170} align="center" numberOfLines={1}
         size={12} weight="medium" font="inter" color={INK_MUTED} lineHeight={14.52}
       >
         {`${total} total leads`}
@@ -386,11 +395,15 @@ export default function Leads() {
           style={styles.fill}
         />
       </Abs>
+      {/* Two style runs in the spec: the count is bold, the rest regular. */}
       <Txt
         x={35} y={129.5}
-        size={14} weight="bold" font="inter" color={INK_TITLE} lineHeight={16.94}
+        size={14} weight="regular" font="inter" color={INK_TITLE} lineHeight={16.94}
       >
-        {`${needsResponse} ${needsResponse === 1 ? "lead needs" : "leads need"} response`}
+        <Txt size={14} weight="bold" font="inter" color={INK_TITLE} lineHeight={16.94}>
+          {`${needsResponse} ${needsResponse === 1 ? "lead" : "leads"}`}
+        </Txt>
+        {` ${needsResponse === 1 ? "needs" : "need"} response`}
       </Txt>
       <Pressable
         onPress={() => setFilter("UNATTENDED")}
@@ -428,7 +441,7 @@ export default function Leads() {
       </ScrollView>
 
       {/* Overview Compact Radial */}
-      <Abs x={15} y={255} w={345} h={100} radius={24} bg={GLASS_60} />
+      <Abs x={15} y={255} w={345} h={100} radius={24} bg={GLASS_60} border={BORDER_90} />
       <Donut counts={counts} total={total} />
       <Txt
         x={36} y={293} w={80} align="center"
@@ -497,19 +510,20 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: GLASS_65,
     borderWidth: 1,
-    borderColor: BORDER_70,
+    borderColor: BORDER_90,
     shadowColor: "#000000",
     shadowOpacity: 0.03,
-    shadowRadius: 6,
+    shadowRadius: 12,
     shadowOffset: { width: 0, height: 4 },
   },
 
   banner: {
     overflow: "hidden",
-    shadowColor: "#1E1432",
-    shadowOpacity: 0.04,
-    shadowRadius: 20,
-    shadowOffset: { width: 0, height: 12 },
+    // Spec drop shadow is a pink glow, not a dark one.
+    shadowColor: "#FEE5F1",
+    shadowOpacity: 0.4,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 8 },
     elevation: 2,
   },
   reviewPill: {
@@ -537,7 +551,7 @@ const styles = StyleSheet.create({
   },
   chipActive: {
     backgroundColor: CHIP_ACTIVE_BG,
-    borderColor: BORDER_70,
+    borderColor: CHIP_ACTIVE_BORDER,
     shadowColor: "#5A3E75",
     shadowOpacity: 0.12,
     shadowRadius: 10,
@@ -545,21 +559,21 @@ const styles = StyleSheet.create({
   },
   chipIdle: {
     backgroundColor: GLASS_40,
-    borderColor: BORDER_70,
+    borderColor: BORDER_50,
     shadowColor: "#000000",
     shadowOpacity: 0.02,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 4 },
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
   },
 
   donut: { position: "absolute", left: 36, top: 265 },
 
   card: {
     overflow: "hidden",
-    shadowColor: "#1E1432",
-    shadowOpacity: 0.04,
-    shadowRadius: 20,
-    shadowOffset: { width: 0, height: 16 },
+    shadowColor: "#000000",
+    shadowOpacity: 0.02,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 4 },
     elevation: 2,
   },
   contactRow: {
@@ -585,6 +599,16 @@ const styles = StyleSheet.create({
     height: CARD_H,
     borderRadius: 20,
     overflow: "hidden",
+  },
+  cardRim: {
+    position: "absolute",
+    left: 0,
+    top: 0,
+    right: 0,
+    bottom: 0,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: BORDER_60,
   },
   moneyPill: {
     height: 25,

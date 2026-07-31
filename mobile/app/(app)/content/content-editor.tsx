@@ -79,9 +79,9 @@ const ASK_PLACEHOLDER = "Ask AI to improve, rewrite, or expand...";
 
 /** Platform tags — geometry and labels from the "Tags" frame at y=114. */
 const PLATFORMS = [
-  { key: "instagram", label: "Instagram", icon: "instagram", x: 20, w: 124.02, textW: 68.02 },
-  { key: "youtube", label: "YouTube", icon: "youtube", x: 152.02, w: 114.8, textW: 58.8 },
-  { key: "reels", label: "Reels", icon: "play-circle", x: 274.82, w: 92.88, textW: 36.88 },
+  { key: "instagram", label: "Instagram", x: 20, w: 124.02, textW: 68.02 },
+  { key: "youtube", label: "YouTube", x: 152.02, w: 114.8, textW: 58.8 },
+  { key: "reels", label: "Reels", x: 274.82, w: 92.88, textW: 36.88 },
 ] as const;
 
 type PlatformKey = (typeof PLATFORMS)[number]["key"];
@@ -178,8 +178,15 @@ function SendPaint() {
 /** The 14x14 glyph for each AI action chip, in chip order. */
 function ActionIcon({ index }: { index: number }) {
   if (index === 0) return <Ionicons name="sparkles-outline" size={14} color={ACCENT} />;
-  if (index === 1) return <Feather name="edit-3" size={14} color={ACCENT} />;
-  return <Feather name="zap" size={14} color={ACCENT} />;
+  if (index === 1) return <Feather name="refresh-cw" size={14} color={ACCENT} />;
+  return <Ionicons name="magnet-outline" size={14} color={ACCENT} />;
+}
+
+/** The 16x16 glyph for each platform tag, in tag order. */
+function PlatformIcon({ index, color }: { index: number; color: string }) {
+  if (index === 0) return <Feather name="instagram" size={16} color={color} />;
+  if (index === 1) return <Feather name="youtube" size={16} color={color} />;
+  return <MaterialCommunityIcons name="movie-open-outline" size={16} color={color} />;
 }
 
 /* --------------------------------- screen --------------------------------- */
@@ -263,7 +270,7 @@ export default function ContentEditor() {
       </Pressable>
 
       {/* ------------------------------- Tags ------------------------------- */}
-      {PLATFORMS.map((p) => {
+      {PLATFORMS.map((p, i) => {
         const active = platform === p.key;
         return (
           <Pressable
@@ -282,7 +289,7 @@ export default function ContentEditor() {
             ]}
           >
             <Abs x={17} y={9.5} w={16} h={16} center>
-              <Feather name={p.icon} size={16} color={active ? INK : MUTED_INK} />
+              <PlatformIcon index={i} color={active ? INK : MUTED_INK} />
             </Abs>
             <Txt
               x={39}
@@ -455,9 +462,14 @@ export default function ContentEditor() {
           onChangeText={setPrompt}
           onSubmitEditing={ask}
           returnKeyType="send"
+          /** Multiline swallows the return key by default; keep send-on-return. */
+          submitBehavior="blurAndSubmit"
           placeholder={ASK_PLACEHOLDER}
           placeholderTextColor={MUTED_INK}
           selectionColor={ACCENT}
+          /** The 221pt box holds the prompt on two 18.15pt lines, as in the design. */
+          multiline
+          textAlignVertical="top"
           style={[
             styles.field,
             {

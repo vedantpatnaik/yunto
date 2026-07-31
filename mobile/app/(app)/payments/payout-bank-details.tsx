@@ -1,7 +1,7 @@
 import type { ComponentProps } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
 import { useRouter } from "expo-router";
-import { Ionicons } from "@expo/vector-icons";
+import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import Svg, {
   Defs,
@@ -81,10 +81,13 @@ const VERIFIED_EDGE = "rgba(190,240,210,0.9)";
 const CTA_BG = "#312B28";
 
 /* -------------------------------- backdrop -------------------------------- */
-/** Frame fill: the beige linear base plus four radial tints, stretched to the
- *  scroll canvas so the wash covers the whole accordion. */
+/** Frame fill: the beige linear base stretched to the scroll canvas, plus the
+ *  four radial tints. The radials stay anchored to the 875pt frame — stretching
+ *  them to the canvas pushed the gold glow, the blue-grey band and the pink
+ *  blush below the fold, so the first screenful lost the design's wash. */
 function Backdrop() {
   const h = CANVAS_H;
+  const f = FRAME_H;
   return (
     <Svg width={FRAME_W} height={h} style={styles.backdrop}>
       <Defs>
@@ -95,9 +98,9 @@ function Backdrop() {
         <RadialGradient
           id="pink"
           cx={0.76 * FRAME_W}
-          cy={0.62 * h}
+          cy={0.62 * f}
           rx={2.74 * FRAME_W}
-          ry={0.65 * h}
+          ry={0.65 * f}
           gradientUnits="userSpaceOnUse"
         >
           <Stop offset="0" stopColor="#F7B7DA" stopOpacity="0.34" />
@@ -106,9 +109,9 @@ function Backdrop() {
         <RadialGradient
           id="blue"
           cx={0.24 * FRAME_W}
-          cy={0.42 * h}
+          cy={0.42 * f}
           rx={2.58 * FRAME_W}
-          ry={0.61 * h}
+          ry={0.61 * f}
           gradientUnits="userSpaceOnUse"
         >
           <Stop offset="0" stopColor="#BACDF4" stopOpacity="0.36" />
@@ -117,9 +120,9 @@ function Backdrop() {
         <RadialGradient
           id="gold"
           cx={0.78 * FRAME_W}
-          cy={0.18 * h}
+          cy={0.18 * f}
           rx={3.57 * FRAME_W}
-          ry={0.84 * h}
+          ry={0.84 * f}
           gradientUnits="userSpaceOnUse"
         >
           <Stop offset="0" stopColor="#F6D64A" stopOpacity="0.22" />
@@ -128,9 +131,9 @@ function Backdrop() {
         <RadialGradient
           id="haze"
           cx={0.2 * FRAME_W}
-          cy={0.1 * h}
+          cy={0.1 * f}
           rx={3.91 * FRAME_W}
-          ry={0.92 * h}
+          ry={0.92 * f}
           gradientUnits="userSpaceOnUse"
         >
           <Stop offset="0" stopColor="#FFFFFF" stopOpacity="0.72" />
@@ -147,7 +150,19 @@ function Backdrop() {
 }
 
 /* ----------------------------- accordion rows ----------------------------- */
-type IconName = ComponentProps<typeof Ionicons>["name"];
+/** Tile glyphs span two families: the spec's ruler (Measurements), single
+ *  banknote (Commercials) and landmark (Bank Details) only exist in MDI. */
+type Glyph =
+  | { set: "ion"; name: ComponentProps<typeof Ionicons>["name"] }
+  | { set: "mci"; name: ComponentProps<typeof MaterialCommunityIcons>["name"] };
+
+function TileGlyph({ glyph, color }: { glyph: Glyph; color: string }) {
+  return glyph.set === "mci" ? (
+    <MaterialCommunityIcons name={glyph.name} size={24} color={color} />
+  ) : (
+    <Ionicons name={glyph.name} size={24} color={color} />
+  );
+}
 
 interface SectionSpec {
   key: string;
@@ -157,18 +172,18 @@ interface SectionSpec {
   tile: string;
   /** Tile glyph stroke colour. */
   ink: string;
-  icon: IconName;
+  icon: Glyph;
   label: string;
 }
 
 /** The six collapsed sections, top to bottom. */
 const SECTIONS: SectionSpec[] = [
-  { key: "basics", y: ROW_Y0, tile: "#F3E8FF", ink: "#9333EA", icon: "person-outline", label: "Basics" },
-  { key: "language", y: ROW_Y0 + ROW_STEP, tile: "#DBEAFE", ink: "#2563EB", icon: "globe-outline", label: "Language" },
-  { key: "address", y: ROW_Y0 + ROW_STEP * 2, tile: "#CCFBF1", ink: "#0D9488", icon: "location-outline", label: "Address" },
-  { key: "measurements", y: ROW_Y0 + ROW_STEP * 3, tile: "#FFEDD5", ink: "#EA580C", icon: "resize-outline", label: "Measurements" },
-  { key: "commercials", y: ROW_Y0 + ROW_STEP * 4, tile: "#D1FAE5", ink: "#059669", icon: "cash-outline", label: "Commercials" },
-  { key: "barter", y: ROW_Y0 + ROW_STEP * 5, tile: "#FCE7F3", ink: "#DB2777", icon: "gift-outline", label: "Barter Commercials" },
+  { key: "basics", y: ROW_Y0, tile: "#F3E8FF", ink: "#9333EA", icon: { set: "ion", name: "person-outline" }, label: "Basics" },
+  { key: "language", y: ROW_Y0 + ROW_STEP, tile: "#DBEAFE", ink: "#2563EB", icon: { set: "ion", name: "language-outline" }, label: "Language" },
+  { key: "address", y: ROW_Y0 + ROW_STEP * 2, tile: "#CCFBF1", ink: "#0D9488", icon: { set: "ion", name: "location-outline" }, label: "Address" },
+  { key: "measurements", y: ROW_Y0 + ROW_STEP * 3, tile: "#FFEDD5", ink: "#EA580C", icon: { set: "mci", name: "ruler" }, label: "Measurements" },
+  { key: "commercials", y: ROW_Y0 + ROW_STEP * 4, tile: "#D1FAE5", ink: "#059669", icon: { set: "mci", name: "cash" }, label: "Commercials" },
+  { key: "barter", y: ROW_Y0 + ROW_STEP * 5, tile: "#FCE7F3", ink: "#DB2777", icon: { set: "ion", name: "gift-outline" }, label: "Barter Commercials" },
 ];
 
 /** Header strip shared by the collapsed rows and the expanded card. */
@@ -181,7 +196,7 @@ function SectionHead({
 }: {
   tile: string;
   ink: string;
-  icon: IconName;
+  icon: Glyph;
   label: string;
   expanded?: boolean;
 }) {
@@ -189,7 +204,7 @@ function SectionHead({
     <>
       {/* Background+Shadow — 48x48 r20 icon tile. */}
       <Abs x={TILE_OFF} y={TILE_OFF} w={TILE_SIZE} h={TILE_SIZE} radius={20} bg={tile} center style={styles.tileShadow}>
-        <Ionicons name={icon} size={24} color={ink} />
+        <TileGlyph glyph={icon} color={ink} />
       </Abs>
 
       {/* Label — Inter 600 16 / 19.36. */}
@@ -369,7 +384,8 @@ export default function PayoutBankDetails() {
         onPress={() => router.back()}
         style={({ pressed }) => [styles.back, pressed && styles.pressed]}
       >
-        <Ionicons name="chevron-back" size={20} color={BACK_INK} />
+        {/* Spec's back vector is 11.67x11.67 — a full left arrow, not a chevron. */}
+        <Ionicons name="arrow-back" size={20} color={BACK_INK} />
       </Pressable>
       <Txt
         x={79.5}
@@ -407,7 +423,13 @@ export default function PayoutBankDetails() {
         onPress={() => router.back()}
         style={({ pressed }) => [styles.expandedHead, pressed && styles.pressed]}
       >
-        <SectionHead tile="#E0E7FF" ink="#4F46E5" icon="business-outline" label="Bank Details" expanded />
+        <SectionHead
+          tile="#E0E7FF"
+          ink="#4F46E5"
+          icon={{ set: "mci", name: "bank-outline" }}
+          label="Bank Details"
+          expanded
+        />
       </Pressable>
 
       {/* Verified Account badge — 185x40 mint gradient pill, centred at x=95. */}

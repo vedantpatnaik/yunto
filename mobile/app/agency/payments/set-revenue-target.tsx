@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { Image, Pressable, ScrollView, TextInput, View } from "react-native";
 import { useRouter } from "expo-router";
-import { Feather } from "@expo/vector-icons";
+import { Feather, Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import Svg, { Circle } from "react-native-svg";
 import { Abs, Screen, Txt } from "../../../src/ui/Frame";
@@ -464,7 +464,9 @@ export default function AgencySetRevenueTargetScreen() {
             >
               <Abs x={254} y={-15} w={96} h={96} radius={48} bg="rgba(212,226,212,0.3)" />
               <Abs x={21} y={21.75} w={40} h={40} radius={20} bg={GLASS50} center>
-                <Feather name="users" size={20} color={INK} />
+                {/* traced glyph is a 16.5pt four-point sparkle with a 3.3pt
+                    satellite — Feather has no sparkle, Ionicons does */}
+                <Ionicons name="sparkles-outline" size={20} color={INK} />
               </Abs>
               <Txt x={77} y={21} w={200} size={16} weight="medium" color={INK} lineHeight={24} numberOfLines={1}>
                 {`${newLeads} new lead${newLeads === 1 ? "" : "s"} waiting`}
@@ -801,7 +803,11 @@ export default function AgencySetRevenueTargetScreen() {
           disabled={!canSave}
           style={({ pressed }) => ({
             position: "absolute", left: 37, top: 299.72, width: 301, height: 55, borderRadius: 100,
-            backgroundColor: "#312b28", opacity: canSave ? (pressed ? 0.9 : 1) : 0.5,
+            // The design draws the CTA solid #312b28 in its resting state, with
+            // the amount field still on its placeholder — so an empty field only
+            // disables the press, it never greys the pill out. Dimming is
+            // reserved for the in-flight save.
+            backgroundColor: "#312b28", opacity: saving ? 0.6 : pressed ? 0.9 : 1,
             shadowColor: "#312b28", shadowOpacity: 0.25, shadowRadius: 20,
             shadowOffset: { width: 0, height: 8 }, elevation: 6,
           })}

@@ -38,8 +38,6 @@ import {
 /* ------------------------------- geometry -------------------------------- */
 const FRAME_W = 375;
 const BAR_H = 99; // "Overlay+OverlayBlur" — 375x99 at y=777
-const CONTENT_BOTTOM = 945; // "3. Activity Timeline" — 563 + 382
-const CANVAS_H = CONTENT_BOTTOM + BAR_H; // scroll extent + dock clearance
 
 const CARD_X = 15;
 const CARD_Y = 111;
@@ -47,12 +45,19 @@ const CARD_W = 345;
 const CARD_H = 205;
 
 const GROUP_Y = 563; // "Group: Today" origin
-const GROUP_STEP = 191; // 754 - 563, to "Group: Yesterday"
 const ROW_Y = 31; // first event card, group-relative (594 - 563)
 const ROW_STEP = 74; // 668 - 594
-/** 563 + 191 + 167 = 921 — the last event card the timeline block holds. */
+const ROW_H = 62; // "Overlay+Border" event card
+const GROUP_GAP = 24; // 754 - 730, the air between two stacked groups
+const DIVIDER_Y = 599; // "Vertical Divider" origin
+const DIVIDER_TAIL = 4; // 925 - 921, the rail's overhang past the last card
+const TIMELINE_TAIL = 24; // 945 - 921, the block's trailing space
+/** The frame draws two groups of two; live data is capped to the same shape. */
 const MAX_GROUPS = 2;
 const MAX_ROWS = 2;
+
+/** 167 for the frame's two-row group: 31 + 74 + 62. */
+const groupHeight = (rows: number) => ROW_Y + (rows - 1) * ROW_STEP + ROW_H;
 
 /* --------------------------- spec colour tokens --------------------------- */
 const BG = "#f8f5ef";
@@ -63,6 +68,7 @@ const INK_MUTED = "#6c6c70";
 const INK_SUB = "#6e6e73";
 const INK_CHIP = "#8c8a84";
 const INK_DARK = "#1f1a17";
+const DANGER = "#e74c3c";
 const FOLLOWUP_INK = "#d81b60";
 const CARD_FILL = "#f2edff";
 const FOLLOWUP_FILL = "#ffe4e8";
@@ -136,6 +142,8 @@ interface TimelineGroup {
   key: string;
   heading: string;
   rows: TimelineEvent[];
+  /** Frame-space origin of the group heading, stacked from the one above. */
+  y: number;
 }
 
 /* --------------------------------- screen --------------------------------- */
@@ -190,11 +198,26 @@ export default function PaymentFollowUpTimeline() {
       if (hit) {
         if (hit.rows.length < MAX_ROWS) hit.rows.push(row);
       } else if (out.length < MAX_GROUPS) {
-        out.push({ key, heading: dayWord(row.at).toUpperCase(), rows: [row] });
+        out.push({ key, heading: dayWord(row.at).toUpperCase(), rows: [row], y: 0 });
       }
+    }
+
+    // The frame's 191pt group step assumes two rows per day. A day that holds
+    // one leaves a hole, so each group is stacked off the one above instead —
+    // which reproduces 563 / 754 exactly when both days are full.
+    let y = GROUP_Y;
+    for (const g of out) {
+      g.y = y;
+      y += groupHeight(g.rows.length) + GROUP_GAP;
     }
     return out;
   }, [notes, reminders]);
+
+  /** Bottom of the last event card — the rail and the canvas both key off it. */
+  const timelineBottom = useMemo(() => {
+    const last = groups[groups.length - 1];
+    return last ? last.y + groupHeight(last.rows.length) : GROUP_Y + ROW_Y + ROW_H;
+  }, [groups]);
 
   /** The "20 Fri" chip tracks the next scheduled follow-up. */
   const followUp = useMemo(() => {
@@ -222,7 +245,7 @@ export default function PaymentFollowUpTimeline() {
 
   return (
     <View style={styles.root}>
-      <Screen height={CANVAS_H} background={BG} scroll>
+      <Screen height={timelineBottom + TIMELINE_TAIL + BAR_H} background={BG} scroll>
         {/* =============================== Header ============================= */}
         {/* Button — 36pt #1F1A17 disc holding the 9.45pt back chevron. */}
         <Pressable
@@ -239,9 +262,9 @@ export default function PaymentFollowUpTimeline() {
         >
           Lead Detail
         </Txt>
-        {/* Overlay+Border+Shadow+OverlayBlur — the flag action. */}
-        <Pressable style={({ pressed }) => [styles.flag, pressed && styles.pressed]}>
-          <Feather name="flag" size={18} color={INK_DARK} />
+        {/* Overlay+Border+Shadow+OverlayBlur — the 20pt #E74C3C delete action. */}
+        <Pressable style={({ pressed }) => [styles.headerAction, pressed && styles.pressed]}>
+          <Feather name="trash-2" size={20} color={DANGER} />
         </Pressable>
 
         {/* ========================== Identity card =========================== */}
@@ -353,11 +376,12 @@ export default function PaymentFollowUpTimeline() {
             placeholderTextColor={INK_MUTED}
             style={styles.input}
           />
+          {/* Background+Shadow — the 16pt pencil that commits the note. */}
           <Pressable
             onPress={submitNote}
             style={({ pressed }) => [styles.send, pressed && styles.pressed]}
           >
-            <Feather name="arrow-up" size={16} color={INK_BODY} />
+            <Feather name="edit-3" size={16} color={INK_BODY} />
           </Pressable>
         </Abs>
 
@@ -366,11 +390,11 @@ export default function PaymentFollowUpTimeline() {
         <LinearGradient
           colors={["rgba(0,0,0,0.08)", "rgba(0,0,0,0.08)", "rgba(0,0,0,0)"] as const}
           locations={[0, 0.8, 1] as const}
-          style={styles.divider}
+          style={[styles.divider, { height: timelineBottom + DIVIDER_TAIL - DIVIDER_Y }]}
         />
 
-        {groups.map((group, gi) => {
-          const groupY = GROUP_Y + gi * GROUP_STEP;
+        {groups.map((group) => {
+          const groupY = group.y;
           return (
             <View key={group.key}>
               <Txt
@@ -388,7 +412,7 @@ export default function PaymentFollowUpTimeline() {
                     <Abs x={20} y={cardY + 10} w={24} h={24} radius={12} bg={GLASS_70} center>
                       <Feather name={row.icon} size={14} color={INK_BODY} />
                     </Abs>
-                    <Abs x={60} y={cardY} w={295} h={62} radius={12} bg={WHITE}>
+                    <Abs x={60} y={cardY} w={295} h={ROW_H} radius={12} bg={WHITE}>
                       <Txt
                         x={17} y={13} w={261}
                         size={14} weight="semibold" font="inter" color={INK_BODY}
@@ -413,7 +437,7 @@ export default function PaymentFollowUpTimeline() {
 
         {/* Loading / empty fill the first event slot — geometry never moves. */}
         {groups.length === 0 ? (
-          <Abs x={60} y={GROUP_Y + ROW_Y} w={295} h={62} radius={12} bg={WHITE}>
+          <Abs x={60} y={GROUP_Y + ROW_Y} w={295} h={ROW_H} radius={12} bg={WHITE}>
             <Txt
               x={17} y={13} w={261}
               size={14} weight="semibold" font="inter" color={INK_BODY}
@@ -474,7 +498,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: INK_DARK,
   },
-  flag: {
+  headerAction: {
     position: "absolute",
     left: 314,
     top: 22,
@@ -594,7 +618,7 @@ const styles = StyleSheet.create({
   },
 
   /* timeline */
-  divider: { position: "absolute", left: 31, top: 599, width: 2, height: 326 },
+  divider: { position: "absolute", left: 31, top: DIVIDER_Y, width: 2 },
 
   /* action bar — re-applies the canvas scale so it lines up with the body */
   dock: { position: "absolute", left: 0 },

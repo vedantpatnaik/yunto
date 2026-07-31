@@ -1,9 +1,9 @@
 import { useMemo, useState } from "react";
-import type { ComponentProps } from "react";
+import type { ReactNode } from "react";
 import { Pressable, StyleSheet } from "react-native";
 import type { ViewStyle } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { Feather } from "@expo/vector-icons";
+import { Feather, FontAwesome, MaterialCommunityIcons } from "@expo/vector-icons";
 import Svg, {
   Defs,
   LinearGradient as SvgLinear,
@@ -20,7 +20,8 @@ import type { Creator } from "../../../src/api/hooks";
  *
  * The closing state of the collab-day wizard: the platform sheet is gone, the
  * chosen days sit on the month grid as tinted pills carrying a platform badge
- * and a dark remove badge, and a single dark "Save" button commits the
+ * and a dark plus badge that takes the day back off, and a single dark "Save"
+ * button commits the
  * schedule. Coordinates are raw frame coordinates; <Screen> scales the 375pt
  * canvas.
  *
@@ -88,39 +89,35 @@ const BADGE_BORDER = "rgba(0,0,0,0.06)";
 const SAVE_FILL = "#312b28";
 
 /* ----------------------------- platform pills ----------------------------- */
-type IconName = ComponentProps<typeof Feather>["name"];
-
 interface PlatformStyle {
   /** Pill fill is the tint at 12%; stroke and shadow use the tint itself. */
   tint: string;
   fill: string;
-  icon: IconName;
-  iconColor: string;
+  /** The mark the white badge carries, matched to the design's logo art. */
+  badge: ReactNode;
 }
 
 /**
- * The three platforms the design puts on the grid. YouTube's badge ships as a
- * bitmap in Figma, so its glyph takes the pill tint; Instagram and LinkedIn use
- * the exact stroke/fill colours of their vector badges.
+ * The three platforms the design puts on the grid. The design draws YouTube and
+ * LinkedIn as solid brand marks (a filled red play plate, a filled blue "in"
+ * square) and Instagram as an outlined camera, so each badge uses the icon set
+ * that carries that exact shape at the design's colours.
  */
 const PLATFORMS: Record<string, PlatformStyle> = {
   youtube: {
     tint: "#fc3d3d",
     fill: "rgba(252,61,61,0.12)",
-    icon: "youtube",
-    iconColor: "#fc3d3d",
+    badge: <MaterialCommunityIcons name="youtube" size={14} color="#ff0000" />,
   },
   instagram: {
     tint: "#ff8fbc",
     fill: "rgba(255,143,188,0.12)",
-    icon: "instagram",
-    iconColor: "#e1306c",
+    badge: <Feather name="instagram" size={12} color="#e1306c" />,
   },
   linkedin: {
     tint: "#63a1de",
     fill: "rgba(99,161,222,0.12)",
-    icon: "linkedin",
-    iconColor: "#0a66c2",
+    badge: <FontAwesome name="linkedin-square" size={14} color="#0a66c2" />,
   },
 };
 
@@ -525,7 +522,7 @@ export default function CollabDaysReview() {
             center
             style={platformShadow}
           >
-            <Feather name={style.icon} size={12} color={style.iconColor} />
+            {style.badge}
           </Abs>
         );
       })}
@@ -542,7 +539,7 @@ export default function CollabDaysReview() {
               pressed && styles.pressed,
             ]}
           >
-            <Feather name="x" size={12} color="#FFFFFF" />
+            <Feather name="plus" size={12} color="#FFFFFF" />
           </Pressable>
         );
       })}
@@ -617,7 +614,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
 
-  /* Remove badge — 20x20 r10 #1c1c1e with a 2pt white ring. */
+  /* Remove badge — 20x20 r10 #1c1c1e with a 2pt white ring, plus glyph. */
   removeBadge: {
     position: "absolute",
     width: REMOVE_BADGE,

@@ -79,6 +79,9 @@ function dateChip(iso: string): string {
   return `${d.getDate()} ${MONTHS[d.getMonth()]}`;
 }
 
+/** Roughly the characters of 15pt Inter that fill the 178pt text column. */
+const KIND_CHARS = 21;
+
 /**
  * A note body carries both lines the card shows: a short kind line and a
  * one-line preview. Split on the first newline, else on the first sentence
@@ -94,7 +97,15 @@ function splitBody(body: string): { kind: string; preview: string } {
     // The label line reads as a heading, so drop the separator it split on.
     return { kind: body.slice(0, stop).trim(), preview: body.slice(stop + 2).trim() };
   }
-  return { kind: body.trim(), preview: "" };
+  // A one-sentence note has no heading to peel off. The card still lays out two
+  // rows, so wrap at the last word that fits the kind line instead of clipping
+  // it with an ellipsis and leaving the preview row blank.
+  const text = body.trim();
+  const cut = text.length > KIND_CHARS ? text.lastIndexOf(" ", KIND_CHARS) : -1;
+  if (cut > 0) {
+    return { kind: text.slice(0, cut), preview: text.slice(cut + 1) };
+  }
+  return { kind: text, preview: "" };
 }
 
 /* -------------------------------- backdrop -------------------------------- */

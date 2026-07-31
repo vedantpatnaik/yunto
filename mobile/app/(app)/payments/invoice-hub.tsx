@@ -1,8 +1,7 @@
-import { useMemo } from "react";
-import type { ComponentProps } from "react";
+import type { ReactNode } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
 import { useRouter } from "expo-router";
-import { Ionicons } from "@expo/vector-icons";
+import { Feather, Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import Svg, {
   Defs,
   LinearGradient as SvgLinear,
@@ -11,12 +10,11 @@ import Svg, {
   Stop,
 } from "react-native-svg";
 import { Abs, Screen, Txt } from "../../../src/ui/Frame";
-import { useInvoices } from "../../../src/api/hooks";
 
 /**
  * Invoice — Figma 7358:29665 (375x875).
  *
- * Landing menu for the invoicing module: a glass header with a back chevron and
+ * Landing menu for the invoicing module: a glass header with a back arrow and
  * a centred "Invoice" title, then the "Main" frame (y=106, h=296, 12pt vertical
  * gap) holding three identical 335x74 glass rows — Create Invoice, Invoice
  * History, Your Details. Pushed stack screen, so no bottom tab bar.
@@ -41,7 +39,6 @@ const TILE_SIZE = 48;
 const LABEL_X = 77; // 97-20
 const LABEL_Y = 27.5; // 143.5-116
 const LABEL_W = 193;
-const LABEL_H = 19;
 const CHEV_X = 286; // 306-20
 const CHEV_Y = 21; // 137-116
 const CHEV_SIZE = 36;
@@ -93,18 +90,14 @@ function Backdrop() {
 }
 
 /* ------------------------------- menu rows -------------------------------- */
-type IconName = ComponentProps<typeof Ionicons>["name"];
-
 interface RowSpec {
   key: string;
   /** Frame-space top edge of the 335x74 card. */
   y: number;
   /** "Background+Shadow" tile fill. */
   tile: string;
-  /** Tile glyph stroke colour. */
-  ink: string;
-  icon: IconName;
-  iconSize: number;
+  /** Tile glyph — size/colour baked in to match the spec's per-row vectors. */
+  icon: ReactNode;
   label: string;
   href: string;
 }
@@ -114,9 +107,8 @@ const ROWS: RowSpec[] = [
     key: "create",
     y: 116,
     tile: "#E1EDFF",
-    ink: "#4A7299",
-    icon: "add",
-    iconSize: 24,
+    // 24x24 iconify frame, 18x18 pen-line vector.
+    icon: <Feather name="edit-3" size={24} color="#4A7299" />,
     label: "Create Invoice",
     href: "/payments/create-invoice",
   },
@@ -124,9 +116,8 @@ const ROWS: RowSpec[] = [
     key: "history",
     y: 116 + ROW_STEP,
     tile: "#FFEBF1",
-    ink: "#A35A74",
-    icon: "documents-outline",
-    iconSize: 24,
+    // Document with a folded corner and three body rules.
+    icon: <Ionicons name="document-text-outline" size={24} color="#A35A74" />,
     label: "Invoice History",
     href: "/payments/invoice-history",
   },
@@ -134,15 +125,14 @@ const ROWS: RowSpec[] = [
     key: "details",
     y: 116 + ROW_STEP * 2,
     tile: "#EEE5FF",
-    ink: "#76609E",
-    icon: "person-outline",
-    iconSize: 26,
+    // 26x26 iconify frame — a receipt with a torn edge.
+    icon: <MaterialCommunityIcons name="receipt-text-outline" size={26} color="#76609E" />,
     label: "Your Details",
     href: "/payments/your-details",
   },
 ];
 
-function MenuRow({ row, badge, onPress }: { row: RowSpec; badge: string | null; onPress: () => void }) {
+function MenuRow({ row, onPress }: { row: RowSpec; onPress: () => void }) {
   return (
     <Pressable
       onPress={onPress}
@@ -169,7 +159,7 @@ function MenuRow({ row, badge, onPress }: { row: RowSpec; badge: string | null; 
         center
         style={styles.tileShadow}
       >
-        <Ionicons name={row.icon} size={row.iconSize} color={row.ink} />
+        {row.icon}
       </Abs>
 
       {/* Label — Inter 600 16 / 19.36. */}
@@ -187,17 +177,6 @@ function MenuRow({ row, badge, onPress }: { row: RowSpec; badge: string | null; 
         {row.label}
       </Txt>
 
-      {/* Outstanding-invoice count, right-aligned inside the label container. */}
-      {badge ? (
-        <Abs x={LABEL_X} y={LABEL_Y} w={LABEL_W} h={LABEL_H} row style={styles.badgeRow}>
-          <View style={[styles.badge, { backgroundColor: row.tile }]}>
-            <Txt size={12} weight="semibold" font="inter" color={row.ink} lineHeight={14.52}>
-              {badge}
-            </Txt>
-          </View>
-        </Abs>
-      ) : null}
-
       {/* Overlay+Shadow — 36x36 r18 glass disc holding the forward chevron. */}
       <Abs
         x={CHEV_X}
@@ -209,7 +188,8 @@ function MenuRow({ row, badge, onPress }: { row: RowSpec; badge: string | null; 
         center
         style={styles.discShadow}
       >
-        <Ionicons name="chevron-forward" size={20} color={CHEV_INK} />
+        {/* 5x10 vector, 1.67 stroke — Feather's weight matches, Ionicons' is heavier. */}
+        <Feather name="chevron-right" size={20} color={CHEV_INK} />
       </Abs>
     </Pressable>
   );
@@ -218,13 +198,6 @@ function MenuRow({ row, badge, onPress }: { row: RowSpec; badge: string | null; 
 /* --------------------------------- screen --------------------------------- */
 export default function InvoiceHub() {
   const router = useRouter();
-  const { data: invoices = [] } = useInvoices();
-
-  /** Badges Invoice History with everything still owed. */
-  const outstanding = useMemo(
-    () => invoices.filter((i) => i.status === "UNPAID" || i.status === "OVERDUE").length,
-    [invoices],
-  );
 
   return (
     <Screen height={FRAME_H} background="#F7F0E4" scroll>
@@ -235,7 +208,8 @@ export default function InvoiceHub() {
         onPress={() => router.back()}
         style={({ pressed }) => [styles.back, pressed && styles.pressed]}
       >
-        <Ionicons name="chevron-back" size={20} color={BACK_INK} />
+        {/* 20x20 SVG, 11.67x11.67 vector — an arrow, not a chevron. */}
+        <Feather name="arrow-left" size={20} color={BACK_INK} />
       </Pressable>
       <Txt
         x={79.5}
@@ -255,12 +229,7 @@ export default function InvoiceHub() {
       {/* Main is y=106 h=296; the last row ends at 362, so nothing is clipped
           and the rows can sit straight on the frame at their spec coordinates. */}
       {ROWS.map((row) => (
-        <MenuRow
-          key={row.key}
-          row={row}
-          badge={row.key === "history" && outstanding > 0 ? String(outstanding) : null}
-          onPress={() => router.push(row.href as never)}
-        />
+        <MenuRow key={row.key} row={row} onPress={() => router.push(row.href as never)} />
       ))}
     </Screen>
   );
@@ -318,15 +287,5 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     shadowOffset: { width: 0, height: 2 },
     elevation: 1,
-  },
-
-  badgeRow: { justifyContent: "flex-end" },
-  badge: {
-    height: 19,
-    minWidth: 19,
-    borderRadius: 9.5,
-    paddingHorizontal: 6,
-    alignItems: "center",
-    justifyContent: "center",
   },
 });

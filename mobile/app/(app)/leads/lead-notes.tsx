@@ -30,14 +30,19 @@ import {
  * canvas to the device.
  *
  * The frame is 875 tall but the timeline block runs to 953 (Figma clips it);
- * the canvas is sized to the block so the whole timeline is reachable by
- * scrolling without moving a single traced coordinate.
+ * the canvas is sized to whichever is taller so the whole timeline is reachable
+ * by scrolling without moving a single traced coordinate.
+ *
+ * The timeline is the one stack whose height is data-dependent — the design
+ * samples two rows per day, live data may hold one — so groups are stacked with
+ * the design's own metrics (heading -> card 31, card -> card 74, group -> group
+ * 24) rather than pinned to a fixed 191pt stride, which would leave a blank
+ * band under any group that renders a single row.
  */
 
 /* ------------------------------- geometry -------------------------------- */
 const FRAME_W = 375;
 const FRAME_H = 875;
-const CANVAS_H = 953; // "3. Activity Timeline:margin" — 547 + 406
 
 const CARD_X = 15;
 const CARD_Y = 111;
@@ -45,10 +50,14 @@ const CARD_W = 345;
 const CARD_H = 205;
 
 const GROUP_Y = 571; // "Group: Today" origin
-const GROUP_STEP = 191; // 762 - 571
-const ROW_Y = 31; // first card, group-relative (602 - 571)
-const ROW_STEP = 74; // 676 - 602
-const MAX_GROUPS = 2; // 571 + 191 + 167 = 929, the last row the block holds
+const HEAD_TO_ROW = 31; // heading top -> first card top (602 - 571)
+const ROW_STEP = 74; // card top -> next card top (676 - 602)
+const ROW_H = 62;
+const GROUP_GAP = 24; // last card bottom -> next heading (762 - 738)
+const DIVIDER_TOP = 5; // divider top above the first card (607 - 602)
+const DIVIDER_TAIL = 4; // divider bottom below the last card (933 - 929)
+const BLOCK_TAIL = 24; // block bottom below the last card (953 - 929)
+const MAX_GROUPS = 2; // the design's block holds two day groups
 const MAX_ROWS = 2;
 
 /* --------------------------- spec colour tokens --------------------------- */
@@ -124,9 +133,9 @@ interface TimelineGroup {
 
 /* -------------------------------- backdrop -------------------------------- */
 /** The frame fill: a warm vertical base plus four soft radial glows. */
-function Backdrop() {
+function Backdrop({ h }: { h: number }) {
   return (
-    <Svg width={FRAME_W} height={CANVAS_H} style={styles.backdrop}>
+    <Svg width={FRAME_W} height={h} style={styles.backdrop}>
       <Defs>
         <SvgLinear id="base" x1="187.5" y1="0" x2="187.5" y2={FRAME_H} gradientUnits="userSpaceOnUse">
           <Stop offset="0" stopColor="#F7F0E4" />
@@ -149,11 +158,11 @@ function Backdrop() {
           <Stop offset="0.24" stopColor="#FFFFFF" stopOpacity="0" />
         </RadialGradient>
       </Defs>
-      <Rect width={FRAME_W} height={CANVAS_H} fill="url(#base)" />
-      <Rect width={FRAME_W} height={CANVAS_H} fill="url(#pink)" />
-      <Rect width={FRAME_W} height={CANVAS_H} fill="url(#blue)" />
-      <Rect width={FRAME_W} height={CANVAS_H} fill="url(#gold)" />
-      <Rect width={FRAME_W} height={CANVAS_H} fill="url(#haze)" />
+      <Rect width={FRAME_W} height={h} fill="url(#base)" />
+      <Rect width={FRAME_W} height={h} fill="url(#pink)" />
+      <Rect width={FRAME_W} height={h} fill="url(#blue)" />
+      <Rect width={FRAME_W} height={h} fill="url(#gold)" />
+      <Rect width={FRAME_W} height={h} fill="url(#haze)" />
     </Svg>
   );
 }
@@ -229,6 +238,26 @@ export default function LeadNotes() {
     return out;
   }, [notes, reminders]);
 
+  /**
+   * Stack the day groups with the design's own metrics so a group holding one
+   * row consumes one row's worth of canvas instead of the sample's two.
+   */
+  const placed = useMemo(() => {
+    let top = GROUP_Y;
+    return groups.map((group) => {
+      const y = top;
+      top = y + HEAD_TO_ROW + (group.rows.length - 1) * ROW_STEP + ROW_H + GROUP_GAP;
+      return { group, y };
+    });
+  }, [groups]);
+
+  const last = placed[placed.length - 1];
+  const timelineBottom = last
+    ? last.y + HEAD_TO_ROW + (last.group.rows.length - 1) * ROW_STEP + ROW_H
+    : GROUP_Y;
+  const canvasH = Math.max(FRAME_H, timelineBottom + BLOCK_TAIL);
+  const dividerTop = GROUP_Y + HEAD_TO_ROW + DIVIDER_TOP;
+
   /** The date chip tracks the next scheduled follow-up. */
   const followUp = useMemo(() => {
     const now = Date.now();
@@ -247,15 +276,15 @@ export default function LeadNotes() {
   };
 
   return (
-    <Screen height={CANVAS_H} background="#F7F0E4" scroll>
-      <Backdrop />
+    <Screen height={canvasH} background="#F7F0E4" scroll>
+      <Backdrop h={canvasH} />
 
       {/* -------------------------------- Header ------------------------------- */}
       <Pressable
         onPress={() => router.back()}
         style={({ pressed }) => [styles.headerBack, pressed && styles.pressed]}
       >
-        <Feather name="chevron-left" size={20} color={INK_BODY} />
+        <Feather name="arrow-left" size={20} color={INK_BODY} />
       </Pressable>
       <Txt
         x={71.5}
@@ -270,8 +299,8 @@ export default function LeadNotes() {
       >
         Lead Detail{" "}
       </Txt>
-      <View style={styles.headerFlag}>
-        <Feather name="flag" size={20} color="#e74c3c" />
+      <View style={styles.headerDelete}>
+        <Feather name="trash-2" size={20} color="#e74c3c" />
       </View>
 
       {/* ----------------------------- Identity card --------------------------- */}
@@ -436,14 +465,18 @@ export default function LeadNotes() {
       </Abs>
 
       {/* -------------------------- 3. Activity Timeline ----------------------- */}
-      <LinearGradient
-        colors={["rgba(0,0,0,0.08)", "rgba(0,0,0,0.08)", "rgba(0,0,0,0)"] as const}
-        locations={[0, 0.8, 1]}
-        style={styles.divider}
-      />
+      {placed.length > 0 ? (
+        <LinearGradient
+          colors={["rgba(0,0,0,0.08)", "rgba(0,0,0,0.08)", "rgba(0,0,0,0)"] as const}
+          locations={[0, 0.8, 1]}
+          style={[
+            styles.divider,
+            { top: dividerTop, height: timelineBottom + DIVIDER_TAIL - dividerTop },
+          ]}
+        />
+      ) : null}
 
-      {groups.map((group, gi) => {
-        const groupY = GROUP_Y + gi * GROUP_STEP;
+      {placed.map(({ group, y: groupY }, gi) => {
         return (
           <View key={group.key}>
             <Txt
@@ -461,7 +494,7 @@ export default function LeadNotes() {
             </Txt>
 
             {group.rows.map((row, ri) => {
-              const cardY = groupY + ROW_Y + ri * ROW_STEP;
+              const cardY = groupY + HEAD_TO_ROW + ri * ROW_STEP;
               const style = EVENT_STYLES[(gi * MAX_ROWS + ri) % EVENT_STYLES.length];
               return (
                 <View key={row.id}>
@@ -472,7 +505,7 @@ export default function LeadNotes() {
                     x={60}
                     y={cardY}
                     w={295}
-                    h={62}
+                    h={ROW_H}
                     radius={12}
                     bg={colors.white}
                     border={style.border}
@@ -536,7 +569,7 @@ const styles = StyleSheet.create({
     shadowRadius: 6,
     shadowOffset: { width: 0, height: 4 },
   },
-  headerFlag: {
+  headerDelete: {
     position: "absolute",
     left: 320,
     top: 20,
@@ -658,5 +691,5 @@ const styles = StyleSheet.create({
     elevation: 1,
   },
 
-  divider: { position: "absolute", left: 31, top: 607, width: 2, height: 326 },
+  divider: { position: "absolute", left: 31, width: 2 },
 });

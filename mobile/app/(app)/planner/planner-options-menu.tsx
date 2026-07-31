@@ -52,9 +52,13 @@ const CELL_H = 80;
 const DAY_DY = 16.5;
 const DAY_DY_MARKED = 11.5;
 
-/** "post" chip — 40x14 at +4,+60.5 from the cell, label inset 3.5,1.5. */
+/** "post" chip — 40x14 at +4,+61 from the cell, label inset 3.5,1.5. */
 const CHIP_DX = 4;
-const CHIP_DY = 60.5;
+const CHIP_DY = 61;
+/** Label box is 33 wide inside a 40 chip, so +3.5 centres it. */
+const CHIP_LABEL_DX = 3.5;
+const CHIP_LABEL_DY = 1.5;
+const CHIP_LABEL_W = 33;
 const CHIP_W = 40;
 const CHIP_H = 14;
 
@@ -68,8 +72,14 @@ const DOT_DX = 20.5;
 const DOT_DY = 50.5;
 const DOT_SIZE = 8;
 
-/** Weekday strip — "Frame 91" 15,182, seven left-aligned labels. */
+/**
+ * Weekday strip — "Frame 91" 15,182, seven left-aligned labels. The widths are
+ * Figma's measured text boxes; RN's Inter sets a hair wider, so "Mon" wrapped
+ * to "Mo/n" at 25.26. The labels are left-aligned, so padding the box out is
+ * invisible and just keeps every label on one line.
+ */
 const WEEK_Y = 182;
+const WEEK_SLACK = 4;
 const WEEKDAYS = [
   { label: "Mon", x: 25, w: 25.26 },
   { label: "Tue", x: 78, w: 22 },
@@ -327,7 +337,7 @@ export default function PlannerOptionsMenu() {
           key={d.label}
           x={d.x}
           y={WEEK_Y}
-          w={d.w}
+          w={d.w + WEEK_SLACK}
           size={12}
           weight="medium"
           font="inter"
@@ -411,9 +421,9 @@ export default function PlannerOptionsMenu() {
             bg={mark.accent}
           >
             <Txt
-              x={-3.5}
-              y={1.5}
-              w={33}
+              x={CHIP_LABEL_DX}
+              y={CHIP_LABEL_DY}
+              w={CHIP_LABEL_W}
               size={10}
               weight="semibold"
               font="inter"
@@ -485,13 +495,18 @@ export default function PlannerOptionsMenu() {
           borderWidth={1}
           center
         >
-          <Feather name="arrow-left" size={14} color={INK} />
+          <Feather name="arrow-left" size={24} color={INK} />
         </Abs>
       </Pressable>
+      {/*
+        Figma's box is 118 — its own Outfit measurement of "Plan Content". The
+        875 ramp sets this in Inter, which runs wider, so 118 wrapped and hid
+        "Content" behind the popover. Left-aligned, so a roomier box is inert.
+      */}
       <Txt
         x={62}
         y={52}
-        w={118}
+        w={160}
         size={20}
         weight="semibold"
         font="inter"
@@ -533,7 +548,8 @@ export default function PlannerOptionsMenu() {
             justifyContent: "center",
           }}
         >
-          <MaterialCommunityIcons name="auto-fix" size={16} color={colors.white} />
+          {/* "Vector" 719:11852 — a 16x16.5 four-point sparkle, not a wand. */}
+          <MaterialCommunityIcons name="star-four-points" size={16} color={colors.white} />
         </LinearGradient>
       </Abs>
       <Txt

@@ -239,16 +239,14 @@ interface CampaignRow {
   managedBy: string;
 }
 
-/** The quick-action row every card carries, at card-relative x. */
-const ACTIONS: {
-  key: string;
-  icon: ComponentProps<typeof Ionicons>["name"];
-  x: number;
-}[] = [
-  { key: "call", icon: "call-outline", x: 16 },
-  { key: "chat", icon: "chatbubble-outline", x: 60 },
-  { key: "more", icon: "ellipsis-horizontal", x: 104 },
-];
+/**
+ * The quick-action row, per treatment: an open lead is chased (call / chat),
+ * a won one is billed (document). 36pt buttons on a 44pt step from x=16.
+ */
+const ACTIONS: Record<Tone, ComponentProps<typeof Ionicons>["name"][]> = {
+  contacted: ["call-outline", "chatbubble-outline", "ellipsis-horizontal"],
+  won: ["document-text-outline", "ellipsis-horizontal"],
+};
 
 function CampaignCard({
   row, top, selected, onPress,
@@ -272,20 +270,25 @@ function CampaignCard({
         ]}
       />
 
-      {/* contact name, campaign title, value chip */}
-      <Txt
-        x={16} y={16} w={92.97} size={16} weight="bold" font="inter"
-        color={INK} lineHeight={19.36} numberOfLines={1}
-      >
-        {row.contactName}
-      </Txt>
-      <Txt
-        x={16} y={38} w={92.97} size={13} weight="medium" font="inter"
-        color={CARD_META} lineHeight={15.73} numberOfLines={2}
-      >
-        {row.campaignTitle}
-      </Txt>
-      <Abs x={16} y={16} w={303} h={25} style={styles.valueRow}>
+      {/* contact name + campaign title, then the value chip.
+          The name column hugs its text in Figma (92.97 for "Ananya Rao") and
+          the title wraps to that width — so it must measure the real name, not
+          sit in a fixed box that ellipsises anything longer than the sample. */}
+      <Abs x={16} y={16} w={303} h={54} row style={styles.headRow}>
+        <View style={styles.nameCol}>
+          <Txt
+            size={16} weight="bold" font="inter" color={INK}
+            lineHeight={19.36} numberOfLines={1}
+          >
+            {row.contactName}
+          </Txt>
+          <Txt
+            size={13} weight="medium" font="inter" color={CARD_META}
+            lineHeight={15.73} numberOfLines={2} style={styles.cardTitle}
+          >
+            {row.campaignTitle}
+          </Txt>
+        </View>
         <View style={styles.valuePill}>
           <Txt size={14} weight="bold" font="inter" color={INK} lineHeight={16.94}>
             {row.value}
@@ -311,12 +314,12 @@ function CampaignCard({
       </Abs>
 
       {/* quick actions */}
-      {ACTIONS.map((a) => (
+      {ACTIONS[row.tone].map((icon, i) => (
         <Abs
-          key={a.key} x={a.x} y={118} w={36} h={36} radius={18}
+          key={icon} x={16 + i * 44} y={118} w={36} h={36} radius={18}
           bg={WHITE_70} center style={styles.actionShadow}
         >
-          <Ionicons name={a.icon} size={16} color={INK} />
+          <Ionicons name={icon} size={16} color={INK} />
         </Abs>
       ))}
     </Pressable>
@@ -570,7 +573,9 @@ export default function InvoiceCreateSelectCampaign() {
         disabled={!canSend}
         style={({ pressed }) => [
           styles.send,
-          { opacity: canSend ? (pressed ? 0.9 : 1) : 0.5 },
+          // The design ships this CTA solid in its resting (nothing-selected)
+          // state, so only the in-flight POST dims it.
+          { opacity: createInvoice.isPending ? 0.5 : pressed ? 0.9 : 1 },
         ]}
       >
         <Txt
@@ -656,7 +661,11 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
     elevation: 1,
   },
-  valueRow: { alignItems: "flex-end", justifyContent: "center" },
+  headRow: { alignItems: "flex-start", justifyContent: "space-between" },
+  /** Hugs the name; shrinks rather than shoving the value chip off the card. */
+  nameCol: { flexShrink: 1, marginRight: 8 },
+  /** Figma "Margin" — 2pt under the 20pt name box, i.e. 22pt from its top. */
+  cardTitle: { marginTop: 2.64 },
   valuePill: {
     height: 25,
     borderRadius: 8,

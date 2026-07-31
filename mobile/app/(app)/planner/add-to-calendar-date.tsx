@@ -440,7 +440,7 @@ export default function AddToCalendarDate() {
         onPress={() => router.push("/content/all-ideas" as never)}
         style={({ pressed }) => [styles.secondaryButton, pressed && styles.pressed]}
       >
-        <Feather name="file-text" size={20} color="#141416" />
+        <Feather name="share" size={20} color="#141416" />
       </Pressable>
 
       <Pressable

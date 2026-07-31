@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Linking, Pressable, ScrollView, Share, StyleSheet, View } from "react-native";
 import { useRouter } from "expo-router";
-import { Feather, Ionicons } from "@expo/vector-icons";
+import { Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import Svg, {
   Defs,
@@ -510,7 +510,7 @@ export default function LandingPageThemes() {
         onPress={() => router.back()}
         style={({ pressed }) => [styles.back, pressed && styles.pressed]}
       >
-        <Ionicons name="chevron-back" size={20} color={BACK_INK} />
+        <Feather name="arrow-left" size={20} color={BACK_INK} />
       </Pressable>
       <Txt
         x={100} y={30} w={154}

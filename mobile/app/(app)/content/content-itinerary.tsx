@@ -365,7 +365,7 @@ export default function ContentItinerary() {
 
       {/* ------------------------------ Header ------------------------------ */}
       <Pressable onPress={() => router.back()} style={[styles.headerButton, { left: 15 }]}>
-        <Feather name="chevron-left" size={20} color={INK_HEADER} style={styles.headerIcon} />
+        <Feather name="arrow-left" size={20} color={INK_HEADER} style={styles.headerIcon} />
       </Pressable>
 
       <Abs x={115} y={21.5} w={128.88} h={37} radius={20} bg={GLASS_80} border={GLASS_90} style={styles.softShadow}>
@@ -434,15 +434,22 @@ export default function ContentItinerary() {
           color={SPARKLE}
           style={styles.sparkleSmall}
         />
+        {/*
+          Spec measures this label at 156.88 wide, but the emoji plus Inter's
+          real metrics run a few points past that and the line wrapped out of
+          the 44pt pill. The label is left-aligned, so it stays put while the
+          box grows to the rest of the button (238.88 - 53) and holds one line.
+        */}
         <Txt
           x={53}
           y={13}
-          w={156.88}
+          w={185.88}
           font="inter"
           size={14}
           weight="bold"
           color={INK_GENERATE}
           lineHeight={16.94}
+          numberOfLines={1}
         >
           {"✨ Generate More Ideas"}
         </Txt>

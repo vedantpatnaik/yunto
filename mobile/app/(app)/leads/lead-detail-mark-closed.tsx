@@ -191,13 +191,13 @@ export default function LeadDetailMarkClosed() {
         onPress={() => router.back()}
         style={({ pressed }) => [styles.backButton, pressed && styles.pressed]}
       >
-        <Feather name="chevron-left" size={20} color="#1C1C1E" />
+        <Feather name="arrow-left" size={20} color="#1C1C1E" />
       </Pressable>
       <Txt x={71.5} y={30} w={235} size={16} weight="bold" font="inter" color={INK} lineHeight={19.36} align="center">
         Lead Detail{" "}
       </Txt>
       <Abs x={320} y={20} w={40} h={40} radius={20} bg={GLASS_65} border={BORDER_90} borderWidth={0.91} center style={styles.headerAction}>
-        <Feather name="trash-2" size={18} color="#E74C3C" />
+        <Feather name="trash-2" size={20} color="#E74C3C" />
       </Abs>
 
       {/* --------------------- Body (clipped, scrolling) -------------------- */}
@@ -292,17 +292,20 @@ export default function LeadDetailMarkClosed() {
             </Txt>
             <View style={styles.ownerButtonMargin}>
               <View style={styles.ownerButton}>
-                <Feather name="edit-2" size={12} color={INK} />
+                <Feather name="phone" size={14} color={INK} />
               </View>
             </View>
           </View>
-          <Ionicons name="logo-whatsapp" size={27} color="#25D366" />
+          {/* 7333:14737 "logos:whatsapp-icon" — a filled green badge, not an outline. */}
+          <View style={styles.whatsapp}>
+            <Ionicons name="call" size={16} color="#FFFFFF" />
+          </View>
         </Abs>
 
         {/* Contact chips — 7333:14742 / 14749 */}
         <Abs x={15} y={cy(473)} w={166} h={32} radius={16} bg="#FFFFFF">
           <Abs x={16} y={8} w={16} h={16} center>
-            <Feather name="mail" size={14} color={MUTED} />
+            <Feather name="mail" size={16} color={MUTED} />
           </Abs>
           <Txt x={38} y={8} w={112} size={13} weight="medium" font="inter" color={INK} lineHeight={15.73} numberOfLines={1}>
             {email}
@@ -310,7 +313,7 @@ export default function LeadDetailMarkClosed() {
         </Abs>
         <Abs x={203} y={cy(473)} w={157} h={32} radius={16} bg="#FFFFFF">
           <Abs x={16} y={8} w={16} h={16} center>
-            <Feather name="globe" size={14} color={MUTED} />
+            <Feather name="globe" size={16} color={MUTED} />
           </Abs>
           <Txt x={38} y={8} w={103} size={13} weight="medium" font="inter" color={INK} lineHeight={15.73} numberOfLines={1}>
             {website}
@@ -540,6 +543,14 @@ const styles = StyleSheet.create({
 
   ownerRow: { flexDirection: "row", alignItems: "center", gap: 8 },
   avatar: { width: 24, height: 24, borderRadius: 12, backgroundColor: "#C4C4C4" },
+  whatsapp: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: "#25D366",
+    alignItems: "center",
+    justifyContent: "center",
+  },
   ownerButtonMargin: { paddingLeft: 4 },
   ownerButton: {
     width: 28,

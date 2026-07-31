@@ -123,12 +123,14 @@ const FIELD_W = 316.5;
 const FIELD_H = 38;
 const LABEL_X = 45;
 const LABEL_W = 106;
-/** Stepper module on the row's right edge; "+" sits on the design's caret x. */
-const MINUS_X = 270;
-const VALUE_X = 286;
+/** The row's caret — "Frame" 16x16 at x=318, 11pt below the row's top edge. */
+const CARET_X = 318;
+const CARET_DY = 11;
+/** A picked count reads back just left of the caret, as a select's value. */
+const VALUE_X = 278;
 const VALUE_W = 32;
-const PLUS_X = 318;
-const CONTROL = 16;
+/** Tapping a row cycles it through 0..5 collab days. */
+const MAX_PER_PLATFORM = 5;
 
 const byPlatform = (p: string | undefined): PlatformKey =>
   p === "YOUTUBE" ? "youtube" : p === "INSTAGRAM" ? "instagram" : "x";
@@ -253,15 +255,18 @@ export default function CollabDaysAutoSetup() {
   const defaultPlatform: PlatformKey =
     PLATFORMS.find((p) => counts[p.key] > 0)?.key ?? "instagram";
 
-  const bump = (key: PlatformKey, delta: number) =>
-    setCounts((prev) => ({ ...prev, [key]: Math.max(0, prev[key] + delta) }));
-
-  /** The round "+" adds one collab day across every platform at once. */
-  const bumpAll = () =>
+  /** Each row behaves like a select: a tap steps its count and wraps at 5. */
+  const cycle = (key: PlatformKey) =>
     setCounts((prev) => ({
-      instagram: prev.instagram + 1, youtube: prev.youtube + 1,
-      linkedin: prev.linkedin + 1, x: prev.x + 1,
+      ...prev,
+      [key]: (prev[key] + 1) % (MAX_PER_PLATFORM + 1),
     }));
+
+  /** The round "✕" dismisses the sheet without applying anything. */
+  const dismiss = () => {
+    setCounts({ instagram: 0, youtube: 0, linkedin: 0, x: 0 });
+    setSheetOpen(false);
+  };
 
   const toggleDay = (day: number) =>
     setAssigned((prev) => {
@@ -333,21 +338,21 @@ export default function CollabDaysAutoSetup() {
       {/* ----------------------------- Calendar card ------------------------- */}
       <Abs
         x={CARD_OUTER.x} y={CARD_OUTER.y} w={CARD_OUTER.w} h={CARD_OUTER.h}
-        radius={12} bg="rgba(255,255,255,0.35)"
+        radius={12} bg="rgba(255,255,255,0.35)" border={INK} borderWidth={1}
       />
       <Abs
         x={CARD_INNER.x} y={CARD_INNER.y} w={CARD_INNER.w} h={CARD_INNER.h}
-        radius={12} bg={GLASS_65} border={GLASS_90} borderWidth={1}
+        radius={12} bg={GLASS_65} border={INK} borderWidth={1}
         style={styles.cardShadow}
       />
 
-      {/* Year stepper — "ep:arrow-up-bold" + the year, at 28,138. */}
+      {/* Year stepper — "ep:arrow-up-bold" rotated -90deg (so it points left). */}
       <Pressable
-        onPress={() => setYear((y) => y + 1)}
+        onPress={() => setYear((y) => y - 1)}
         style={({ pressed }) => [styles.yearButton, pressed && styles.pressed]}
       />
       <Abs x={28} y={142.5} w={16} h={16} center>
-        <Feather name="chevron-up" size={14} color={INK} />
+        <Feather name="chevron-left" size={14} color={INK} />
       </Abs>
       <Txt
         x={48} y={138} w={42} size={16} weight="medium" font="inter"
@@ -369,12 +374,13 @@ export default function CollabDaysAutoSetup() {
         {MONTHS[month]}
       </Txt>
 
-      {/* Weekday header */}
+      {/* Weekday header — Figma's measured widths leave no slack for RN's
+          slightly wider Inter, so each label gets a little and stays on one line. */}
       {WEEKDAYS.map((d) => (
         <Txt
           key={d.label}
-          x={d.x} y={185} w={d.w} size={12} weight="medium" font="inter"
-          color={WEEKDAY_INK} lineHeight={16}
+          x={d.x} y={185} w={d.w + 8} size={12} weight="medium" font="inter"
+          color={WEEKDAY_INK} lineHeight={16} numberOfLines={1}
         >
           {d.label}
         </Txt>
@@ -451,7 +457,7 @@ export default function CollabDaysAutoSetup() {
         style={({ pressed }) => [styles.randomButton, pressed && styles.pressed]}
       >
         <Abs x={114 - 27} y={716 - 700} w={20} h={20} center>
-          <MaterialCommunityIcons name="dice-multiple" size={20} color="#ffffff" />
+          <MaterialCommunityIcons name="dice-multiple-outline" size={20} color="#090909" />
         </Abs>
         <Txt
           x={146 - 27} y={717 - 700} w={114} size={15} weight="semibold" font="outfit"
@@ -478,7 +484,10 @@ export default function CollabDaysAutoSetup() {
         <>
           <Pressable onPress={() => setSheetOpen(false)} style={styles.scrim} />
 
-          <Abs x={17} y={271} w={341} h={404} radius={16} bg={SHEET_FILL} style={styles.sheetShadow} />
+          <Abs
+            x={17} y={271} w={341} h={404} radius={16} bg={SHEET_FILL}
+            border={INK} borderWidth={1} style={styles.sheetShadow}
+          />
           <Abs x={18} y={273} w={339} h={402} radius={15} bg="#ffffff" opacity={0.02} />
 
           <Txt
@@ -499,20 +508,24 @@ export default function CollabDaysAutoSetup() {
             >
               Add
             </Txt>
+            {/* "basil:arrow-up-outline" rotated +90deg — it points right. */}
             <Abs x={282 - 249} y={301 - 295} w={16} h={16} center>
-              <Feather name="arrow-up" size={13} color={INK} />
+              <Feather name="arrow-right" size={13} color={INK} />
             </Abs>
           </Pressable>
 
           <Pressable
-            onPress={bumpAll}
-            style={({ pressed }) => [styles.plusButton, pressed && styles.pressed]}
+            onPress={dismiss}
+            style={({ pressed }) => [styles.closeButton, pressed && styles.pressed]}
           >
-            <Feather name="plus" size={17} color="rgba(0,0,0,0.7)" />
+            <Feather name="x" size={17} color="rgba(0,0,0,0.7)" />
           </Pressable>
 
           {/* Info card */}
-          <Abs x={33} y={340} w={316} h={92} radius={16} bg="#ffffff" />
+          <Abs
+            x={33} y={340} w={316} h={92} radius={16} bg="#ffffff"
+            border={INK} borderWidth={1}
+          />
           <Abs x={46} y={354} w={15} h={15} center>
             <Feather name="info" size={14} color="#121313" />
           </Abs>
@@ -531,11 +544,16 @@ export default function CollabDaysAutoSetup() {
             How many collab days you want per month?
           </Txt>
 
-          {/* Per-platform steppers */}
+          {/* Per-platform selects — one caret each, exactly as the design. */}
           {PLATFORMS.map((p) => (
-            <Abs
+            <Pressable
               key={p.key}
-              x={FIELD_X} y={p.rowY} w={FIELD_W} h={FIELD_H} radius={8} bg="#ffffff"
+              onPress={() => cycle(p.key)}
+              style={({ pressed }) => [
+                styles.field,
+                { top: p.rowY },
+                pressed && styles.pressed,
+              ]}
             >
               <Txt
                 x={LABEL_X - FIELD_X} y={p.textY - p.rowY} w={LABEL_W} size={13}
@@ -543,34 +561,19 @@ export default function CollabDaysAutoSetup() {
               >
                 {p.label}
               </Txt>
-              <Pressable
-                onPress={() => bump(p.key, -1)}
-                style={({ pressed }) => [
-                  styles.control,
-                  { left: MINUS_X - FIELD_X, top: p.textY - p.rowY + 4 },
-                  pressed && styles.pressed,
-                ]}
-              >
-                <Feather name="minus" size={14} color={FIELD_INK} />
-              </Pressable>
-              <Txt
-                x={VALUE_X - FIELD_X} y={p.textY - p.rowY} w={VALUE_W} size={13}
-                weight="medium" font="inter" color={QUESTION_INK} lineHeight={24}
-                align="center"
-              >
-                {counts[p.key]}
-              </Txt>
-              <Pressable
-                onPress={() => bump(p.key, 1)}
-                style={({ pressed }) => [
-                  styles.control,
-                  { left: PLUS_X - FIELD_X, top: p.textY - p.rowY + 4 },
-                  pressed && styles.pressed,
-                ]}
-              >
-                <Feather name="plus" size={14} color={FIELD_INK} />
-              </Pressable>
-            </Abs>
+              {counts[p.key] > 0 ? (
+                <Txt
+                  x={VALUE_X - FIELD_X} y={p.textY - p.rowY} w={VALUE_W} size={13}
+                  weight="medium" font="inter" color={QUESTION_INK} lineHeight={24}
+                  align="right"
+                >
+                  {counts[p.key]}
+                </Txt>
+              ) : null}
+              <Abs x={CARET_X - FIELD_X} y={CARET_DY} w={16} h={16} center>
+                <Feather name="chevron-down" size={14} color="rgba(0,0,0,0.9)" />
+              </Abs>
+            </Pressable>
           ))}
         </>
       ) : null}
@@ -612,7 +615,7 @@ const styles = StyleSheet.create({
   /* Day cell — "Calendar/Normal/Day" 49x80. */
   cell: { position: "absolute", width: CELL_W, height: CELL_H },
 
-  /* "Frame 14536" 320x52 r16 at 27,700. */
+  /* "Frame 14536" 320x52 r16 at 27,700 — 1px black stroke, hard 3,3 shadow. */
   randomButton: {
     position: "absolute",
     left: 27,
@@ -621,10 +624,12 @@ const styles = StyleSheet.create({
     height: 52,
     borderRadius: 16,
     backgroundColor: RANDOM_FILL,
-    shadowColor: ACCENT,
-    shadowOpacity: 0.18,
-    shadowRadius: 20,
-    shadowOffset: { width: 0, height: 8 },
+    borderWidth: 1,
+    borderColor: INK,
+    shadowColor: BUTTON_INK,
+    shadowOpacity: 1,
+    shadowRadius: 0,
+    shadowOffset: { width: 3, height: 3 },
     elevation: 4,
   },
   /* "Frame 14537" 320x51 r16 at 27,763. */
@@ -636,10 +641,12 @@ const styles = StyleSheet.create({
     height: 51,
     borderRadius: 16,
     backgroundColor: "#ffffff",
-    shadowColor: "#000000",
-    shadowOpacity: 0.06,
-    shadowRadius: 16,
-    shadowOffset: { width: 0, height: 6 },
+    borderWidth: 1,
+    borderColor: INK,
+    shadowColor: BUTTON_INK,
+    shadowOpacity: 1,
+    shadowRadius: 0,
+    shadowOffset: { width: 3, height: 3 },
     elevation: 3,
   },
 
@@ -652,11 +659,12 @@ const styles = StyleSheet.create({
     height: FRAME_H,
     backgroundColor: SCRIM,
   },
+  /* "Frame 1171275379" — hard #333 shadow, offset 2,3, no blur. */
   sheetShadow: {
-    shadowColor: "#1e1432",
-    shadowOpacity: 0.12,
-    shadowRadius: 40,
-    shadowOffset: { width: 0, height: 16 },
+    shadowColor: BUTTON_INK,
+    shadowOpacity: 1,
+    shadowRadius: 0,
+    shadowOffset: { width: 2, height: 3 },
     elevation: 8,
   },
 
@@ -670,8 +678,8 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     backgroundColor: ADD_FILL,
   },
-  /* "Button" 30x30 r9999 at 310,294. */
-  plusButton: {
+  /* "Button" 30x30 r9999 at 310,294, 1px #d4d4d4 stroke. */
+  closeButton: {
     position: "absolute",
     left: 310,
     top: 294,
@@ -681,14 +689,17 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "#ffffff",
+    borderWidth: 1,
+    borderColor: "#d4d4d4",
   },
 
-  /* Stepper controls on the right edge of each 316.5x38 input row. */
-  control: {
+  /* "Input" 316.5x38 r8 rows; only `top` changes per platform. */
+  field: {
     position: "absolute",
-    width: CONTROL,
-    height: CONTROL,
-    alignItems: "center",
-    justifyContent: "center",
+    left: FIELD_X,
+    width: FIELD_W,
+    height: FIELD_H,
+    borderRadius: 8,
+    backgroundColor: "#ffffff",
   },
 });

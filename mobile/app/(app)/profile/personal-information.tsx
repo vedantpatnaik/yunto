@@ -1,7 +1,7 @@
 import type { ComponentProps } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
 import { useRouter } from "expo-router";
-import { Ionicons } from "@expo/vector-icons";
+import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import Svg, {
   Defs,
   LinearGradient as SvgLinear,
@@ -130,7 +130,14 @@ function Backdrop() {
 }
 
 /* ------------------------------- sections -------------------------------- */
-type IconName = ComponentProps<typeof Ionicons>["name"];
+/**
+ * Ionicons covers every tile glyph in the set except the ruler and the
+ * classical bank, which have no Ionicons equivalent and come from Material
+ * Community instead.
+ */
+type Glyph =
+  | { ion: ComponentProps<typeof Ionicons>["name"] }
+  | { mdi: ComponentProps<typeof MaterialCommunityIcons>["name"] };
 
 interface SectionSpec {
   key: string;
@@ -138,7 +145,7 @@ interface SectionSpec {
   tile: string;
   /** Tile glyph stroke colour. */
   ink: string;
-  icon: IconName;
+  icon: Glyph;
   label: string;
   /**
    * Expanded editor for this section, where one already exists. Bank Details
@@ -150,17 +157,17 @@ interface SectionSpec {
 
 /** The seven sections, top to bottom — row i sits at ROW_Y0 + i*ROW_STEP. */
 const SECTIONS: SectionSpec[] = [
-  { key: "basics", tile: "#F3E8FF", ink: "#9333EA", icon: "person-outline", label: "Basics" },
-  { key: "language", tile: "#DBEAFE", ink: "#2563EB", icon: "globe-outline", label: "Language" },
-  { key: "address", tile: "#CCFBF1", ink: "#0D9488", icon: "location-outline", label: "Address" },
-  { key: "measurements", tile: "#FFEDD5", ink: "#EA580C", icon: "resize-outline", label: "Measurements" },
-  { key: "commercials", tile: "#D1FAE5", ink: "#059669", icon: "cash-outline", label: "Commercials" },
-  { key: "barter", tile: "#FCE7F3", ink: "#DB2777", icon: "gift-outline", label: "Barter Commercials" },
+  { key: "basics", tile: "#F3E8FF", ink: "#9333EA", icon: { ion: "person-outline" }, label: "Basics" },
+  { key: "language", tile: "#DBEAFE", ink: "#2563EB", icon: { ion: "language-outline" }, label: "Language" },
+  { key: "address", tile: "#CCFBF1", ink: "#0D9488", icon: { ion: "location-outline" }, label: "Address" },
+  { key: "measurements", tile: "#FFEDD5", ink: "#EA580C", icon: { mdi: "ruler" }, label: "Measurements" },
+  { key: "commercials", tile: "#D1FAE5", ink: "#059669", icon: { ion: "cash-outline" }, label: "Commercials" },
+  { key: "barter", tile: "#FCE7F3", ink: "#DB2777", icon: { ion: "gift-outline" }, label: "Barter Commercials" },
   {
     key: "bank",
     tile: "#E0E7FF",
     ink: "#4F46E5",
-    icon: "business-outline",
+    icon: { mdi: "bank-outline" },
     label: "Bank Details",
     href: "/payments/payout-bank-details",
   },
@@ -202,7 +209,11 @@ function SectionRow({
         center
         style={styles.tileShadow}
       >
-        <Ionicons name={section.icon} size={24} color={section.ink} />
+        {"ion" in section.icon ? (
+          <Ionicons name={section.icon.ion} size={24} color={section.ink} />
+        ) : (
+          <MaterialCommunityIcons name={section.icon.mdi} size={24} color={section.ink} />
+        )}
       </Abs>
 
       {/* Label — Inter 600 16 / 19.36. */}
@@ -250,7 +261,7 @@ export default function PersonalInformation() {
         onPress={() => router.back()}
         style={({ pressed }) => [styles.back, pressed && styles.pressed]}
       >
-        <Ionicons name="chevron-back" size={20} color={BACK_INK} />
+        <Ionicons name="arrow-back" size={20} color={BACK_INK} />
       </Pressable>
       <Txt
         x={79.5}

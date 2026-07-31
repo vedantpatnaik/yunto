@@ -58,6 +58,7 @@ const VALUE = "#6C687A";
 const PLACEHOLDER = "#B8B5C6";
 const INK = "#1D1D1F";
 const TITLE_INK = "#111111";
+const CLOSE_INK = "#555555";
 const META = "#6E6E73";
 const GLASS_60 = "rgba(255,255,255,0.6)";
 const GLASS_70 = "rgba(255,255,255,0.7)";
@@ -192,12 +193,17 @@ interface Row {
   brand: string;
 }
 
-/** The 3-button quick-action row every card carries (x is card-relative). */
-const ACTIONS: { key: string; icon: ComponentProps<typeof Ionicons>["name"]; x: number }[] = [
-  { key: "view", icon: "eye-outline", x: 16 },
-  { key: "copy", icon: "copy-outline", x: 60 },
-  { key: "more", icon: "ellipsis-horizontal", x: 104 },
-];
+/**
+ * Quick-action row, per card treatment: a contacted lead can still be called or
+ * messaged, a won one only shows its paperwork. 36pt buttons on a 44pt step.
+ */
+const ACTIONS: Record<Tone, ComponentProps<typeof Ionicons>["name"][]> = {
+  contacted: ["call-outline", "chatbubble-outline", "ellipsis-horizontal"],
+  won: ["document-text-outline", "ellipsis-horizontal"],
+};
+
+/** The name never truncates; it just may not reach the amount pill. */
+const NAME_W = 200;
 
 function CampaignCard({
   row, top, selected, onPress,
@@ -223,7 +229,7 @@ function CampaignCard({
 
       {/* name + campaign + amount pill */}
       <Txt
-        x={16} y={16} w={92.97} size={16} weight="bold" font="inter"
+        x={16} y={16} w={NAME_W} size={16} weight="bold" font="inter"
         color={INK} lineHeight={19.36} numberOfLines={1}
       >
         {row.contactName}
@@ -257,9 +263,9 @@ function CampaignCard({
       </Abs>
 
       {/* quick actions */}
-      {ACTIONS.map((a) => (
-        <Abs key={a.key} x={a.x} y={118} w={36} h={36} radius={18} bg={GLASS_70} center style={styles.actionShadow}>
-          <Ionicons name={a.icon} size={16} color={META} />
+      {ACTIONS[row.tone].map((icon, i) => (
+        <Abs key={icon} x={16 + i * 44} y={118} w={36} h={36} radius={18} bg={GLASS_70} center style={styles.actionShadow}>
+          <Ionicons name={icon} size={16} color={INK} />
         </Abs>
       ))}
     </Pressable>
@@ -419,7 +425,7 @@ export default function InvoiceSelectCampaign() {
         onPress={() => router.back()}
         style={({ pressed }) => [styles.close, pressed && styles.pressed]}
       >
-        <Ionicons name="close" size={20} color={INK} />
+        <Ionicons name="close" size={20} color={CLOSE_INK} />
       </Pressable>
 
       {/* Campaign cards */}
@@ -448,8 +454,9 @@ export default function InvoiceSelectCampaign() {
         onPress={() => router.back()}
         style={({ pressed }) => [styles.cancel, pressed && styles.pressed]}
       >
+        {/* the 1px stroke insets the button's content box */}
         <Txt
-          x={0} y={17} w={161.5} size={14} weight="medium" font="inter"
+          x={0} y={16} w={159.5} size={14} weight="medium" font="inter"
           color={CANCEL_INK} lineHeight={16.94} align="center"
         >
           Cancel
@@ -572,6 +579,8 @@ const styles = StyleSheet.create({
     height: 51,
     borderRadius: 24,
     backgroundColor: GLASS_60,
+    borderWidth: 1,
+    borderColor: "#E3E3E3",
   },
   send: {
     position: "absolute",

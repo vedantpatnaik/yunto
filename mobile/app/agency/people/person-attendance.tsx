@@ -62,6 +62,9 @@ const PERSON_TILE = "#c6a6df";
 const PERSON_INITIAL = "#6000aa";
 const DOT_GREEN = "#4ccc16";
 const PILL_INK = "#222222";
+const HAIRLINE = "#e5e7eb"; // panel / row / person-row strokes
+const STROKE_INK = "#000000"; // card outline and the two status pills
+const HEAD_RULE = "#717171"; // the header Container's bottom stroke
 
 /**
  * Soft Dreamy Background. Each ellipse is blurred by 103.15pt in Figma; the
@@ -135,7 +138,7 @@ function StatRow({ top, label, labelW, value }: {
 }) {
   return (
     <>
-      <Abs x={ROW_X} y={top} w={ROW_W} h={ROW_H} radius={8} bg={WHITE} />
+      <Abs x={ROW_X} y={top} w={ROW_W} h={ROW_H} radius={8} bg={WHITE} border={HAIRLINE} />
       <Txt
         x={52} y={top + LABEL_DY} w={labelW}
         size={15} weight="medium" color={INK_90} lineHeight={24} numberOfLines={1}
@@ -269,9 +272,12 @@ export default function PersonAttendance() {
       <Txt x={44} y={82} w={298} size={20} weight="medium" color={HEAD_INK} lineHeight={37}>
         Team &amp; Roles
       </Txt>
+      {/* The header Container (0,70,375,54) is transparent but for its 1pt
+          bottom stroke, which is the rule that closes the app bar. */}
+      <Abs x={0} y={123} w={375} h={1} bg={HEAD_RULE} />
 
       {/* --------------------------- ,manager view] --------------------------- */}
-      <Abs x={CARD.x} y={CARD.y} w={CARD.w} h={CARD.h} radius={8} bg={GLASS_60} />
+      <Abs x={CARD.x} y={CARD.y} w={CARD.w} h={CARD.h} radius={8} bg={GLASS_60} border={STROKE_INK} />
 
       <Abs x={40} y={152.5} w={20} h={20} center>
         <Feather name="edit" size={16} color={SECTION_INK} />
@@ -279,12 +285,14 @@ export default function PersonAttendance() {
       <Txt x={76} y={152.5} w={234} size={14} weight="medium" color={SECTION_INK} lineHeight={20}>
         Teams &amp; Roles
       </Txt>
+      {/* weui:arrow-outlined, rotated -90° in the frame: the section is open, so
+          the disclosure caret points up. */}
       <Abs x={319} y={156.5} w={24} h={12} center>
-        <Feather name="chevron-down" size={13} color="#000000" />
+        <Feather name="chevron-up" size={13} color="#000000" />
       </Abs>
 
       {/* ------------------------------- Input -------------------------------- */}
-      <Abs x={PANEL.x} y={PANEL.y} w={PANEL.w} h={PANEL.h} radius={8} bg={WHITE} />
+      <Abs x={PANEL.x} y={PANEL.y} w={PANEL.w} h={PANEL.h} radius={8} bg={WHITE} border={HAIRLINE} />
 
       {/* Team identity: 42pt tile, name, member count, active pill */}
       <Abs x={44} y={206} w={42} h={42} radius={21} bg={TEAM_TILE} center>
@@ -299,10 +307,12 @@ export default function PersonAttendance() {
       <Txt x={120} y={226} w={110} size={10} color={INK_70} lineHeight={24}>
         {`${members.length} Members`}
       </Txt>
-      <Abs x={266} y={206} w={61} h={20} radius={24} bg={WHITE}>
-        <Abs x={7.07} y={6.57} w={7.71} h={7.71} radius={3.855} bg={DOT_GREEN} />
+      {/* 1pt stroke; RN lays absolute children out from the padding edge, so the
+          children sit one point in from their frame coordinates. */}
+      <Abs x={266} y={206} w={61} h={20} radius={24} bg={WHITE} border={STROKE_INK}>
+        <Abs x={6.07} y={5.57} w={7.71} h={7.71} radius={3.855} bg={DOT_GREEN} />
         <Txt
-          x={16.5} y={4} w={40}
+          x={15.5} y={3} w={40}
           size={8} weight="medium" font="inter" color={PILL_INK} lineHeight={16} align="center"
         >
           {` ${activeCount} Active`}
@@ -310,7 +320,7 @@ export default function PersonAttendance() {
       </Abs>
 
       {/* Person card — the profile this tab hangs off */}
-      <Abs x={41} y={266} w={286} h={ROW_H} bg={WHITE}>
+      <Abs x={41} y={266} w={286} h={ROW_H} bg={WHITE} style={styles.personRule}>
         <Abs x={10} y={8} w={42} h={42} radius={21} bg={PERSON_TILE}>
           <Txt
             x={15} y={9} w={11}
@@ -329,9 +339,9 @@ export default function PersonAttendance() {
         {/* Frame 14566 — drawn only while the person is on the day's roster, so
             the pill never claims a status the attendance table does not show. */}
         {person && presentToday.has(person.id) ? (
-          <Abs x={185} y={10} w={53} h={20} radius={24} bg={WHITE}>
+          <Abs x={185} y={10} w={53} h={20} radius={24} bg={WHITE} border={STROKE_INK}>
             <Txt
-              x={6} y={4} w={41}
+              x={5} y={3} w={41}
               size={8} weight="medium" font="inter" color={DOT_GREEN} lineHeight={16} align="center"
             >
               Active
@@ -362,6 +372,10 @@ const styles = StyleSheet.create({
   clip: { overflow: "hidden" },
   backdrop: { position: "absolute", left: 0, top: 0 },
   pressed: { opacity: 0.6 },
+
+  // The person row carries a bottom-only stroke — the rule between the identity
+  // block and the stat list.
+  personRule: { borderBottomWidth: 1, borderBottomColor: HAIRLINE },
 
   back: {
     position: "absolute",

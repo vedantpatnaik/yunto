@@ -20,7 +20,7 @@ const TOKEN_KEY = "yunto_token";
 export const BASE: string =
   process.env.EXPO_PUBLIC_API_URL ??
   (Constants.expoConfig?.extra as { apiUrl?: string } | undefined)?.apiUrl ??
-  "http://13.233.112.94/api";
+  "http://13.202.99.173/api";
 
 let cachedToken: string | null | undefined;
 

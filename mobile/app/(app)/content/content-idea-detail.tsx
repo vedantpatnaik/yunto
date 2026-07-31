@@ -57,6 +57,10 @@ const CAPTION_INK = "#4a3a6b";
 const LABEL_INK = "#a098ae";
 const ADDED_INK = "#575656";
 const DAY_OFF_INK = "#5e5e62";
+/** Icon strokes the spec colours away from their sibling text. */
+const INSTAGRAM_INK = "#e1306c";
+const SPARKLE_INK = "#a48aeb";
+const SEND_INK = "#545454";
 
 const GLASS_80 = "rgba(255,255,255,0.8)";
 const GLASS_70 = "rgba(255,255,255,0.7)";
@@ -283,7 +287,7 @@ export default function ContentIdeaDetail() {
 
       <Abs x={115} y={21.5} w={128.88} h={37} radius={20} bg={GLASS_80} style={styles.softShadow}>
         <Abs x={13} y={9.5} w={18} h={18} center>
-          <Feather name="instagram" size={18} color={HEADER_INK} />
+          <Feather name="instagram" size={18} color={INSTAGRAM_INK} />
         </Abs>
         <Txt x={39} y={9} w={72.88} size={15} weight="semibold" font="inter" color={HEADER_INK} lineHeight={18.15} align="center">
           Instagram
@@ -361,7 +365,7 @@ export default function ContentIdeaDetail() {
           style={styles.generateFill}
         />
         <Abs x={29} y={13.5} w={16} h={16} center>
-          <Ionicons name="sparkles-outline" size={16} color={CAPTION_INK} />
+          <Ionicons name="sparkles-outline" size={16} color={SPARKLE_INK} />
         </Abs>
         {/* Spec width 156.88 is this string's natural width; left it unbounded
             so the emoji cannot force a wrap when the system face measures wider. */}
@@ -395,7 +399,7 @@ export default function ContentIdeaDetail() {
 
           {/* Header Row */}
           <Abs x={37} y={rel(298)} w={16} h={16} center>
-            <Feather name="instagram" size={16} color={EYEBROW_INK} />
+            <Feather name="instagram" size={16} color={INSTAGRAM_INK} />
           </Abs>
           <Txt
             x={59}
@@ -582,7 +586,7 @@ export default function ContentIdeaDetail() {
             end={{ x: 0.89, y: 1.21 }}
             style={styles.sendFill}
           />
-          <Feather name="send" size={18} color={CAPTION_INK} />
+          <Feather name="arrow-up" size={20} color={SEND_INK} />
         </Pressable>
       </Abs>
 
@@ -591,7 +595,7 @@ export default function ContentIdeaDetail() {
         onPress={() => router.back()}
         style={({ pressed }) => [styles.reject, pressed && styles.pressed]}
       >
-        <Feather name="x" size={20} color={MUTED_INK} />
+        <Feather name="x" size={24} color={LABEL_INK} />
       </Pressable>
       <Pressable onPress={onAdd} style={({ pressed }) => [styles.addPill, pressed && styles.pressed]}>
         <LinearGradient
@@ -601,7 +605,7 @@ export default function ContentIdeaDetail() {
           style={styles.addPillFill}
         />
         <Abs x={53} y={20} w={19.67} h={19.67} center>
-          <Feather name="check" size={18} color={ADDED_INK} />
+          <Feather name="plus" size={20} color={CAPTION_INK} />
         </Abs>
         <Txt x={90.67} y={20.33} size={16} weight="semibold" font="inter" color={ADDED_INK} lineHeight={19.36} numberOfLines={1}>
           {added}

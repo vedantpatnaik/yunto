@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Pressable, ScrollView, StyleSheet, TextInput, View } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { Ionicons } from "@expo/vector-icons";
+import { Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import Svg, {
   Defs,
@@ -254,7 +254,7 @@ export default function InvoiceCreate() {
             />
             <Value x={47} y={310} w={102} filled>{dayMonthYear(invoiceDate)}</Value>
             <Abs x={149} y={310} w={18} h={18} center>
-              <Ionicons name="calendar-outline" size={18} color={ICON} />
+              <Feather name="calendar" size={18} color={ICON} />
             </Abs>
 
             <Label x={199.5} y={269} w={134.5}>Due Date</Label>
@@ -267,7 +267,7 @@ export default function InvoiceCreate() {
               {dueDate ? dayMonthYear(dueDate) : "Select"}
             </Value>
             <Abs x={306.5} y={310} w={18} h={18} center>
-              <Ionicons name="calendar-outline" size={18} color={ICON} />
+              <Feather name="calendar" size={18} color={ICON} />
             </Abs>
 
             <Divider y={381} />
@@ -382,7 +382,7 @@ export default function InvoiceCreate() {
         onPress={() => router.back()}
         style={({ pressed }) => [styles.back, pressed && styles.pressed]}
       >
-        <Ionicons name="chevron-back" size={20} color={BACK_INK} />
+        <Feather name="arrow-left" size={20} color={BACK_INK} />
       </Pressable>
       <Txt
         x={79.5} y={30} w={236} size={16} weight="bold" font="inter"
@@ -439,6 +439,7 @@ const styles = StyleSheet.create({
   /** Tap target over a date plate — the value text renders above it. */
   dateHit: { position: "absolute", top: 293, height: 52 },
 
+  /** The spec's CTA frame carries no effects — the pill sits flat on the page. */
   cta: {
     position: "absolute",
     left: 71.5,
@@ -447,11 +448,6 @@ const styles = StyleSheet.create({
     height: 55,
     borderRadius: 36,
     backgroundColor: BUTTON_INK,
-    shadowColor: BUTTON_INK,
-    shadowOpacity: 0.25,
-    shadowRadius: 20,
-    shadowOffset: { width: 0, height: 8 },
-    elevation: 6,
   },
   back: {
     position: "absolute",

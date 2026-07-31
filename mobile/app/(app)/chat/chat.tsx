@@ -1,7 +1,7 @@
 import { Fragment, useMemo, useState } from "react";
 import { Image, Pressable, ScrollView, StyleSheet, TextInput } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { Feather } from "@expo/vector-icons";
+import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import Svg, {
   Defs,
@@ -71,7 +71,7 @@ const SECTIONS = [
     key: "key-message",
     label: "Key Message",
     pillY: 203, pillW: 135.19, iconY: 211, labelY: 210, labelW: 85.19,
-    icon: <Feather name="message-circle" size={14} color="#f57c00" />,
+    icon: <MaterialCommunityIcons name="creation-outline" size={14} color="#f57c00" />,
   },
   {
     key: "target-audience",
@@ -83,7 +83,7 @@ const SECTIONS = [
     key: "guidelines",
     label: "Guidelines",
     pillY: 431, pillW: 117.48, iconY: 439, labelY: 438, labelW: 67.48,
-    icon: <Feather name="check" size={14} color="#388e3c" />,
+    icon: <MaterialCommunityIcons name="format-list-checks" size={14} color="#388e3c" />,
   },
   {
     key: "deliverables",
@@ -108,7 +108,7 @@ const SECTIONS = [
 const KEY_MESSAGE = "Celebrating your natural glow and how\nour serum enhances it effortlessly.";
 const TARGET_AUDIENCE = "Gen Z & young millennial women\nlooking for minimal, effective skincare.";
 
-/** Bulleted lists: y/w are the TEXT node's own frame coordinates. */
+/** List items: y/w are the TEXT node's own frame coordinates. */
 const BULLETS = [
   // Guidelines
   { y: 473, w: 176.77, text: "Morning skincare routine" },
@@ -204,22 +204,12 @@ function Avatar({
   );
 }
 
-/* --------------------------------- bullets -------------------------------- */
 /**
- * One list item. The spec exports item text at x=67 inside a list frame at
- * x=45; the 22pt indent is Figma's unordered marker (the empty " " TEXT node
- * paired with every item), redrawn here as the dot.
+ * List item x-origin. The spec exports item text at x=67 inside a list frame at
+ * x=45; the 22pt gap is Figma's unordered marker, an empty 7pt TEXT node that
+ * renders nothing — the frame draws no bullet glyph, just the indent.
  */
-function Bullet({ y, w, children }: { y: number; w: number; children: string }) {
-  return (
-    <Fragment>
-      <Abs x={CX(55)} y={CY(y) + 10} w={4} h={4} radius={2} bg={INK_BODY} />
-      <Txt x={CX(67)} y={CY(y)} w={w} size={15} font="inter" color={INK_BODY} lineHeight={24}>
-        {children}
-      </Txt>
-    </Fragment>
-  );
-}
+const BULLET_X = 67;
 
 /* --------------------------------- screen --------------------------------- */
 export default function Chat() {
@@ -369,9 +359,12 @@ export default function Chat() {
         </Txt>
 
         {BULLETS.map((b) => (
-          <Bullet key={b.text} y={b.y} w={b.w}>
+          <Txt
+            key={b.text} x={CX(BULLET_X)} y={CY(b.y)} w={b.w} size={15}
+            font="inter" color={INK_BODY} lineHeight={24}
+          >
             {b.text}
-          </Bullet>
+          </Txt>
         ))}
       </ScrollView>
 
@@ -386,8 +379,14 @@ export default function Chat() {
       <Abs x={130} y={32} w={16} h={16} center>
         <Feather name="hash" size={16} color={INK_META} />
       </Abs>
+      {/*
+        The spec's 108.42pt title box is the hug width of the sample channel
+        "Baseskincare"; real channel names run longer, so the box gets the room
+        left between the hash at 150 and the frame's 20pt right margin instead
+        of ellipsising a name that fits on screen.
+      */}
       <Txt
-        x={150} y={30} w={108.42} size={17} weight="bold" font="inter"
+        x={150} y={30} w={205} size={17} weight="bold" font="inter"
         color={INK_TITLE} lineHeight={20.57} letterSpacing={-0.3} numberOfLines={1}
       >
         {channelName}

@@ -409,7 +409,14 @@ export default function OrderSummary() {
         </Txt>
       </Pressable>
 
-      <Txt x={30} y={689} w={327} size={14.35} weight="semibold" font="inter" color={SUBTLE} lineHeight={20.09}>
+      {/*
+       * Spec: Urbanist 600 / 14.35 / #111827, one line in a 327pt box. Urbanist
+       * is not in the bundle; Inter runs ~356pt at this size and wrapped the
+       * caption onto a second line, so it takes the app's Outfit face (~326pt)
+       * in a box with a little slack, which keeps it on the single line the
+       * design shows.
+       */}
+      <Txt x={30} y={689} w={333} size={14.35} weight="semibold" color={INK} lineHeight={20.09}>
         You can also see your bookings in Add -ons section
       </Txt>
     </Screen>

@@ -1,5 +1,5 @@
 import { Pressable, View } from "react-native";
-import Svg, { Path } from "react-native-svg";
+import Svg, { Circle, Defs, Path, RadialGradient, Stop } from "react-native-svg";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import { Abs, Screen, Txt } from "../../../src/ui/Frame";
@@ -23,33 +23,50 @@ const PRIMARY = "#312b28";
 
 /**
  * The design's four "Overlay+Blur" circles carry a 50px layer blur. React
- * Native has no layer-blur primitive, so each one is drawn as concentric discs
- * whose stacked alpha sums to the spec opacity — a soft radial falloff with the
- * spec's exact centre, size and colour.
+ * Native has no layer-blur primitive, so each one is drawn as an SVG radial
+ * gradient whose alpha traces the Gaussian falloff Figma produces: the fill
+ * sits at its full spec opacity through the core, passes 50% exactly at the
+ * circle's own radius and fades to nothing ~60px beyond it. Stacking translucent
+ * discs instead — the obvious substitute — both bands into visible rings and
+ * lands well short of the spec opacity across the mid-radius.
  */
+
+/** Logistic scale fitted to the exported frame's 50px layer blur (σ ≈ 21). */
+const BLUR_FALLOFF = 12.3;
+/** Alpha is under 1% of nominal past 3σ, so the gradient can stop there. */
+const BLUR_REACH = 63;
+const BLUR_STOPS = 28;
+
 function Blob({
-  x, y, size, color, opacity,
-}: { x: number; y: number; size: number; color: string; opacity: number }) {
-  const rings = 6;
+  id, x, y, size, color, opacity,
+}: {
+  id: string; x: number; y: number; size: number; color: string; opacity: number;
+}) {
+  const r = size / 2;
+  const outer = r + BLUR_REACH;
   return (
-    <>
-      {Array.from({ length: rings }, (_, i) => {
-        const s = (size * (i + 1)) / rings;
-        const inset = (size - s) / 2;
-        return (
-          <Abs
-            key={i}
-            x={x + inset}
-            y={y + inset}
-            w={s}
-            h={s}
-            radius={s / 2}
-            bg={color}
-            opacity={opacity / rings}
-          />
-        );
-      })}
-    </>
+    <Svg
+      width={outer * 2}
+      height={outer * 2}
+      style={{ position: "absolute", left: x + r - outer, top: y + r - outer }}
+    >
+      <Defs>
+        <RadialGradient id={id} cx="50%" cy="50%" r="50%">
+          {Array.from({ length: BLUR_STOPS + 1 }, (_, i) => {
+            const t = i / BLUR_STOPS;
+            return (
+              <Stop
+                key={i}
+                offset={t}
+                stopColor={color}
+                stopOpacity={opacity / (1 + Math.exp((t * outer - r) / BLUR_FALLOFF))}
+              />
+            );
+          })}
+        </RadialGradient>
+      </Defs>
+      <Circle cx={outer} cy={outer} r={outer} fill={`url(#${id})`} />
+    </Svg>
   );
 }
 
@@ -67,10 +84,10 @@ export default function JoinPath() {
     <Screen height={875} background={CANVAS} scroll>
       {/* Soft Dreamy Background — 8249:2328 */}
       <Abs x={0} y={0} w={375} h={900} bg={CARD} style={{ overflow: "hidden" }}>
-        <Blob x={-37.5} y={-45} size={250} color="#fde047" opacity={0.25} />
-        <Blob x={111.25} y={135} size={320} color="#ffb1c6" opacity={0.4} />
-        <Blob x={-75} y={510} size={300} color="#93c5fd" opacity={0.35} />
-        <Blob x={132.5} y={665} size={280} color="#b794f4" opacity={0.3} />
+        <Blob id="jpBlobA" x={-37.5} y={-45} size={250} color="#fde047" opacity={0.25} />
+        <Blob id="jpBlobB" x={111.25} y={135} size={320} color="#ffb1c6" opacity={0.4} />
+        <Blob id="jpBlobC" x={-75} y={510} size={300} color="#93c5fd" opacity={0.35} />
+        <Blob id="jpBlobD" x={132.5} y={665} size={280} color="#b794f4" opacity={0.3} />
 
         {/* Gradient — 8249:2333 */}
         <LinearGradient

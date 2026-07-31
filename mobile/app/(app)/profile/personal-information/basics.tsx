@@ -168,7 +168,7 @@ interface SectionSpec {
 
 /** The six sections that stay collapsed below the open Basics card. */
 const SECTIONS: SectionSpec[] = [
-  { key: "language", y: ROW_Y0, tile: "#DBEAFE", ink: "#2563EB", icon: "globe-outline", label: "Language" },
+  { key: "language", y: ROW_Y0, tile: "#DBEAFE", ink: "#2563EB", icon: "language-outline", label: "Language" },
   { key: "address", y: ROW_Y0 + ROW_STEP, tile: "#CCFBF1", ink: "#0D9488", icon: "location-outline", label: "Address" },
   { key: "measurements", y: ROW_Y0 + ROW_STEP * 2, tile: "#FFEDD5", ink: "#EA580C", icon: "resize-outline", label: "Measurements" },
   { key: "commercials", y: ROW_Y0 + ROW_STEP * 3, tile: "#D1FAE5", ink: "#059669", icon: "cash-outline", label: "Commercials" },
@@ -352,7 +352,7 @@ export default function PersonalInformationBasics() {
         onPress={() => router.back()}
         style={({ pressed }) => [styles.back, pressed && styles.pressed]}
       >
-        <Ionicons name="chevron-back" size={20} color={BACK_INK} />
+        <Ionicons name="arrow-back" size={20} color={BACK_INK} />
       </Pressable>
       <Txt
         x={79.5}

@@ -193,7 +193,7 @@ function ReminderCard({ top, time, priority, countdown, title, body }: CardProps
         </View>
 
         <View style={styles.countdownChip}>
-          <MaterialCommunityIcons name="alarm" size={14} color={INK_COUNTDOWN} />
+          <MaterialCommunityIcons name="timer-outline" size={14} color={INK_COUNTDOWN} />
           <Txt size={12} weight="semibold" font="inter" color={INK_COUNTDOWN} lineHeight={14.52}>
             {countdown}
           </Txt>
@@ -266,7 +266,7 @@ export default function Reminders() {
         onPress={() => router.back()}
         style={({ pressed }) => [styles.backButton, pressed && styles.pressed]}
       >
-        <Feather name="chevron-left" size={20} color="#1C1C1E" />
+        <Feather name="arrow-left" size={20} color="#1C1C1E" />
       </Pressable>
       <Txt
         x={100}
