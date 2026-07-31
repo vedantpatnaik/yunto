@@ -122,6 +122,9 @@ const GENDERS = [
 /** Agency-defined tag vocabulary — the frame ships exactly one. */
 const TAG_VOCAB = ["Couple"];
 
+/** The frame renders its lowercase labels capitalized (Figma text-transform). */
+const cap = (s: string) => s.replace(/\b[a-z]/g, (m) => m.toUpperCase());
+
 /** Words a niche chip claims from Creator.niche ("DIY" is too short to match). */
 const tokensOf = (label: string) =>
   label.toLowerCase().split(/[^a-z]+/).filter((t) => t.length >= 4);
@@ -404,7 +407,7 @@ export default function CreatorsFilterSheetScreen() {
       >
         {/* ------------------------------ header ----------------------------- */}
         <Abs x={16} y={22} w={36} h={36} radius={18} bg="#1f1a17" center>
-          <Ionicons name="chevron-back" size={16} color="#faf7f2" />
+          <Feather name="arrow-left" size={16} color="#faf7f2" />
         </Abs>
         <Txt
           x={72} y={20} w={192} size={20} weight="medium" font="inter"
@@ -433,7 +436,7 @@ export default function CreatorsFilterSheetScreen() {
         </Abs>
         <Abs x={144.89} y={106} w={77.5} h={34} radius={17} bg="#ffffff">
           <Abs x={15} y={11} w={12} h={12} center>
-            <Feather name="filter" size={11} color={INK} />
+            <Ionicons name="options-outline" size={13} color={INK} />
           </Abs>
           <Txt
             x={33} y={9} w={29.5} size={12} weight="semibold" font="inter"
@@ -444,7 +447,7 @@ export default function CreatorsFilterSheetScreen() {
         </Abs>
         <Abs x={230.39} y={106} w={72.34} h={34} radius={17} bg="#ffffff">
           <Abs x={15} y={11} w={12} h={12} center>
-            <Feather name="sliders" size={11} color={INK} />
+            <Ionicons name="swap-vertical" size={13} color={INK} />
           </Abs>
           <Txt
             x={33} y={9} w={24.34} size={12} weight="semibold" font="inter"
@@ -570,7 +573,7 @@ export default function CreatorsFilterSheetScreen() {
           alignItems: "center", justifyContent: "center", opacity: pressed ? 0.7 : 1,
         })}
       >
-        <Feather name="x" size={14} color={CLOSE_INK} />
+        <Feather name="x" size={16} color={CLOSE_INK} />
       </Pressable>
 
       {/* ------------------------------- Niche ------------------------------- */}
@@ -589,7 +592,7 @@ export default function CreatorsFilterSheetScreen() {
               weight={on ? "medium" : "regular"}
               font="inter" color={INK_CHIP} lineHeight={n.lh} align="center"
             >
-              {n.label}
+              {cap(n.label)}
             </Txt>
           </Pill>
         );
@@ -610,18 +613,16 @@ export default function CreatorsFilterSheetScreen() {
         <Abs x={0} y={7} w={TRACK_W} h={9} radius={9999} bg={TRACK_BG} />
         <Abs x={0} y={7} w={fillW} h={9} radius={9999} bg={TRACK_INK} />
       </Pressable>
-      {/* ion:radio-button-on-outline thumb, centred on the filled edge */}
+      {/* thumb — the frame flattens ion:radio-button-on-outline to a solid disc */}
       <Abs x={TRACK_X + fillW - THUMB / 2} y={TRACK_Y - 7} w={THUMB} h={THUMB} center>
         <Abs
-          w={17.39} h={17.39} radius={8.7} bg="#ffffff" border="#000000" borderWidth={2} center
+          w={17.39} h={17.39} radius={8.7} bg="#000000"
           style={{
             position: "relative",
             shadowColor: "#000000", shadowOpacity: 0.2, shadowRadius: 3,
             shadowOffset: { width: 2, height: 2 }, elevation: 3,
           }}
-        >
-          <Abs w={7} h={7} radius={3.5} bg="#000000" style={{ position: "relative" }} />
-        </Abs>
+        />
       </Abs>
 
       {/* ------------------------------- By Tag ------------------------------ */}
@@ -671,7 +672,7 @@ export default function CreatorsFilterSheetScreen() {
           19 - 25
         </Txt>
         <Abs x={314} y={6} w={20} h={20} center>
-          <Feather name="chevron-down" size={14} color={FIELD_INK} />
+          <Ionicons name="chevron-expand" size={15} color={FIELD_INK} />
         </Abs>
       </Abs>
 
@@ -712,10 +713,13 @@ export default function CreatorsFilterSheetScreen() {
           flexDirection: "row", alignItems: "center", opacity: pressed ? 0.7 : 1,
         })}
       >
-        <Abs x={10} y={6} w={20} h={20} center>
-          <Feather name="map-pin" size={14} color="#000000" />
+        <Abs x={11} y={7} w={20} h={20} center>
+          <Feather name="navigation" size={15} color="#000000" />
         </Abs>
-        <Txt x={30} y={4} w={71} size={12} weight="medium" font="inter" color="#000000" lineHeight={24} align="center">
+        <Txt
+          x={28} y={4} w={89} size={12} weight="medium" font="inter" color="#000000"
+          lineHeight={24} align="center" numberOfLines={1}
+        >
           Add location
         </Txt>
       </Pressable>
@@ -725,15 +729,15 @@ export default function CreatorsFilterSheetScreen() {
             key={p}
             onPress={() => setPlaces(places.filter((k) => k !== p))}
             style={({ pressed }) => ({
-              height: 34, borderRadius: 20, paddingHorizontal: 8, backgroundColor: "#f5f5f5",
+              height: 34, borderRadius: 20, paddingHorizontal: 13, backgroundColor: "#f5f5f5",
               borderWidth: 1, borderColor: "#000000",
-              flexDirection: "row", alignItems: "center", gap: 2, opacity: pressed ? 0.7 : 1,
+              flexDirection: "row", alignItems: "center", gap: 7, opacity: pressed ? 0.7 : 1,
             })}
           >
             <Txt size={12} font="inter" color={INK_70} lineHeight={24} align="center">
               {p}
             </Txt>
-            <Feather name="x" size={11} color="#000000" />
+            <Feather name="x" size={13} color="#000000" />
           </Pressable>
         ))}
       </Abs>

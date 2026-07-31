@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { Image, Pressable, ScrollView, StyleSheet } from "react-native";
 import { useRouter } from "expo-router";
-import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
+import { Feather, Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { Abs, Screen, Txt } from "../../../src/ui/Frame";
 import {
@@ -422,7 +422,8 @@ export default function SalesHome() {
               {/* Blurred mint orb, clipped by the card as in the design. */}
               <Abs x={254} y={-15} w={96} h={96} radius={48} bg="rgba(212,226,212,0.3)" />
               <Abs x={21} y={21.75} w={40} h={40} radius={20} bg={GLASS_50} center>
-                <Feather name="inbox" size={20} color={INK} />
+                {/* Spec 20x20 sparkle — star + plus + dot; lucide-sparkles shape. */}
+                <Ionicons name="sparkles-outline" size={20} color={INK} />
               </Abs>
               <Txt x={77} y={21} w={149} size={16} weight="medium" color={INK} lineHeight={24} numberOfLines={1}>
                 {`${matrix.NEW} new ${matrix.NEW === 1 ? "lead" : "leads"} waiting`}
@@ -431,7 +432,7 @@ export default function SalesHome() {
                 Tap to review pipeline
               </Txt>
               <Pressable onPress={goLeads} style={styles.alertButton}>
-                <Feather name="chevron-right" size={16} color={ON_DARK_ALT} />
+                <Feather name="arrow-right" size={16} color={ON_DARK_ALT} />
               </Pressable>
             </Abs>
 
@@ -823,13 +824,13 @@ export default function SalesHome() {
         <Abs x={35} y={52} w={4} h={4} radius={2} bg={TAB_ACTIVE} />
 
         <Pressable onPress={() => router.push("/agency/payments/invoice-reminders")} style={[styles.tabItem, { left: 106 }]}>
-          <Feather name="credit-card" size={24} color={TAB_IDLE} />
+          <Feather name="inbox" size={24} color={TAB_IDLE} />
         </Pressable>
         <Pressable onPress={() => router.push("/agency/people/people-overview")} style={[styles.tabItem, { left: 227 }]}>
           <Feather name="users" size={24} color={TAB_IDLE} />
         </Pressable>
         <Pressable onPress={() => router.push("/agency/profile/profile-home")} style={[styles.tabItem, { left: 308 }]}>
-          <Feather name="user" size={24} color={TAB_IDLE} />
+          <Feather name="bell" size={24} color={TAB_IDLE} />
         </Pressable>
       </Abs>
 

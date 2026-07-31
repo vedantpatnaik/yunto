@@ -264,7 +264,7 @@ export default function InvoiceRemindersScreen() {
         onPress={() => router.back()}
         style={({ pressed }) => [styles.back, pressed && styles.pressed]}
       >
-        <Feather name="chevron-left" size={16} color={BACK_ICON} />
+        <Feather name="arrow-left" size={16} color={BACK_ICON} />
       </Pressable>
       <Txt
         x={72} y={28} w={222} size={20} weight="medium" font="inter"

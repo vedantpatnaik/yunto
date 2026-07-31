@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { Pressable, StyleSheet, Text } from "react-native";
 import { useRouter } from "expo-router";
-import { Feather } from "@expo/vector-icons";
+import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import { Abs, Screen, Txt } from "../../../src/ui/Frame";
 import { useLeaves, useMe, type Leave } from "../../../src/api/hooks";
 
@@ -164,7 +164,9 @@ export default function LeavesScreen() {
         x={41} y={121.5} w={48} h={48} radius={20}
         bg={ICON_TILE} center style={styles.tileShadow}
       >
-        <Feather name="calendar" size={24} color={ICON_INK} />
+        {/* Spec icon is a calendar with a check inside (3 stroked vectors);
+            Feather has no calendar-check, so the MCI outline cut stands in. */}
+        <MaterialCommunityIcons name="calendar-check-outline" size={26} color={ICON_INK} />
       </Abs>
       <Txt
         x={101} y={134} w={68}
@@ -211,10 +213,13 @@ export default function LeavesScreen() {
         accessibilityRole="button"
         style={({ pressed }) => [styles.cta, pressed && styles.pressed]}
       >
+        {/* Spec box hugs at 100pt, where Figma's Inter metrics just fit one
+            line; RN measures a hair wider and wraps, so the box is widened
+            10pt each side about the same centre and pinned to one line. */}
         <Txt
-          x={15.55} y={17} w={100}
+          x={5.55} y={17} w={120}
           size={14} weight="medium" font="inter"
-          color={ROW_INK} lineHeight={20} align="center"
+          color={ROW_INK} lineHeight={20} align="center" numberOfLines={1}
         >
           Apply for leave
         </Txt>

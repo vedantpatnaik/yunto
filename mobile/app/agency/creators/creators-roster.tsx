@@ -237,7 +237,7 @@ function CreatorCard({ top, tint, creator, perf, reach, selected, onToggle }: Ca
         />
         {perf > 0 ? (
           <InsightChip
-            icon={<Feather name="info" size={11} color={INK} />}
+            icon={<MaterialCommunityIcons name="creation" size={11} color={INK} />}
             label="Suggestion: Increase"
           />
         ) : null}
@@ -399,7 +399,7 @@ export default function CreatorsRoster() {
         style={({ pressed }) => [styles.filterButton, pressed && styles.pressed]}
       >
         <Abs x={15} y={11} w={12} h={12} center>
-          <Feather name="sliders" size={12} color={INK} />
+          <MaterialCommunityIcons name="tune" size={12} color={INK} />
         </Abs>
         <Txt
           x={33} y={9} w={29.5} align="center"
@@ -413,7 +413,7 @@ export default function CreatorsRoster() {
         style={({ pressed }) => [styles.sortButton, pressed && styles.pressed]}
       >
         <Abs x={15} y={11} w={12} h={12} center>
-          <MaterialCommunityIcons name="sort-variant" size={12} color={INK} />
+          <MaterialCommunityIcons name="swap-vertical" size={12} color={INK} />
         </Abs>
         <Txt
           x={33} y={9} w={24.34} align="center"
@@ -477,6 +477,7 @@ export default function CreatorsRoster() {
         <Txt
           x={45} y={13} w={200}
           size={12} weight="semibold" font="inter" color={INK} lineHeight={16}
+          style={styles.underline}
         >
           {`${selected.length} creator${selected.length === 1 ? "" : "s"} selected`}
         </Txt>
@@ -485,7 +486,7 @@ export default function CreatorsRoster() {
           hitSlop={8}
           style={({ pressed }) => [styles.viewCreators, pressed && styles.pressed]}
         >
-          <Txt size={10} weight="regular" font="inter" color={MUTED} lineHeight={15}>
+          <Txt size={10} weight="regular" font="inter" color={MUTED} lineHeight={15} numberOfLines={1}>
             View creators
           </Txt>
         </Pressable>
@@ -651,6 +652,7 @@ const styles = StyleSheet.create({
   tabOn: { backgroundColor: INK },
 
   /* Selection bar */
+  underline: { textDecorationLine: "underline" },
   selectAll: {
     position: "absolute",
     left: 17,
@@ -662,7 +664,9 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: INK,
   },
-  viewCreators: { position: "absolute", left: 261, top: 13.5, width: 65, height: 15 },
+  /* Right-anchored, unconstrained width: RN metrics run a hair wider than the
+     spec's 65pt box, which wrapped "View creators" onto two lines. */
+  viewCreators: { position: "absolute", right: 17, top: 13.5, height: 15 },
 
   /* Card stack */
   list: { position: "absolute", left: 0, top: LIST_Y, width: FRAME_W, height: LIST_H },

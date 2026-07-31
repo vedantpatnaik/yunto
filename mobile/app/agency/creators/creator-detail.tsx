@@ -179,7 +179,7 @@ function Stat({
         size={small ? 10 : 11} weight="bold" font="inter"
         color={LABEL_INK} lineHeight={small ? 15 : 16.5} letterSpacing={small ? 1 : 1.1}
       >
-        {label}
+        {label.toUpperCase()}
       </Txt>
       <Txt
         x={x} y={y + (small ? 19 : 21)} w={w} align="center" numberOfLines={1}
@@ -506,7 +506,7 @@ export default function CreatorDetail() {
         {suggestIncrease ? (
           <Chip
             x={41} y={314.5} h={30.5} paint={ADVICE_CHIP}
-            icon="info" label="Suggestion: Increase"
+            icon="hash" label="Suggestion: Increase"
           />
         ) : null}
 

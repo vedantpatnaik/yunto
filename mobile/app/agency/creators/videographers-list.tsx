@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState } from "react";
 import { PanResponder, Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { useRouter } from "expo-router";
-import { Feather } from "@expo/vector-icons";
+import { Feather, Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { Abs, Screen, Txt } from "../../../src/ui/Frame";
 import { gradients } from "../../../src/theme";
@@ -39,6 +39,17 @@ import { useCreators, type Creator } from "../../../src/api/hooks";
  * paints the app's avatar gradient in the image box instead. expo-blur is not
  * a dependency, so the BACKGROUND_BLUR on the glass chrome renders as its
  * translucent fill alone — the substitution the other agency frames make.
+ * One consequence: the file draws a name and a rate pill on the two dimmed
+ * cards behind, fully covered by the front card, where the blur smears them
+ * illegible. Without blur that text reads straight through the front card's
+ * 85% white as ghost lettering, so the peek slots draw only their card frame
+ * and image box — exactly what survives in the design's own render.
+ *
+ * The sample text widths in the file are Figma's Inter metrics; the device
+ * renders emoji and Inter slightly wider, and the live roster's strings run
+ * longer than the samples, so the chips and the location/rate pills size to
+ * their content (padding straight from the spec) instead of hard-coding the
+ * sample widths, which truncated them.
  */
 
 /* -------------------------------- geometry -------------------------------- */
@@ -121,14 +132,13 @@ const PLACEHOLDER: Videographer[] = [
 ];
 
 /* --------------------------- category chip strip -------------------------- */
-/** Frame 7778:17992 — a 375x56 clip box the four chips overflow to x=447.08. */
-const CHIPS = [
-  { label: "✨ Fashion", x: 20, w: 106.08, tw: 68.08 },
-  { label: "✈️ Travel", x: 138.08, w: 94.2, tw: 56.2 },
-  { label: "🎉 Event", x: 244.28, w: 90.64, tw: 52.64 },
-  { label: "💄 Beauty", x: 346.92, w: 100.16, tw: 62.16 },
-] as const;
-const CHIP_STRIP_W = 447.08;
+/**
+ * Frame 7778:17992 — a 375x56 clip box the four chips overflow past x=375.
+ * The spec's chip boxes hug their sample text at 19pt side padding with a 12pt
+ * gap (20→126.16, 138.08→232.28, 244.28→334.92, 346.92→447.08), so the chips
+ * carry the padding and gap and let the text set the width.
+ */
+const CHIPS = ["✨ Fashion", "✈️ Travel", "🎉 Event", "💄 Beauty"] as const;
 
 /** Shoot-type tiles — 44x44 at y=799, the middle one selected in the file. */
 const SHOOT_X = [20, 72, 124] as const;
@@ -152,9 +162,6 @@ interface PeekSlot {
   rot: string;
   img: Box;
   imgRadius: number;
-  name: { x: number; y: number; w: number };
-  pill: Box;
-  rate: { x: number; y: number; w: number };
   /** The opacity the file puts on this slot's content groups. */
   dim: number;
 }
@@ -165,9 +172,6 @@ const BACK_SLOT: PeekSlot = {
   rot: "0.09deg",
   img: { x: 64.77, y: 283.2, w: 263.15, h: 200.97 },
   imgRadius: 20,
-  name: { x: 60.77, y: 480.45, w: 68.72 },
-  pill: { x: 47.01, y: 635.09, w: 143.09, h: 42.76 },
-  rate: { x: 61.16, y: 644.33, w: 114.78 },
   dim: 0.3,
 };
 
@@ -177,15 +181,15 @@ const MID_SLOT: PeekSlot = {
   rot: "-0.05deg",
   img: { x: 45.97, y: 263.07, w: 271.78, h: 203.46 },
   imgRadius: 20,
-  name: { x: 56.91, y: 482.33, w: 62.12 },
-  pill: { x: 65.46, y: 640.86, w: 150.74, h: 40.07 },
-  rate: { x: 80.14, y: 650.15, w: 121.39 },
   dim: 0.5,
 };
 
 /**
- * A card behind the front one. The file hides everything but the name and the
- * rate on these, and dims what is left, so that is all this draws.
+ * A card behind the front one. The file also draws a dimmed name and rate pill
+ * here, but both sit fully under the front card, where its OverlayBlur smears
+ * them illegible; without expo-blur they would read through the front card's
+ * 85% white as ghost text, so only the frame and image box render — the parts
+ * that survive in the design's own render.
  */
 function PeekCard({ person, slot }: { person: Videographer; slot: PeekSlot }) {
   return (
@@ -201,7 +205,7 @@ function PeekCard({ person, slot }: { person: Videographer; slot: PeekSlot }) {
         borderWidth={1}
         style={[styles.cardShadow, { transform: [{ rotate: slot.rot }] }]}
       />
-      {/* Both dimmed groups — 7778:17945 and 7778:17948. */}
+      {/* Dimmed image group — 7778:17945 / 7778:17948. */}
       <Abs w={FRAME_W} h={FRAME_H} opacity={slot.dim}>
         <LinearGradient
           colors={person.tint}
@@ -216,66 +220,30 @@ function PeekCard({ person, slot }: { person: Videographer; slot: PeekSlot }) {
             borderRadius: slot.imgRadius,
           }}
         />
-        <Txt
-          x={slot.name.x}
-          y={slot.name.y}
-          w={slot.name.w}
-          size={26}
-          weight="bold"
-          font="inter"
-          color={INK}
-          lineHeight={31.46}
-          letterSpacing={-0.5}
-          numberOfLines={1}
-        >
-          {person.name}
-        </Txt>
-        <RatePill
-          x={slot.pill.x}
-          y={slot.pill.y}
-          w={slot.pill.w}
-          h={slot.pill.h}
-          textX={slot.rate.x}
-          textY={slot.rate.y}
-          textW={slot.rate.w}
-          label={person.rate}
-        />
       </Abs>
     </>
   );
 }
 
 /**
- * "₹5000 | 2 Hrs Shoot" — a 16pt gradient pill. The front card leads it with a
- * 14pt camera glyph; the dimmed cards behind draw the label alone.
+ * "₹5000 | 2 Hrs Shoot" — a 16pt gradient pill led by a 14pt sparkle glyph.
+ * The spec's box (52,557 176.75x34, icon inset 15, gap 6, trailing pad 15)
+ * hugs its sample label, so the pill carries the padding and sizes to the live
+ * rate string instead of clipping it.
  */
-function RatePill({
-  x, y, w, h, textX, textY, textW, label, icon,
-}: {
-  x: number; y: number; w: number; h: number;
-  textX: number; textY: number; textW: number;
-  label: string; icon?: { x: number; y: number };
-}) {
+function RatePill({ x, y, h, label }: { x: number; y: number; h: number; label: string }) {
   return (
-    <>
-      <LinearGradient
-        colors={RATE_GRAD}
-        start={RATE_START}
-        end={RATE_END}
-        style={[styles.ratePill, { left: x, top: y, width: w, height: h }]}
-      />
-      {icon ? (
-        <Abs x={icon.x} y={icon.y} w={14} h={14} center>
-          <Feather name="camera" size={14} color={INK} />
-        </Abs>
-      ) : null}
-      <Txt
-        x={textX} y={textY} w={textW} numberOfLines={1}
-        size={13} weight="bold" font="inter" color={INK} lineHeight={15.73}
-      >
+    <LinearGradient
+      colors={RATE_GRAD}
+      start={RATE_START}
+      end={RATE_END}
+      style={[styles.ratePill, { left: x, top: y, height: h }]}
+    >
+      <Ionicons name="sparkles" size={14} color={INK} />
+      <Txt size={13} weight="bold" font="inter" color={INK} lineHeight={15.73} numberOfLines={1}>
         {label}
       </Txt>
-    </>
+    </LinearGradient>
   );
 }
 
@@ -296,7 +264,7 @@ export default function VideographersList() {
   const { data: creators = [] } = useCreators();
   const deck = useMemo(() => {
     if (!creators.length) return PLACEHOLDER;
-    const want = CHIPS[category]?.label.replace(/^\S+\s*/, "").trim().toLowerCase();
+    const want = CHIPS[category]?.replace(/^\S+\s*/, "").trim().toLowerCase();
     const pool = creators.filter((c) => (c.niche ?? "").toLowerCase() === want);
     return (pool.length ? pool : creators).slice(0, 12).map(toVideographer);
   }, [creators, category]);
@@ -344,8 +312,10 @@ export default function VideographersList() {
           style={styles.frontImage}
         />
 
+        {/* The spec's 97.69pt box hugs the sample "Sarthak"; live names can run
+            longer, so the box runs to the location pill's reach instead. */}
         <Txt
-          x={52} y={459} w={97.69} numberOfLines={1}
+          x={52} y={459} w={190} numberOfLines={1}
           size={26} weight="bold" font="inter" color={INK}
           lineHeight={31.46} letterSpacing={-0.5}
         >
@@ -353,16 +323,17 @@ export default function VideographersList() {
         </Txt>
 
         {/* Location pill — only the front card in the file carries one, and
-            only for a videographer whose city is known. */}
+            only for a videographer whose city is known. The spec box
+            (260.2,459 67.8x27, right edge 328, 10pt pads, 4pt gap) hugs the
+            sample "Delhi", so the pill anchors to that right edge and sizes to
+            the live city. */}
         {front.city ? (
-          <Abs x={260.2} y={459} w={67.8} h={27} radius={12} bg={LOC_FILL} style={styles.locShadow}>
-            <Abs x={10} y={6.5} w={14} h={14} center>
-              <Feather name="map-pin" size={14} color={MUTED} />
-            </Abs>
-            <Txt
-              x={28} y={6} w={29.8} numberOfLines={1}
-              size={12} weight="bold" font="inter" color={MUTED} lineHeight={14.52}
-            >
+          <Abs
+            y={459} h={27} radius={12} bg={LOC_FILL} row gap={4}
+            style={[styles.locShadow, styles.locPill]}
+          >
+            <Feather name="map-pin" size={14} color={MUTED} />
+            <Txt size={12} weight="bold" font="inter" color={MUTED} lineHeight={14.52} numberOfLines={1}>
               {front.city}
             </Txt>
           </Abs>
@@ -378,12 +349,7 @@ export default function VideographersList() {
           </Txt>
         ) : null}
 
-        <RatePill
-          x={52} y={557} w={176.75} h={34}
-          icon={{ x: 67, y: 567 }}
-          textX={87} textY={566} textW={126.75}
-          label={front.rate}
-        />
+        <RatePill x={52} y={557} h={34} label={front.rate} />
 
         {/* View profile — 7778:17990. There is no videographer-profile route in
             the app yet, so the CTA renders without a destination rather than
@@ -436,26 +402,25 @@ export default function VideographersList() {
         horizontal
         showsHorizontalScrollIndicator={false}
         style={styles.chipStrip}
-        contentContainerStyle={{ width: CHIP_STRIP_W, height: 56 }}
+        contentContainerStyle={styles.chipRow}
       >
-        {CHIPS.map((c, i) => {
+        {CHIPS.map((label, i) => {
           const on = category === i;
           return (
             <Pressable
-              key={c.label}
+              key={label}
               onPress={() => setCategory(i)}
               style={({ pressed }) => [
                 styles.chip,
-                { left: c.x, width: c.w, backgroundColor: on ? CHIP_ON : CHIP_OFF },
+                { backgroundColor: on ? CHIP_ON : CHIP_OFF },
                 pressed && styles.pressed,
               ]}
             >
               <Txt
-                x={19} y={11} w={c.tw} align="center" numberOfLines={1}
                 size={14} weight="semibold" font="inter"
                 color={on ? INK : MUTED} lineHeight={16.94}
               >
-                {c.label}
+                {label}
               </Txt>
             </Pressable>
           );
@@ -545,15 +510,27 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   frontRot: { transform: [{ rotate: "0.05deg" }] },
+  // The visible clip is Container 52,239 276x200 with cornerRadius 20 — the
+  // inner image frame's 6.63 never reaches the photo's silhouette.
   frontImage: {
     position: "absolute",
     left: 52,
-    top: 237.5,
+    top: 239,
     width: 276,
-    height: 203,
-    borderRadius: 6.63,
+    height: 200,
+    borderRadius: 20,
   },
-  ratePill: { position: "absolute", borderRadius: 16, borderWidth: 1, borderColor: "#ffffff" },
+  ratePill: {
+    position: "absolute",
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "#ffffff",
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 15,
+    gap: 6,
+  },
+  locPill: { left: "auto", right: FRAME_W - 328, paddingHorizontal: 10 },
   locShadow: {
     shadowColor: "#000000",
     shadowOpacity: 0.02,
@@ -589,13 +566,14 @@ const styles = StyleSheet.create({
 
   /* Category chips */
   chipStrip: { position: "absolute", left: 0, top: 106, width: FRAME_W, height: 56 },
+  chipRow: { paddingHorizontal: 20, gap: 12, alignItems: "flex-start" },
   chip: {
-    position: "absolute",
-    top: 0,
     height: 40,
     borderRadius: 24,
     borderWidth: 1,
     borderColor: CHIP_LINE,
+    paddingHorizontal: 19,
+    justifyContent: "center",
     shadowColor: "#000000",
     shadowOpacity: 0.05,
     shadowRadius: 12,

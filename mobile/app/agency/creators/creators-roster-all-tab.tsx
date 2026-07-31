@@ -1,7 +1,7 @@
 import { Fragment, useMemo, useState } from "react";
 import { Image, Pressable, StyleSheet, View } from "react-native";
 import { useRouter } from "expo-router";
-import { Feather, Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
+import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { Abs, Ring, Screen, Txt } from "../../../src/ui/Frame";
 import { compact, useCreators, type Creator } from "../../../src/api/hooks";
@@ -89,9 +89,9 @@ type Tab = "my" | "all";
 /* -------------------------------- the card -------------------------------- */
 /** The three per-card action buttons: 98.33x31 chips on a 106.33 step. */
 const ACTIONS = [
-  { x: 32, label: "Profile" },
-  { x: 138.33, label: "Call" },
-  { x: 244.67, label: "Chat" },
+  { x: 32, label: "Profile", icon: "eye" },
+  { x: 138.33, label: "Call", icon: "phone" },
+  { x: 244.67, label: "Chat", icon: "message-circle" },
 ] as const;
 
 /** Stat columns 1..3; PERF. sits 2pt lower and is drawn separately. */
@@ -236,11 +236,7 @@ function CreatorCard({
           x={a.x} y={top + 148.5 + g} w={98.33} h={31} radius={12} bg={GLASS_80}
           center row gap={5}
         >
-          {a.label === "Call" ? (
-            <Ionicons name="call" size={11} color="#000000" />
-          ) : (
-            <Feather name={a.label === "Profile" ? "eye" : "message-square"} size={11} color={INK} />
-          )}
+          <Feather name={a.icon} size={11} color={INK} />
           <Txt size={10} weight="semibold" font="inter" color={INK} lineHeight={15}>
             {a.label}
           </Txt>
@@ -280,7 +276,7 @@ export default function CreatorsRosterAllTabScreen() {
         onPress={() => router.back()}
         style={({ pressed }) => [styles.back, pressed && styles.pressed]}
       >
-        <Feather name="chevron-left" size={18} color={INK_INVERT} />
+        <Feather name="arrow-left" size={18} color={INK_INVERT} />
       </Pressable>
       <Txt
         x={72} y={20} w={192} size={20} weight="medium" font="inter"
@@ -308,7 +304,7 @@ export default function CreatorsRosterAllTabScreen() {
       </Txt>
       <Abs x={144.89} y={106} w={77.5} h={34} radius={17} bg={WHITE} />
       <Abs x={159.89} y={117} w={12} h={12} center>
-        <Feather name="sliders" size={12} color={INK} />
+        <MaterialCommunityIcons name="tune" size={12} color={INK} />
       </Abs>
       <Txt
         x={177.89} y={115} w={29.5} size={12} weight="semibold" font="inter"
@@ -320,7 +316,7 @@ export default function CreatorsRosterAllTabScreen() {
 
       <Abs x={230.39} y={106} w={72.34} h={34} radius={17} bg={WHITE} />
       <Abs x={245.39} y={117} w={12} h={12} center>
-        <MaterialCommunityIcons name="sort-variant" size={12} color={INK} />
+        <MaterialCommunityIcons name="swap-vertical" size={12} color={INK} />
       </Abs>
       <Txt
         x={263.39} y={115} w={24.34} size={12} weight="semibold" font="inter"
@@ -367,7 +363,7 @@ export default function CreatorsRosterAllTabScreen() {
       </Abs>
       <Txt
         x={61} y={297} w={200} size={12} weight="semibold" font="inter"
-        color={INK} lineHeight={16} numberOfLines={1}
+        color={INK} lineHeight={16} numberOfLines={1} style={styles.underline}
       >
         {`${selectedIds.length} creators selected`}
       </Txt>
@@ -422,6 +418,8 @@ export default function CreatorsRosterAllTabScreen() {
 
 const styles = StyleSheet.create({
   pressed: { opacity: 0.85 },
+  /** Spec 7882:14258 — the selection count is underlined. */
+  underline: { textDecorationLine: "underline" },
   toggle: { position: "absolute", alignItems: "center", justifyContent: "center" },
   back: {
     position: "absolute",

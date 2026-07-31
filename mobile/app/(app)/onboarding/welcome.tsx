@@ -70,13 +70,49 @@ function Sparkle({ size, color, weight }: { size: number; color: string; weight:
   );
 }
 
-/** Socyio mark: a ring with a satellite node at the lower-left (7498:44156). */
+/** Socyio mark (7498:44156 / 7498:44149): a four-point sparkle with a plus at
+ *  the top-right and a small circle at the lower-left — the spec's big vector
+ *  spans the full 20-unit box (star + plus in one path), the small 4-unit
+ *  vector is the circle at (4, 20). */
+const MARK_STAR_D =
+  "M9.5 6 10.7 10.9a2 2 0 0 0 1.4 1.4L17 13.5l-4.9 1.2a2 2 0 0 0-1.4 1.4L9.5 21l-1.2-4.9a2 2 0 0 0-1.4-1.4L2 13.5l4.9-1.2a2 2 0 0 0 1.4-1.4z";
+
 function Mark({ size, color, weight }: { size: number; color: string; weight: number }) {
   const sw = (weight * 24) / size;
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24">
-      <Circle cx={12} cy={12} r={10} stroke={color} strokeWidth={sw} fill="none" />
+      <Path
+        d={MARK_STAR_D}
+        stroke={color}
+        strokeWidth={sw}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        fill="none"
+      />
+      <Path
+        d="M19.5 2.5v5M17 5h5"
+        stroke={color}
+        strokeWidth={sw}
+        strokeLinecap="round"
+        fill="none"
+      />
       <Circle cx={4} cy={20} r={2} stroke={color} strokeWidth={sw} fill="none" />
+    </Svg>
+  );
+}
+
+/** Chat bubble with a tail at the lower-left (7498:44140). */
+function ChatBubble({ size, color, weight }: { size: number; color: string; weight: number }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24">
+      <Path
+        d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"
+        stroke={color}
+        strokeWidth={(weight * 24) / size}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        fill="none"
+      />
     </Svg>
   );
 }
@@ -232,7 +268,6 @@ export default function Welcome() {
       <Abs
         x={223.03}
         y={210.6}
-        w={133.25}
         h={37.58}
         radius={18.79}
         bg="rgba(255,255,255,0.85)"
@@ -252,7 +287,6 @@ export default function Welcome() {
       <Abs
         x={199.05}
         y={440.74}
-        w={145.96}
         h={37.99}
         radius={19}
         bg="rgba(255,255,255,0.85)"
@@ -272,7 +306,6 @@ export default function Welcome() {
       <Abs
         x={15.01}
         y={330.82}
-        w={138.8}
         h={37.96}
         radius={18.98}
         bg="rgba(255,255,255,0.85)"
@@ -282,7 +315,7 @@ export default function Welcome() {
         gap={8}
         style={[styles.pillShadow, styles.pillPad, { transform: [{ rotate: "-8.02deg" }] }]}
       >
-        <Sparkle size={18.07} color={PINK} weight={1.33} />
+        <ChatBubble size={18.07} color={PINK} weight={1.33} />
         <Txt font="inter" weight="semibold" size={13} lineHeight={15.73} color={PILL_TEXT} numberOfLines={1}>
           {newLeads} New Leads
         </Txt>
@@ -306,21 +339,8 @@ export default function Welcome() {
         <Mark size={28} color={colors.white} weight={2.33} />
       </LinearGradient>
 
-      {/* 7498:44160 wordmark */}
-      <Txt
-        x={155.5}
-        y={132}
-        w={64}
-        font="inter"
-        weight="semibold"
-        size={20}
-        lineHeight={24.2}
-        letterSpacing={-0.5}
-        align="center"
-        color={colors.ink}
-      >
-        Socyio
-      </Txt>
+      {/* 7498:44160 wordmark exists in the spec but carries no fill — the
+          design renders nothing there, so neither do we. */}
 
       {/* 7498:44162 white fade behind the copy block */}
       <LinearGradient

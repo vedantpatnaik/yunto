@@ -127,7 +127,7 @@ const platformIcon = (p?: string): "youtube" | "music" | "instagram" =>
 
 /** The three row actions — 7882:17547 / :17554 / :17559. */
 const ROW_ACTIONS = [
-  { label: "Profile", x: 16, icon: "user" },
+  { label: "Profile", x: 16, icon: "eye" },
   { label: "Call", x: 122.33, icon: "phone" },
   { label: "Chat", x: 228.67, icon: "message-circle" },
 ] as const;
@@ -402,7 +402,7 @@ export default function CreatorsSelectedViewScreen() {
         style={({ pressed }) => [styles.filterBtn, pressed && styles.pressed]}
       >
         <Abs x={15} y={11} w={12} h={12} center>
-          <Feather name="filter" size={11} color={INK} />
+          <Ionicons name="options-outline" size={12} color={INK} />
         </Abs>
         <Txt
           x={33} y={9} w={29.5}
@@ -417,7 +417,7 @@ export default function CreatorsSelectedViewScreen() {
         style={({ pressed }) => [styles.sortBtn, pressed && styles.pressed]}
       >
         <Abs x={15} y={11} w={12} h={12} center>
-          <Feather name="sliders" size={11} color={INK} />
+          <Ionicons name="swap-vertical" size={12} color={INK} />
         </Abs>
         <Txt
           x={33} y={9} w={24.34}

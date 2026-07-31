@@ -4,6 +4,7 @@ import type { NativeScrollEvent, NativeSyntheticEvent } from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import * as SecureStore from "expo-secure-store";
+import Svg, { Circle, Path } from "react-native-svg";
 import { Screen, Abs, Txt } from "../../../src/ui/Frame";
 
 /**
@@ -31,6 +32,26 @@ const FRAME_H = 812;
 const BTN_X = 147;
 const BTN_Y = 657;
 const BTN_SIZE = 80;
+/**
+ * Progress ring around the button. The rendered frames show a 3.5pt annulus
+ * hugging the 80pt outline (stroke centred at r=38.25, so it spans 36.5–40),
+ * #cecccc for the remainder and white for the progress arc: 120° per page,
+ * anchored at the right edge and sweeping over the top. The 68.58pt inner
+ * white disc (Ellipse 27, centre 39.71,39.71 in button-local coords) floats
+ * inside with the page background showing through the ~2.2pt gap.
+ */
+const RING_R = 38.25;
+const RING_W = 3.5;
+const INNER_R = 68.58 / 2;
+
+/** Arc of `sweepDeg` (<360) ending at the ring's right edge, drawn clockwise over the top. */
+function arcPath(sweepDeg: number): string {
+  const start = ((360 - sweepDeg) * Math.PI) / 180;
+  const sx = 40 + RING_R * Math.cos(start);
+  const sy = 40 + RING_R * Math.sin(start);
+  const large = sweepDeg > 180 ? 1 : 0;
+  return `M ${sx} ${sy} A ${RING_R} ${RING_R} 0 ${large} 1 ${40 + RING_R} 40`;
+}
 
 /* --------------------------- spec colour tokens --------------------------- */
 const PAGE_BG = "#83BBFF";
@@ -203,12 +224,12 @@ export default function OnboardingIntroCarouselScreen() {
       </ScrollView>
 
       {/*
-        Next button. The spec stacks concentric ellipses inside Frame 21 — a
-        #cecccc disc, a white 68.58 inner disc and (on frame 1) a second
-        full-bleed white disc laid over the arrow — all of which collapse to a
-        single white 80pt disc once painted. The "oui:arrow-up" glyph sits at
-        (177,687) 20x20; the frame's 180° rotation plus the glyph's -90° leaves
-        it pointing forward, which is what the tap does.
+        Next button. Ellipse stack per the spec: #cecccc annulus, white
+        progress arc (a third of the ring per page — Frame 22's white vector
+        covers ~240°, the last frame's ring is fully white), white 68.58pt
+        inner disc, chevron on top. The "oui:arrow-up" glyph sits at (177,687)
+        20x20; the frame's 180° rotation plus the glyph's -90° leaves it
+        pointing forward, which is what the tap does.
       */}
       <Pressable
         onPress={next}
@@ -220,14 +241,31 @@ export default function OnboardingIntroCarouselScreen() {
           top: BTN_Y,
           width: BTN_SIZE,
           height: BTN_SIZE,
-          borderRadius: BTN_SIZE / 2,
-          backgroundColor: "#FFFFFF",
           alignItems: "center",
           justifyContent: "center",
           opacity: pressed ? 0.9 : 1,
         })}
       >
-        <Ionicons name="arrow-forward" size={20} color={ART_INK} />
+        <Svg
+          width={BTN_SIZE}
+          height={BTN_SIZE}
+          viewBox="0 0 80 80"
+          style={{ position: "absolute", left: 0, top: 0 }}
+        >
+          <Circle cx={40} cy={40} r={RING_R} stroke="#CECCCC" strokeWidth={RING_W} fill="none" />
+          {page >= SLIDES.length - 1 ? (
+            <Circle cx={40} cy={40} r={RING_R} stroke="#FFFFFF" strokeWidth={RING_W} fill="none" />
+          ) : (
+            <Path
+              d={arcPath(120 * (page + 1))}
+              stroke="#FFFFFF"
+              strokeWidth={RING_W}
+              fill="none"
+            />
+          )}
+          <Circle cx={39.71} cy={39.71} r={INNER_R} fill="#FFFFFF" />
+        </Svg>
+        <Ionicons name="chevron-forward" size={20} color={ART_INK} />
       </Pressable>
     </Screen>
   );

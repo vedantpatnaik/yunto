@@ -3,6 +3,7 @@ import { Image, Pressable, StyleSheet, View } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
+import Svg, { Rect } from "react-native-svg";
 import { Abs, Screen, Txt } from "../../../src/ui/Frame";
 import { colors } from "../../../src/theme";
 import { useCampaignFull, useCampaigns, useCreators } from "../../../src/api/hooks";
@@ -255,7 +256,13 @@ function RequestCard({
       {row.campaign ? (
         <>
           <Abs x={20} y={100.5}>
-            <Feather name="briefcase" size={15} color={INK_ICON} />
+            {/* layout-panel-top — the file's iconify glyph (wide bar over two
+                squares, 3 vectors); Feather has no equivalent, so it is drawn. */}
+            <Svg width={15} height={15} viewBox="0 0 24 24" fill="none">
+              <Rect x={3} y={3} width={18} height={7} rx={1} stroke={INK_ICON} strokeWidth={2} strokeLinejoin="round" />
+              <Rect x={3} y={14} width={7} height={7} rx={1} stroke={INK_ICON} strokeWidth={2} strokeLinejoin="round" />
+              <Rect x={14} y={14} width={7} height={7} rx={1} stroke={INK_ICON} strokeWidth={2} strokeLinejoin="round" />
+            </Svg>
           </Abs>
           <Txt
             x={43}

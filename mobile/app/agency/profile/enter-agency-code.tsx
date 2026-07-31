@@ -4,7 +4,7 @@ import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { Screen, Abs, Txt } from "../../../src/ui/Frame";
-import { colors } from "../../../src/theme";
+import { colors, fonts } from "../../../src/theme";
 import { useMe } from "../../../src/api/hooks";
 import type { User } from "../../../src/api/hooks";
 
@@ -17,45 +17,22 @@ import type { User } from "../../../src/api/hooks";
  * under a gradient badge + heading pair. The canvas is 1030 tall but every node
  * lives above y=589, so the frame simply ends in empty page.
  *
- * The newest generation of this frame draws the code field as a single 285x50
- * pill. The segmented five-box treatment — the one that actually communicates
- * "5-character code" — only survives in the legacy 859 frames (793:2940 /
- * 1984:7731): five cells 61-62x70 on a 70pt pitch across a 343pt row. That
- * treatment is ported here, rescaled to this card's 285pt content width
- * (k = 285/343 = 0.8309, so 50.7/51.5pt cells on a 58.16pt pitch) and dressed
- * in the new visual language's glass fill and indigo hairline. Row height stays
- * the new frame's 50pt, so no other coordinate on the card moves.
+ * The code field is a single 285x50 pill (node 7917:2420): glass white @60%,
+ * #818cf8 hairline @20%, radius 40, with the code set left-aligned at
+ * Inter 400 14/20 #64748b behind a 16pt inset — exactly as the frame draws it.
  */
 
 /* ------------------------------ design tokens ----------------------------- */
 const INK = "#111111";
 const MUTED = "#64748b";
 const INDIGO = "#6366f1";
-/** Field hairline: #818cf8 @ 20% (spec) — @ 55% marks the caret cell. */
+/** Field hairline: #818cf8 @ 20% (spec node 7917:2420). */
 const LINE_IDLE = "rgba(129,140,248,0.2)";
-const LINE_ACTIVE = "rgba(129,140,248,0.55)";
 
 /* ------------------------------ code field -------------------------------- */
 const CODE_LENGTH = 5;
 /** The frame ships the field prefilled; also the seeded User.agencyCode. */
 const SPEC_CODE = "55678";
-
-const ROW_X = 45;
-const ROW_Y = 394;
-const ROW_W = 285;
-const CELL_H = 50;
-/** Legacy cells x=16/86/157/227/297 (w 61,62,61,61,62) scaled by 285/343. */
-const CELLS = [
-  { x: 45, w: 50.68 },
-  { x: 103.16, w: 51.52 },
-  { x: 162.16, w: 50.68 },
-  { x: 220.32, w: 50.68 },
-  { x: 278.48, w: 51.52 },
-] as const;
-/** Legacy corner 15 on a 70pt cell, nudged toward this frame's rounder pills. */
-const CELL_RADIUS = 18;
-/** Legacy glyph 24pt on the same 0.8309 scale. */
-const GLYPH_SIZE = 20;
 
 /**
  * No POST agency/join exists on the API, so an unrecognised code is caught
@@ -81,9 +58,6 @@ export default function EnterAgencyCodeScreen() {
   const [typed, setTyped] = useState<string | null>(null);
   const [invalid, setInvalid] = useState(false);
   const value = (typed ?? known ?? SPEC_CODE).slice(0, CODE_LENGTH);
-
-  // Figma's glyphs sit still; the caret cell is the one just filled.
-  const caret = Math.min(value.length, CODE_LENGTH - 1);
 
   const connect = () => {
     if (value.length < CODE_LENGTH || (known !== null && value !== known)) {
@@ -135,9 +109,12 @@ export default function EnterAgencyCodeScreen() {
       >
         Enter Agency Code
       </Txt>
+      {/* Spec box is 234 wide, but the device's Inter metrics run a shade wider
+          than Figma's and wrap it; a full-card centered box keeps the single
+          line without moving the visible text. */}
       <Txt
-        x={70.5} y={295} w={234} size={14} font="inter"
-        color={MUTED} lineHeight={20} align="center"
+        x={24} y={295} w={327} size={14} font="inter"
+        color={MUTED} lineHeight={20} align="center" numberOfLines={1}
       >
         Enter your agency workspace code
       </Txt>
@@ -160,44 +137,29 @@ export default function EnterAgencyCodeScreen() {
         AGENCY CODE
       </Txt>
 
-      {/* --------------------------- Segmented code field -------------------- */}
-      {CELLS.map((cell, i) => {
-        const char = value[i];
-        const active = !invalid && i === caret;
-        return (
-          <Abs
-            key={cell.x}
-            x={cell.x} y={ROW_Y} w={cell.w} h={CELL_H} radius={CELL_RADIUS} center
-            bg="rgba(255,255,255,0.6)"
-            border={invalid ? colors.danger : active ? LINE_ACTIVE : LINE_IDLE}
-            borderWidth={1}
-            style={{
-              shadowColor: "#000000", shadowOpacity: 0.04, shadowRadius: 3,
-              shadowOffset: { width: 0, height: 1 }, elevation: 1,
-            }}
-          >
-            <Txt size={GLYPH_SIZE} font="inter" color={MUTED} lineHeight={26} align="center">
-              {char ?? ""}
-            </Txt>
-          </Abs>
-        );
-      })}
-
-      {/* Invisible capture field spanning the row: tapping any cell focuses it. */}
-      <TextInput
-        value={value}
-        onChangeText={(t) => {
-          setTyped(t.replace(/[^0-9]/g, "").slice(0, CODE_LENGTH));
-          setInvalid(false);
-        }}
-        maxLength={CODE_LENGTH}
-        keyboardType="number-pad"
-        autoCorrect={false}
-        style={{
-          position: "absolute", left: ROW_X, top: ROW_Y,
-          width: ROW_W, height: CELL_H, opacity: 0,
-        }}
-      />
+      {/* ------------------------------ Code field ---------------------------
+          Single 285x50 pill (7917:2420): glass white @60%, indigo hairline,
+          the code left-aligned behind the spec's 16pt inset (text at x=62). */}
+      <Abs
+        x={45} y={394} w={285} h={50} radius={40}
+        bg="rgba(255,255,255,0.6)"
+        border={invalid ? colors.danger : LINE_IDLE} borderWidth={1}
+      >
+        <TextInput
+          value={value}
+          onChangeText={(t) => {
+            setTyped(t.replace(/[^0-9]/g, "").slice(0, CODE_LENGTH));
+            setInvalid(false);
+          }}
+          maxLength={CODE_LENGTH}
+          keyboardType="number-pad"
+          autoCorrect={false}
+          style={{
+            flex: 1, paddingHorizontal: 16, paddingVertical: 0,
+            fontSize: 14, fontFamily: fonts.inter, color: MUTED,
+          }}
+        />
+      </Abs>
 
       {/* Validation line — fits the 16pt gap between field and CTA, so nothing
           below it shifts when it appears. */}
@@ -214,8 +176,10 @@ export default function EnterAgencyCodeScreen() {
       <Pressable
         onPress={connect}
         style={({ pressed }) => ({
+          // borderRadius on the Pressable itself: without it the shadow/backdrop
+          // renders as a square-cornered rectangle peeking past the pill.
           position: "absolute", left: 45, top: 464, width: 285, height: 52,
-          opacity: pressed ? 0.9 : 1,
+          borderRadius: 40, opacity: pressed ? 0.9 : 1,
           shadowColor: INDIGO, shadowOpacity: 0.35, shadowRadius: 20,
           shadowOffset: { width: 0, height: 6 }, elevation: 6,
         })}

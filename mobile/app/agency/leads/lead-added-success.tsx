@@ -281,103 +281,111 @@ export default function LeadAddedSuccess() {
         <Feather name="arrow-left" size={16} color={BACK_GLYPH} />
       </Pressable>
 
-      {/* ================== Container — medallion (151.5,96) ================ */}
-      <Abs x={151.5} y={96} w={72} h={72} radius={36} bg={HERO_OUTER} style={styles.heroGlow} />
-      <Abs x={160.5} y={105} w={54} h={54} radius={27} bg={HERO_MID} />
-      <Abs x={167.5} y={112} w={40} h={40} radius={20} bg={HERO_CORE} center style={styles.coreGlow}>
-        <Feather name="check" size={20} color={WHITE} />
-      </Abs>
-      {/* "Background+Border" satellites — 2pt white ring, no glyph. */}
-      <Abs x={209.5} y={90} w={20} h={20} radius={10} bg={BADGE_AMBER} border={WHITE} borderWidth={2} />
-      <Abs x={145.5} y={158} w={16} h={16} radius={8} bg={BADGE_LILAC} border={WHITE} borderWidth={2} />
-
-      {/* ======================= Container — hero copy ====================== */}
-      <Txt
-        x={55.45}
-        y={183}
-        w={264.11}
-        size={22}
-        weight="semibold"
-        font="inter"
-        color={TITLE_INK}
-        lineHeight={27.5}
-        letterSpacing={-0.55}
-        align="center"
+      {/* ============== Container — body scroll (0,96 375x605) ============== */}
+      <ScrollView
+        style={styles.body}
+        contentContainerStyle={styles.bodyContent}
+        nestedScrollEnabled
+        showsVerticalScrollIndicator={false}
       >
-        Lead Added Successfully!
-      </Txt>
-      <Txt
-        x={55.45}
-        y={216}
-        w={264.11}
-        size={13}
-        weight="medium"
-        font="inter"
-        color={SUB_INK}
-        lineHeight={19.5}
-        align="center"
-      >
-        {"Here's your campaign summary."}
-      </Txt>
+        {/* ================== Container — medallion (151.5,96) ================ */}
+        <Abs x={151.5} y={CY(96)} w={72} h={72} radius={36} bg={HERO_OUTER} style={styles.heroGlow} />
+        <Abs x={160.5} y={CY(105)} w={54} h={54} radius={27} bg={HERO_MID} />
+        <Abs x={167.5} y={CY(112)} w={40} h={40} radius={20} bg={HERO_CORE} center style={styles.coreGlow}>
+          <Feather name="check" size={20} color={WHITE} />
+        </Abs>
+        {/* "Background+Border" satellites — 2pt white ring, no glyph. */}
+        <Abs x={209.5} y={CY(90)} w={20} h={20} radius={10} bg={BADGE_AMBER} border={WHITE} borderWidth={2} />
+        <Abs x={145.5} y={CY(158)} w={16} h={16} radius={8} bg={BADGE_LILAC} border={WHITE} borderWidth={2} />
 
-      {/* ==================== Container — chips (20,268) ==================== */}
-      <Abs x={20} y={267.75} w={335} style={styles.chipRow}>
-        {chips.map((c) => (
-          <Chip key={c.key} icon={c.icon} tint={c.tint} label={c.label} />
-        ))}
-      </Abs>
+        {/* ======================= Container — hero copy ====================== */}
+        <Txt
+          x={55.45}
+          y={CY(183)}
+          w={264.11}
+          size={22}
+          weight="semibold"
+          font="inter"
+          color={TITLE_INK}
+          lineHeight={27.5}
+          letterSpacing={-0.55}
+          align="center"
+        >
+          Lead Added Successfully!
+        </Txt>
+        <Txt
+          x={55.45}
+          y={CY(216)}
+          w={264.11}
+          size={13}
+          weight="medium"
+          font="inter"
+          color={SUB_INK}
+          lineHeight={19.5}
+          align="center"
+        >
+          {"Here's your campaign summary."}
+        </Txt>
 
-      {/* ============ Background+Border+Shadow — card (20,361 335x605) ====== */}
-      <Abs
-        x={CARD.x}
-        y={CARD.y}
-        w={CARD.w}
-        h={CARD.h}
-        radius={28}
-        bg={WHITE}
-        border="rgba(0,0,0,0.03)"
-        borderWidth={1}
-        style={styles.card}
-      />
-      {rows.map((r, i) => {
-        const y = ROW_Y + i * ROW_STEP;
-        return (
-          <Fragment key={r.label}>
-            <Txt
-              x={ROW_X}
-              y={y + LABEL_DY}
-              w={LABEL_W}
-              size={11}
-              weight="semibold"
-              font="inter"
-              color={LABEL_INK}
-              lineHeight={16.5}
-              letterSpacing={1.1}
-              numberOfLines={2}
-            >
-              {r.label}
-            </Txt>
-            <Txt
-              x={VALUE_X}
-              y={y + VALUE_DY}
-              w={VALUE_W}
-              size={13}
-              weight="semibold"
-              font="inter"
-              color={VALUE_INK}
-              lineHeight={17.88}
-              align="right"
-              numberOfLines={1}
-            >
-              {r.value ?? DASH}
-            </Txt>
-            {/* Every row but the last carries a 1pt bottom stroke. */}
-            {i < rows.length - 1 ? (
-              <Abs x={ROW_X} y={y + ROW_STEP - 1} w={ROW_W} h={1} bg={HAIRLINE} />
-            ) : null}
-          </Fragment>
-        );
-      })}
+        {/* ==================== Container — chips (20,268) ==================== */}
+        <Abs x={20} y={CY(267.75)} w={335} style={styles.chipRow}>
+          {chips.map((c) => (
+            <Chip key={c.key} icon={c.icon} tint={c.tint} label={c.label} />
+          ))}
+        </Abs>
+
+        {/* ============ Background+Border+Shadow — card (20,361 335x605) ====== */}
+        <Abs
+          x={CARD.x}
+          y={CY(CARD.y)}
+          w={CARD.w}
+          h={CARD.h}
+          radius={28}
+          bg={WHITE}
+          border="rgba(0,0,0,0.03)"
+          borderWidth={1}
+          style={styles.card}
+        />
+        {rows.map((r, i) => {
+          const y = CY(ROW_Y + i * ROW_STEP);
+          return (
+            <Fragment key={r.label}>
+              <Txt
+                x={ROW_X}
+                y={y + LABEL_DY}
+                w={LABEL_W}
+                size={11}
+                weight="semibold"
+                font="inter"
+                color={LABEL_INK}
+                lineHeight={16.5}
+                letterSpacing={1.1}
+                numberOfLines={2}
+              >
+                {r.label}
+              </Txt>
+              <Txt
+                x={VALUE_X}
+                y={y + VALUE_DY}
+                w={VALUE_W}
+                size={13}
+                weight="semibold"
+                font="inter"
+                color={VALUE_INK}
+                lineHeight={17.88}
+                align="right"
+                numberOfLines={1}
+              >
+                {r.value ?? DASH}
+              </Txt>
+              {/* Every row but the last carries a 1pt bottom stroke. */}
+              {i < rows.length - 1 ? (
+                <Abs x={ROW_X} y={y + ROW_STEP - 1} w={ROW_W} h={1} bg={HAIRLINE} />
+              ) : null}
+            </Fragment>
+          );
+        })}
+      </ScrollView>
 
       {/* ===================== Container — actions (20,717) ================= */}
       <Pressable
@@ -410,6 +418,16 @@ export default function LeadAddedSuccess() {
 const styles = StyleSheet.create({
   fill: { position: "absolute", left: 0, top: 0, right: 0, bottom: 0 },
   pressed: { opacity: 0.85 },
+
+  /* Container (0,96 375x605) — the clipped body viewport (see GEOMETRY NOTE). */
+  body: {
+    position: "absolute",
+    left: 0,
+    top: BODY_TOP,
+    width: FRAME_W,
+    height: BODY_H,
+  },
+  bodyContent: { height: BODY_CONTENT_H },
 
   /* Button (16,22 36x36) — "Button:shadow" folds into the disc itself. */
   back: {

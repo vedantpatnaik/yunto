@@ -234,9 +234,13 @@ function CampaignCard({
         </View>
       </Abs>
 
-      {/* Meta rows — 15pt icon at 21, text at 44, rows 24pt apart. */}
-      <Abs x={21} y={94.5} w={15} h={15} center>
-        <Feather name="layers" size={15} color={META_ICON} />
+      {/* Meta rows — 15pt icon at 21, text at 44, rows 24pt apart. The campaign
+          glyph is the spec's three stroked panels (7696:11317-19), which no
+          Feather name draws — a wide bar over two uneven feet. */}
+      <Abs x={21} y={94.5} w={15} h={15}>
+        <Abs x={1.88} y={1.88} w={11.25} h={4.38} radius={1.5} border={META_ICON} borderWidth={1.25} />
+        <Abs x={1.88} y={8.75} w={5.62} h={4.38} radius={1.5} border={META_ICON} borderWidth={1.25} />
+        <Abs x={10} y={8.75} w={3.12} h={4.38} radius={1.5} border={META_ICON} borderWidth={1.25} />
       </Abs>
       <Txt
         x={44} y={94} w={270} size={13} weight="medium" font="inter"
@@ -340,7 +344,7 @@ export default function ActiveCampaigns() {
         onPress={() => router.back()}
         style={({ pressed }) => [styles.backButton, pressed && styles.pressed]}
       >
-        <Feather name="chevron-left" size={16} color={BACK_ICON} />
+        <Feather name="arrow-left" size={16} color={BACK_ICON} />
       </Pressable>
       <Txt
         x={72} y={28} w={192} size={20} weight="medium" font="inter"

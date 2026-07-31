@@ -221,7 +221,7 @@ export default function PersonProfile() {
         onPress={() => router.back()}
         style={({ pressed }) => [styles.backButton, pressed && styles.pressed]}
       >
-        <Feather name="chevron-left" size={16} color={BACK_ICON} />
+        <Feather name="arrow-left" size={16} color={BACK_ICON} />
       </Pressable>
       <Txt
         x={72} y={28} w={222} size={20} weight="medium" font="inter"
@@ -244,7 +244,7 @@ export default function PersonProfile() {
         end={{ x: 1, y: 1 }}
         style={styles.teamTile}
       >
-        <Feather name="users" size={18} color={AVATAR_INK} />
+        <Feather name="briefcase" size={18} color={AVATAR_INK} />
       </LinearGradient>
       <Txt
         x={97} y={131} w={134} size={14} weight="semibold" font="inter"
@@ -325,7 +325,7 @@ export default function PersonProfile() {
         style={({ pressed }) => [styles.attendance, pressed && styles.pressed]}
       >
         <Abs x={16} y={16} w={36} h={36} radius={32} bg={TILE} center>
-          <Feather name="clipboard" size={16} color={TILE_INK} />
+          <Feather name="calendar" size={16} color={TILE_INK} />
         </Abs>
         <Txt
           x={64} y={24} w={142} size={14} weight="medium" font="inter"
