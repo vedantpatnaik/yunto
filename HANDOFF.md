@@ -135,7 +135,30 @@ change plus a `pg_dump | psql`. Say the word and it takes minutes.
 
 ---
 
-## Verification (what was actually checked, not assumed)
+## Current state (verified, not assumed)
+
+| Surface | Screens | Status |
+|---|---|---|
+| Admin web | 71 routes | live on production — **71/71 render, 0 errors** |
+| Influencer app (11 flows) | 78 | **140 native routes render, 0 problems** |
+| Agency app (8 flows) | 65 | same gate |
+
+`145 routes · 0 broken links · 0 URL collisions · tsc clean`
+
+Three gates run over the native apps, all in `mobile/`:
+
+- `npm run typecheck` — compiles
+- `npm run check-links` — every `router.push` target resolves; flags two files
+  claiming one URL (route groups are stripped from URLs, so the two apps can
+  collide silently)
+- `npm run render-check` — exports via react-native-web and loads every route in
+  a phone viewport, failing on runtime errors, blank output, or a silent bounce
+  to `/login`
+- `node scripts/data-audit.mjs` — loads every screen twice, once with the API
+  blocked, and flags any screen that is byte-identical both ways, because
+  nothing on it can be live
+
+## Earlier verification notes
 
 - **71/71 admin routes** still render after the RBAC and validation changes — 0 JS
   errors, 0 failed API calls, 0 blank pages.
