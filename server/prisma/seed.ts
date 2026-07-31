@@ -278,6 +278,33 @@ async function main() {
     });
   }
 
+  // ------------------------- spread creation dates -------------------------
+  // Everything above is inserted in one burst, so every row lands on the same
+  // timestamp. That makes each "created" date render identically (six leads all
+  // reading "31 July"), and it makes period-over-period trends meaningless —
+  // the previous window is always empty, so every delta is +100%.
+  //
+  // Deterministic so reseeding is reproducible, and applied here rather than in
+  // a one-off script so it survives the next reseed.
+  const spread = (seed: string, days: number) => {
+    let h = 2166136261;
+    for (let i = 0; i < seed.length; i++) { h ^= seed.charCodeAt(i); h = Math.imul(h, 16777619); }
+    return new Date(Date.now() - (((h >>> 0) % days) + 1) * 864e5);
+  };
+  for (const [name, model, days] of [
+    ["agency", prisma.agency, 75], ["creator", prisma.creator, 75],
+    ["lead", prisma.lead, 45], ["campaign", prisma.campaign, 60],
+    ["invoice", prisma.invoice, 60], ["contact", prisma.contact, 45],
+    ["contract", prisma.contract, 60], ["note", prisma.note, 20],
+  ] as const) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const rows: { id: string }[] = await (model as any).findMany({ select: { id: true } });
+    for (const r of rows) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (model as any).update({ where: { id: r.id }, data: { createdAt: spread(name + r.id, days) } });
+    }
+  }
+
   const counts = {
     plans: await prisma.subscriptionPlan.count(),
     users: await prisma.user.count(), agencies: await prisma.agency.count(), creators: await prisma.creator.count(),

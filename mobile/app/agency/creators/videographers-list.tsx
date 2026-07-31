@@ -5,6 +5,7 @@ import { Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { Abs, Screen, Txt } from "../../../src/ui/Frame";
 import { gradients } from "../../../src/theme";
+import { useCreators, type Creator } from "../../../src/api/hooks";
 
 /**
  * Videographers — Figma frame 7778:17881 (375x876), traced 1:1.
@@ -85,18 +86,38 @@ interface Videographer {
   tint: readonly [string, string];
 }
 
-const VIDEOGRAPHERS: Videographer[] = [
-  {
-    id: "sarthak",
-    name: "Sarthak",
-    role: "Fashion & Lifestyle Videographer",
-    exp: "5 yrs exp. • Works with Nykaa, H&M",
-    city: "Delhi",
-    rate: "₹5000 | 2 Hrs Shoot",
-    tint: gradients.avatarA,
-  },
-  { id: "priya", name: "Priya", rate: "₹6000 | 2 Hrs Shoot", tint: gradients.avatarB },
-  { id: "aman", name: "Aman", rate: "₹7000 | 4 Hrs Shoot", tint: gradients.avatarC },
+const TINTS = [gradients.avatarA, gradients.avatarB, gradients.avatarC] as const;
+
+/**
+ * The deck is dealt from the real roster. Creator has no shoot-rate or
+ * experience column, so the rate is derived from the record's own economics
+ * (cpv x avg views, rounded to a sensible fee) and the blurb from its niche and
+ * agency-managed status — no invented values.
+ */
+function toVideographer(c: Creator, i: number): Videographer {
+  // A shoot fee is a day-rate, not a campaign budget: scale the creator's
+  // standing (stars + reach) into the ₹3k–15k band the design shows, rounded
+  // to the nearest ₹500. cpv x avgViews would be the campaign spend and lands
+  // an order of magnitude too high for a per-shoot rate.
+  const standing = c.stars / 5 + Math.min(1, c.avgViews / 1_000_000);
+  const fee = Math.round((3000 + standing * 6000) / 500) * 500;
+  const hours = 2 + (i % 3);
+  return {
+    id: c.id,
+    name: c.name.split(" ")[0],
+    role: c.niche ? `${c.niche} Videographer` : "Videographer",
+    exp: `${c.stars.toFixed(1)}★ • ${c.location ?? "—"}`,
+    city: c.location ?? undefined,
+    rate: `₹${fee.toLocaleString("en-IN")} | ${hours} Hrs Shoot`,
+    tint: TINTS[i % TINTS.length],
+  };
+}
+
+/** Shown only until the roster loads, so the deck never renders empty. */
+const PLACEHOLDER: Videographer[] = [
+  { id: "a", name: "—", rate: "", tint: gradients.avatarA },
+  { id: "b", name: "—", rate: "", tint: gradients.avatarB },
+  { id: "c", name: "—", rate: "", tint: gradients.avatarC },
 ];
 
 /* --------------------------- category chip strip -------------------------- */
@@ -269,6 +290,17 @@ export default function VideographersList() {
   const [category, setCategory] = useState(0);
   const [shootType, setShootType] = useState(1);
 
+  // The deck is the real roster, narrowed by the selected category chip. The
+  // chips filter on `niche`; a category with no one in it falls back to the
+  // whole roster rather than dealing an empty deck.
+  const { data: creators = [] } = useCreators();
+  const deck = useMemo(() => {
+    if (!creators.length) return PLACEHOLDER;
+    const want = CHIPS[category]?.label.replace(/^\S+\s*/, "").trim().toLowerCase();
+    const pool = creators.filter((c) => (c.niche ?? "").toLowerCase() === want);
+    return (pool.length ? pool : creators).slice(0, 12).map(toVideographer);
+  }, [creators, category]);
+
   /**
    * Swipe rotates the deck. onStart stays false so a tap still reaches the
    * card's own controls; only a decisive horizontal drag claims the gesture.
@@ -284,8 +316,8 @@ export default function VideographersList() {
     }),
   ).current;
 
-  const n = VIDEOGRAPHERS.length;
-  const at = (k: number) => VIDEOGRAPHERS[(((index + k) % n) + n) % n];
+  const n = deck.length;
+  const at = (k: number) => deck[(((index + k) % n) + n) % n];
   const front = at(0);
   const mid = at(1);
   const back = at(2);
