@@ -3,6 +3,7 @@ import { Image, Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { useRouter } from "expo-router";
 import { Feather, Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
+import Svg, { Path } from "react-native-svg";
 import { Abs, Screen, Txt } from "../../../src/ui/Frame";
 import { colors, gradients } from "../../../src/theme";
 import { useAgencies, useMe, useUsers, type User } from "../../../src/api/hooks";
@@ -215,7 +216,18 @@ export default function TeamRoster() {
 
       {/* Section head: icon tile + "Team" + disclosure chevron */}
       <Abs x={33} y={129} w={48} h={48} radius={20} bg={ICON_TILE} center style={styles.tileShadow}>
-        <Feather name="users" size={20} color={ICON_TILE_INK} />
+        {/* arcticons:vk-teams — the frame's four-loop knot, 24px box with the
+            18.5px glyph and a 1.5pt stroke (3 units in the 48-unit viewBox). */}
+        <Svg width={24} height={24} viewBox="0 0 48 48">
+          <Path
+            d="M36.5 5.5a6 6 0 0 0-4.242 1.758l-5 5a6 6 0 0 0 0 8.484a6 6 0 0 0 8.484 0l5-5a6 6 0 0 0 0-8.484A6 6 0 0 0 36.5 5.5m-25.001 0a6 6 0 0 1 4.242 1.758l5 5a6 6 0 0 1 0 8.484a6 6 0 0 1-8.484 0l-5-5a6 6 0 0 1 0-8.484A6 6 0 0 1 11.499 5.5m25.002 37a6 6 0 0 1-4.242-1.758l-5-5a6 6 0 0 1 0-8.484a6 6 0 0 1 8.484 0l5 5a6 6 0 0 1 0 8.484a6 6 0 0 1-4.242 1.758m-25.001 0a6 6 0 0 0 4.242-1.758l5-5a6 6 0 0 0 0-8.484a6 6 0 0 0-8.484 0l-5 5a6 6 0 0 0 0 8.484A6 6 0 0 0 11.5 42.5"
+            fill="none"
+            stroke={ICON_TILE_INK}
+            strokeWidth={3}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </Svg>
       </Abs>
       <Txt
         x={97} y={143.5} w={189} size={16} weight="semibold" font="inter"

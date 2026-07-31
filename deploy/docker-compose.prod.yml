@@ -53,15 +53,37 @@ services:
     restart: unless-stopped
     depends_on:
       - api
-    ports:
-      # 80 in production; override (e.g. WEB_PORT=8080) to test locally
-      # alongside anything already bound to port 80.
-      - "${WEB_PORT:-80}:80"
+    # No host port: Caddy is the only thing the internet talks to now. nginx is
+    # reachable only on the compose network, as `web:80`.
+    expose:
+      - "80"
     volumes:
       # The SPA is built on the host (or in CI) and mounted in — keeps the
       # image generic and makes redeploying the frontend a file copy.
       - ../web/dist:/usr/share/nginx/html:ro
       - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
 
+  # HTTPS terminator. Caddy fetches and renews a real Let's Encrypt certificate
+  # for the nip.io hostname automatically (nip.io resolves *.<ip>.nip.io to the
+  # IP, so no domain purchase is needed), then reverse-proxies to nginx. This is
+  # what lets a browser — which force-upgrades http to https — actually load the
+  # site; plain :80 alone left every browser hitting a closed :443.
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    depends_on:
+      - web
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      SITE_HOST: ${SITE_HOST:?set SITE_HOST in .env, e.g. 13.202.99.173.nip.io}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+
 volumes:
   pgdata:
+  caddy_data:
+  caddy_config:

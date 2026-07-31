@@ -336,7 +336,7 @@ export default function OnboardingIntro() {
             tileShadow("#b794f4"),
           ]}
         >
-          <Feather name="calendar" size={17} color={colors.white} />
+          <MaterialCommunityIcons name="calendar-check-outline" size={18} color={colors.white} />
         </LinearGradient>
         <View style={{ gap: 2 }}>
           <Txt size={13} weight="bold" font="inter" color="#1a1820" lineHeight={15.73}>

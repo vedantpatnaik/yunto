@@ -23,7 +23,7 @@ import {
  * Campaign Detail — Notes & Activity — Figma 7691:5900 (375x876), traced 1:1.
  *
  * The second tab state of the campaign-detail shell: identical chrome to the
- * first tab — dark back disc, heading, flag action, the lavender identity card
+ * first tab — dark back disc, heading, trash action, the lavender identity card
  * and the two-segment pill — with the body below y=397 swapped for this tab's
  * own panel: the pink Add Follow-Up strip, the quick-note composer and the
  * TODAY / YESTERDAY activity timeline.
@@ -58,8 +58,8 @@ const MAX_ROWS = 2;
 const BG = "#f8f5ef";
 const WHITE = "#ffffff";
 const INK_DARK = "#1f1a17"; // back disc fill / "Follow Up" label
-const CHEVRON = "#faf7f2"; // back glyph stroke
-const FLAG_INK = "#e74c3c"; // flag glyph stroke
+const BACK_INK = "#faf7f2"; // back glyph stroke
+const TRASH_INK = "#e74c3c"; // trash glyph stroke
 const INK_HEAD = "#141311"; // heading
 const INK_TITLE = "#1d1d1f"; // card name + amount
 const INK_BODY = "#1c1c1e"; // row titles, active tab
@@ -273,12 +273,12 @@ export default function CampaignNotes() {
     <View style={styles.root}>
       <Screen height={CANVAS_H} background={BG} scroll>
         {/* =============================== Header ============================= */}
-        {/* Button — 36pt #1F1A17 disc carrying the back chevron. */}
+        {/* Button — 36pt #1F1A17 disc carrying the back arrow. */}
         <Pressable
           onPress={() => router.back()}
           style={({ pressed }) => [styles.back, pressed && styles.pressed]}
         >
-          <Feather name="chevron-left" size={16} color={CHEVRON} />
+          <Feather name="arrow-left" size={16} color={BACK_INK} />
         </Pressable>
         {/* Heading 1 — Geist 500 20 / 24 at -0.6 tracking. */}
         <Txt
@@ -288,9 +288,9 @@ export default function CampaignNotes() {
         >
           Lead Detail
         </Txt>
-        {/* Overlay+Border+Shadow+OverlayBlur — the flag action. */}
-        <View style={styles.flag}>
-          <Feather name="flag" size={18} color={FLAG_INK} />
+        {/* Overlay+Border+Shadow+OverlayBlur — the trash action. */}
+        <View style={styles.trash}>
+          <Feather name="trash-2" size={20} color={TRASH_INK} />
         </View>
 
         {/* =========================== Identity card ========================== */}
@@ -418,7 +418,7 @@ export default function CampaignNotes() {
             onPress={submitNote}
             style={({ pressed }) => [styles.send, pressed && styles.pressed]}
           >
-            <Feather name="arrow-up" size={16} color={INK_BODY} />
+            <Feather name="edit-2" size={16} color={INK_BODY} />
           </Pressable>
         </Abs>
 
@@ -550,7 +550,7 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 0.9 },
     elevation: 2,
   },
-  flag: {
+  trash: {
     position: "absolute",
     left: 314,
     top: 22,

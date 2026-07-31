@@ -44,7 +44,13 @@ const GLASS_65 = "rgba(255,255,255,0.65)";
 const GLASS_50 = "rgba(255,255,255,0.5)";
 const GLASS_70 = "rgba(255,255,255,0.7)";
 const GLASS_80 = "rgba(255,255,255,0.8)";
-const GLASS_85 = "rgba(255,255,255,0.85)";
+/**
+ * The spec's top card is white @85% with a background blur; the blur smears
+ * everything behind it into flat white (the ref renders ~#FCFCFC), so without
+ * native blur an opaque near-white is the faithful fill — a translucent one
+ * leaks the back cards' text straight through.
+ */
+const CARD_FACE = "#FDFDFD";
 const RATE_FROM = "#F3EBFF";
 const RATE_TO = "#EAF5FF";
 const CTA_INK = "#312B28";
@@ -439,24 +445,23 @@ export default function Videographers() {
               {top?.name ?? ""}
             </Txt>
 
-            <Abs x={225.2} y={237} w={67.8} h={27} radius={12} bg={GLASS_80} style={styles.cityPill}>
-              <View style={styles.cityPillIcon}>
-                <Feather name="map-pin" size={14} color={INK_MUTED} />
-              </View>
+            {/* Hug-content in the spec (auto layout: 10 pad, 14 icon, 4 gap),
+                anchored to the card's right edge so real city names never
+                truncate; with "Delhi" it reproduces the spec's 67.8pt width. */}
+            <View style={styles.cityPill}>
+              <Feather name="map-pin" size={14} color={INK_MUTED} />
               <Txt
-                x={28}
-                y={6}
-                w={29.8}
                 size={12}
                 weight="bold"
                 font="inter"
                 color={INK_MUTED}
                 lineHeight={14.52}
                 numberOfLines={1}
+                style={styles.shrink}
               >
                 {top?.location ?? "Delhi"}
               </Txt>
-            </Abs>
+            </View>
 
             <Txt
               x={17}
@@ -568,26 +573,22 @@ export default function Videographers() {
           }}
           style={({ pressed }) => [styles.cityButton, pressed && styles.pressed]}
         >
-          <View style={styles.cityButtonIcon}>
-            <Feather name="map-pin" size={16} color={INK} />
-          </View>
+          {/* Hug-content in the spec (auto layout: 19 pads, 8 gaps around the
+              text), anchored right so longer city names widen the pill instead
+              of clipping; with "Delhi" it yields the spec's 122.77pt width. */}
+          <Feather name="map-pin" size={16} color={INK} />
           <Txt
-            x={43}
-            y={13.5}
-            w={34.77}
             size={14}
             weight="bold"
             font="inter"
             color={INK}
             lineHeight={16.94}
-            align="center"
             numberOfLines={1}
+            style={styles.shrink}
           >
             {city}
           </Txt>
-          <View style={styles.cityButtonCaret}>
-            <Feather name="chevron-down" size={18} color={INK} />
-          </View>
+          <Feather name="chevron-down" size={18} color={INK} />
         </Pressable>
       </Abs>
     </Screen>
@@ -671,7 +672,7 @@ const styles = StyleSheet.create({
     width: TOP.w,
     height: TOP.h,
     borderRadius: 32,
-    backgroundColor: GLASS_85,
+    backgroundColor: CARD_FACE,
     borderWidth: 1,
     borderColor: "#FFFFFF",
     shadowColor: "#000000",
@@ -681,12 +682,23 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   cityPill: {
+    position: "absolute",
+    right: 17,
+    top: 237,
+    height: 27,
+    maxWidth: 130,
+    borderRadius: 12,
+    backgroundColor: GLASS_80,
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 10,
+    gap: 4,
     shadowColor: "#000000",
     shadowOpacity: 0.02,
     shadowRadius: 2,
     shadowOffset: { width: 0, height: 2 },
   },
-  cityPillIcon: { position: "absolute", left: 10, top: 6.5 },
+  shrink: { flexShrink: 1 },
   rateChip: {
     position: "absolute",
     borderRadius: 16,
@@ -740,19 +752,21 @@ const styles = StyleSheet.create({
   },
   cityButton: {
     position: "absolute",
-    left: 232.23,
+    right: 20,
     top: 42,
-    width: 122.77,
     height: 44,
+    maxWidth: 180,
     borderRadius: 16,
     backgroundColor: GLASS_65,
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.7)",
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 19,
+    gap: 8,
     shadowColor: "#000000",
     shadowOpacity: 0.03,
     shadowRadius: 6,
     shadowOffset: { width: 0, height: 4 },
   },
-  cityButtonIcon: { position: "absolute", left: 19, top: 14 },
-  cityButtonCaret: { position: "absolute", left: 85.77, top: 13 },
 });

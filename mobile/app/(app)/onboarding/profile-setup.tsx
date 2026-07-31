@@ -456,10 +456,11 @@ export default function ProfileSetup() {
               opacity: pressed ? 0.75 : 1,
             })}
           >
+            {/* No fixed width: the device font runs a hair wider than the Figma
+                measurement, and a width that tight ellipsizes "Beauty". */}
             <Txt
               x={16}
               y={8}
-              w={n.tw}
               size={14}
               weight={on ? "semibold" : "medium"}
               font="inter"
@@ -581,18 +582,22 @@ export default function ProfileSetup() {
           opacity: pressed ? 0.8 : 1,
         })}
       />
-      {/* iconify-icon → SVG 7485:43678 */}
+      {/* iconify-icon → SVG 7485:43678 — smartphone: 14x20 body at (5,2), dot at (12,18) */}
       <Abs x={249.75} y={881.59} w={24} h={24}>
         <Svg width={24} height={24} viewBox="0 0 24 24" fill="none">
-          <Path
-            d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"
+          <Rect
+            x={5}
+            y={2}
+            width={14}
+            height={20}
+            rx={2}
             stroke={creatorType === "ugc" ? PINK_TEXT : SUBTLE}
             strokeWidth={2}
             strokeLinecap="round"
             strokeLinejoin="round"
           />
           <Path
-            d="M19 10v2a7 7 0 0 1-14 0v-2M12 19v3"
+            d="M12 18h.01"
             stroke={creatorType === "ugc" ? PINK_TEXT : SUBTLE}
             strokeWidth={2}
             strokeLinecap="round"
@@ -775,16 +780,19 @@ export default function ProfileSetup() {
           opacity: pressed ? 0.85 : 1,
         })}
       >
+        {/* Box widened past the Figma-measured 126 (same 151.5 centre) — the
+            device font renders the label a few px wider, which wrapped it. */}
         <Txt
-          x={88.5}
+          x={76.5}
           y={18}
-          w={126}
+          w={150}
           size={17}
           weight="bold"
           font="inter"
           color={colors.white}
           lineHeight={19.92}
           align="center"
+          numberOfLines={1}
         >
           Save &amp; Continue{" "}
         </Txt>

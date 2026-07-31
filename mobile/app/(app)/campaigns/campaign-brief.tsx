@@ -74,7 +74,7 @@ const SECTIONS = [
     key: "key-message",
     label: "Key Message",
     pillY: 203, pillW: 135.19, iconY: 211, labelY: 210, labelW: 85.19,
-    icon: <Feather name="message-circle" size={14} color="#f57c00" />,
+    icon: <MaterialCommunityIcons name="creation-outline" size={14} color="#f57c00" />,
   },
   {
     key: "target-audience",
@@ -218,7 +218,8 @@ function Avatar({
 /* --------------------------------- bullets -------------------------------- */
 /**
  * One list item. The spec exports the item text at x=67 inside a list frame at
- * x=45; the 22pt indent is Figma's unordered marker, redrawn here as the dot.
+ * x=45; the 22pt indent is Figma's unordered marker, whose glyph is a bare
+ * space in the frame — so the row is indented text with no visible dot.
  *
  * The text is an input rather than a label — same x/y/width, same 15pt Inter at
  * lineHeight 24 in INK_BODY, and a height fixed to the design's line count, so
@@ -236,19 +237,16 @@ function Bullet({
   editable: boolean;
 }) {
   return (
-    <Fragment>
-      <Abs x={CX(55)} y={CY(spec.y) + 10} w={4} h={4} radius={2} bg={INK_BODY} />
-      <TextInput
-        value={value}
-        onChangeText={onChangeText}
-        editable={editable}
-        multiline
-        style={[
-          styles.field,
-          { left: CX(67), top: CY(spec.y), width: spec.w, height: spec.h },
-        ]}
-      />
-    </Fragment>
+    <TextInput
+      value={value}
+      onChangeText={onChangeText}
+      editable={editable}
+      multiline
+      style={[
+        styles.field,
+        { left: CX(67), top: CY(spec.y), width: spec.w, height: spec.h },
+      ]}
+    />
   );
 }
 

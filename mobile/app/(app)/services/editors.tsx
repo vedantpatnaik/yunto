@@ -65,10 +65,10 @@ const PHOTO_FILL = [gradients.creators[0], gradients.creators[1]] as const;
 /* ------------------------------ filter chrome ----------------------------- */
 /** Category row — labels and box metrics are the spec's, verbatim. */
 const CATEGORIES = [
-  { niche: "Fashion", label: "✨ Fashion", x: 20, w: 106.08, tw: 68.08 },
-  { niche: "Travel", label: "✈️ Travel", x: 138.08, w: 94.2, tw: 56.2 },
-  { niche: "Event", label: "🎉 Event", x: 244.28, w: 90.64, tw: 52.64 },
-  { niche: "Beauty", label: "💄 Beauty", x: 346.92, w: 100.16, tw: 62.16 },
+  { niche: "Fashion", label: "✨ Fashion", x: 20, w: 106.08 },
+  { niche: "Travel", label: "✈️ Travel", x: 138.08, w: 94.2 },
+  { niche: "Event", label: "🎉 Event", x: 244.28, w: 90.64 },
+  { niche: "Beauty", label: "💄 Beauty", x: 346.92, w: 100.16 },
 ] as const;
 
 /** The three 44x44 edit-type tiles under "SELECT YOUR SHOOT TYPE". */
@@ -352,16 +352,20 @@ export default function Editors() {
                   style={StyleSheet.absoluteFill}
                 />
               ) : null}
+              {/* Full pill width: RN draws emoji wider than Figma's 68pt text
+                  box, which wrapped the label; the spec centers the text in the
+                  pill, so a centered full-width single line lands identically. */}
               <Txt
-                x={19}
+                x={0}
                 y={11}
-                w={c.tw}
+                w={c.w}
                 size={14}
                 weight="semibold"
                 font="inter"
                 color={active ? INK : SUBTLE}
                 lineHeight={16.94}
                 align="center"
+                numberOfLines={1}
               >
                 {c.label}
               </Txt>
@@ -411,6 +415,9 @@ export default function Editors() {
         ) : null}
 
         {front ? (
+          /* The front card's spec rotation (0.05) is relative to its PARENT in
+             the Figma tree — the mid card at -0.05 — so its absolute rotation
+             is 0: the front card sits perfectly straight. */
           <Abs
             x={35}
             y={34}
@@ -420,7 +427,7 @@ export default function Editors() {
             bg={GLASS_85}
             border={BORDER_90}
             borderWidth={1}
-            style={[styles.cardShadow, { transform: [{ rotate: deg(0.05) }] }]}
+            style={styles.cardShadow}
           >
             <Abs x={17} y={17} w={276} h={200} radius={20} style={styles.clip}>
               <Photo x={0} y={-1.5} w={276} h={203} radius={6.63} uri={front.avatarUrl} />

@@ -132,12 +132,12 @@ const FILTER_KINDS: Record<"campaigns" | "payments", string[]> = {
 };
 
 /** NotificationKind -> the row's icon pill, taken from the four traced rows. */
-const KIND_STYLE: Record<string, { fg: string; bg: string; icon: IconName }> = {
+const KIND_STYLE: Record<string, { fg: string; bg: string; icon: Glyph }> = {
   LEAD: { fg: "#9C27B0", bg: "rgba(156,39,176,0.1)", icon: "user-plus" },
   MESSAGE: { fg: "#9C27B0", bg: "rgba(156,39,176,0.1)", icon: "message-circle" },
   CAMPAIGN: { fg: "#F57C00", bg: "rgba(245,124,0,0.1)", icon: "clipboard" },
   CONTRACT: { fg: "#F57C00", bg: "rgba(245,124,0,0.1)", icon: "file-text" },
-  INVOICE: { fg: "#388E3C", bg: "rgba(56,142,60,0.1)", icon: "dollar-sign" },
+  INVOICE: { fg: "#388E3C", bg: "rgba(56,142,60,0.1)", icon: RUPEE },
   REMINDER: { fg: "#1976D2", bg: "rgba(25,118,210,0.1)", icon: "bell" },
   LEAVE: { fg: "#1976D2", bg: "rgba(25,118,210,0.1)", icon: "calendar" },
   SYSTEM: { fg: "#1976D2", bg: "rgba(25,118,210,0.1)", icon: "trending-up" },
@@ -215,7 +215,7 @@ interface AttentionCard {
   shadow: string;
   cardOpacity: number;
   pillOpacity: number;
-  icon: IconName;
+  icon: Glyph;
   iconInk: string;
   /** Child offsets, card-relative and already 1pt in from the stroke. */
   pillY: number;
@@ -260,7 +260,7 @@ function AttentionRow({ card, y, onPress }: { card: AttentionCard; y: number; on
         x={16} y={card.pillY} w={44} h={44} radius={22} bg={GLASS_80} center
         style={[styles.pillShadow, { shadowColor: card.shadow, shadowOpacity: card.pillOpacity }]}
       >
-        <Feather name={card.icon} size={22} color={card.iconInk} />
+        <Icon name={card.icon} size={22} color={card.iconInk} />
       </Abs>
 
       <Txt
@@ -292,7 +292,7 @@ interface FeedRow {
   h: number;
   accent: string;
   tint: string;
-  icon: IconName;
+  icon: Glyph;
   title: string;
   body: string;
   bodyW: number;
@@ -325,7 +325,7 @@ function Row({ row, onPress }: { row: FeedRow; onPress: () => void }) {
     >
       {/* Overlay — 40pt tinted pill; Figma's r24 clamps to a circle. */}
       <Abs x={16} y={16} w={40} h={40} radius={20} bg={row.tint} center>
-        <Feather name={row.icon} size={20} color={row.accent} />
+        <Icon name={row.icon} size={20} color={row.accent} />
       </Abs>
 
       <Txt
@@ -441,7 +441,7 @@ export default function PaymentsNotifications() {
         h: 78,
         fill: "#FFF3E0", stroke: HAIRLINE_90,
         shadow: "#F57C00", cardOpacity: 0.06, pillOpacity: 0.1,
-        icon: "dollar-sign", iconInk: "#333333",
+        icon: RUPEE, iconInk: "#333333",
         pillY: 16, titleY: 19, titleLines: 1, subY: 41, chevronY: 28,
         title: pending ? `Payment pending from ${pending.brandName}` : "No payments pending",
         sub: "Tap to review",
@@ -577,7 +577,7 @@ export default function PaymentsNotifications() {
         onPress={() => router.back()}
         style={({ pressed }) => [styles.back, pressed && styles.pressed]}
       >
-        <Feather name="chevron-left" size={16} color={BACK_INK} />
+        <Feather name="arrow-left" size={16} color={BACK_INK} />
       </Pressable>
       {/* Heading 1 — Geist 500 20 / 24, -0.6 tracking. */}
       <Txt

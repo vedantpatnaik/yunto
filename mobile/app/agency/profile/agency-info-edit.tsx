@@ -181,7 +181,7 @@ export default function AgencyInfoEdit() {
           opacity: pressed ? 0.85 : 1,
         })}
       >
-        <Ionicons name="chevron-back" size={16} color={BACK_GLYPH} />
+        <Ionicons name="arrow-back" size={16} color={BACK_GLYPH} />
       </Pressable>
       <Txt x={72} y={28} w={222} size={20} weight="medium" color={HEAD_INK} lineHeight={24} letterSpacing={-0.6}>
         Agency Information

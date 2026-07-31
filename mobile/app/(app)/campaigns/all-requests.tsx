@@ -50,10 +50,10 @@ const CHAT_BG = "#312B28";
 type Tab = "accepted" | "pending" | "history";
 
 /** Pill-relative x (the container's 1pt stroke insets the padding box by 1). */
-const TABS: { key: Tab; label: string; x: number; w: number; tx: number; tw: number }[] = [
-  { key: "accepted", label: "Accepted", x: 6, w: 129, tx: 18, tw: 93 },
-  { key: "pending", label: "Pending", x: 140, w: 109, tx: 16, tw: 77 },
-  { key: "history", label: "History", x: 253, w: 81, tx: -14, tw: 109 },
+const TABS: { key: Tab; label: string; x: number; w: number }[] = [
+  { key: "accepted", label: "Accepted", x: 6, w: 129 },
+  { key: "pending", label: "Pending", x: 140, w: 109 },
+  { key: "history", label: "History", x: 253, w: 81 },
 ];
 
 /** Campaign lifecycle -> the inbox bucket the request belongs to. */
@@ -336,16 +336,20 @@ export default function AllRequests() {
                   style={styles.tabFill}
                 />
               ) : null}
+              {/* The design centres the label in its auto-layout pill; a fixed
+                  text box traced from the sample "(6)" wraps once the live
+                  count reaches two digits, so span the pill and keep one line. */}
               <Txt
-                x={t.tx}
+                x={0}
                 y={10}
-                w={t.tw}
+                w={t.w}
                 size={14}
                 weight="medium"
                 font="inter"
                 color={active ? colors.white : INK_TAB_IDLE}
                 lineHeight={16.94}
                 align="center"
+                numberOfLines={1}
               >
                 {active ? `${t.label}  (${counts[t.key]})` : t.label}
               </Txt>

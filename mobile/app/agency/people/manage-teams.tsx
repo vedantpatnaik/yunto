@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { Pressable, StyleSheet } from "react-native";
 import { useRouter } from "expo-router";
-import { Feather } from "@expo/vector-icons";
+import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { Abs, Screen, Txt } from "../../../src/ui/Frame";
 import { useList, useUsers } from "../../../src/api/hooks";
@@ -195,7 +195,7 @@ export default function ManageTeams() {
         onPress={() => router.back()}
         style={({ pressed }) => [styles.back, pressed && styles.pressed]}
       >
-        <Feather name="chevron-left" size={16} color="#faf7f2" />
+        <Feather name="arrow-left" size={16} color="#faf7f2" />
       </Pressable>
       <Txt
         x={72} y={28} w={222}
@@ -213,7 +213,7 @@ export default function ManageTeams() {
 
       {/* Panel header: icon tile, label, collapse caret */}
       <Abs x={33} y={129} w={48} h={48} radius={20} bg="#dbeafe" center style={styles.tileShadow}>
-        <Feather name="users" size={24} color="#2563eb" />
+        <MaterialCommunityIcons name="sitemap" size={21} color="#2563eb" />
       </Abs>
       <Txt
         x={97} y={143.5} w={189}

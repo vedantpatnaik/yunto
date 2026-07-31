@@ -247,12 +247,12 @@ export default function PaymentFollowUpTimeline() {
     <View style={styles.root}>
       <Screen height={timelineBottom + TIMELINE_TAIL + BAR_H} background={BG} scroll>
         {/* =============================== Header ============================= */}
-        {/* Button — 36pt #1F1A17 disc holding the 9.45pt back chevron. */}
+        {/* Button — 36pt #1F1A17 disc holding the tailed back arrow. */}
         <Pressable
           onPress={() => router.back()}
           style={({ pressed }) => [styles.back, pressed && styles.pressed]}
         >
-          <Feather name="chevron-left" size={16} color={WHITE} />
+          <Feather name="arrow-left" size={16} color={WHITE} />
         </Pressable>
         {/* Heading 1 — Geist 500 20 / 24 at -0.6 tracking. */}
         <Txt

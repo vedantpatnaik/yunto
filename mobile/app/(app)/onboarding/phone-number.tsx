@@ -47,7 +47,7 @@ const groupDigits = (d: string) =>
 function Blob({
   x, y, size, color, opacity,
 }: { x: number; y: number; size: number; color: string; opacity: number }) {
-  const rings = 6;
+  const rings = 12;
   return (
     <>
       {Array.from({ length: rings }, (_, i) => {
@@ -348,17 +348,19 @@ export default function PhoneNumber() {
           alignItems: "center",
           justifyContent: "center",
           gap: 10.01,
-          opacity: !valid ? 0.5 : pressed ? 0.85 : 1,
+          // The design draws the CTA solid even with the field empty, so an
+          // invalid number never dims it — submit() simply no-ops.
+          opacity: pressed ? 0.85 : 1,
         })}
       >
-        {/* Continue — 7489:44077 */}
+        {/* Continue — 7489:44077. Intrinsic width: the spec's 69pt is a Roboto
+            measurement and clips the app font, wrapping the label. */}
         <Txt
-          w={69}
           size={17}
           weight="bold"
           color={colors.white}
           lineHeight={19.92}
-          align="center"
+          numberOfLines={1}
         >
           Continue
         </Txt>

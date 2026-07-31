@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Animated, Clipboard, Platform, Pressable } from "react-native";
-import Svg, { Path } from "react-native-svg";
+import Svg, { Defs, LinearGradient, Path, RadialGradient, Rect, Stop } from "react-native-svg";
 import { useRouter } from "expo-router";
 import { Abs, Screen, Txt } from "../../../src/ui/Frame";
 import { useList, useRemove } from "../../../src/api/hooks";
@@ -56,10 +56,18 @@ const PILL_LINE = "rgba(34,197,94,0.2)"; // #22c55e @ 20%
 const COPY_FILL = "rgba(106,106,106,0.1)"; // #6a6a6a @ 10%
 const FOOTER_LINE = "rgba(255,255,255,0.1)"; // #ffffff @ 10%
 
-/** bg group 6503:22409 — 244px layer blurs, drawn as soft washes. */
-const WASH_YELLOW = "#e5e501";
-const WASH_BLUE = "#8ab2dc";
-const WASH_ORANGE = "#f2c94c";
+/** bg 6503:22409 + mesh 6503:22414 — the 244px layer-blurred ellipses over the
+ *  mesh image flatten to a smooth four-corner wash. RN has no layer blur, so
+ *  the sheet is redrawn from the hues the rendered frame actually shows:
+ *  blue top-left, peach top-right, mint mid-left, cream mid-right, and a
+ *  yellow-green floor. */
+const BG_TOP = "#ecefef";
+const BG_FLOOR = "#f6ffd2";
+const BG_FLOOR_DEEP = "#fdffc7";
+const BG_BLUE = "#dbf3ff";
+const BG_PEACH = "#ffeadb";
+const BG_MINT = "#e0f9f0";
+const BG_CREAM = "#fff3cf";
 
 /** Liberation Mono (6503:22456) — the platform monospace face stands in. */
 const MONO = Platform.OS === "ios" ? "Menlo" : "monospace";
@@ -102,13 +110,17 @@ const CheckMark = () => (
   </Svg>
 );
 
-/** 6503:22453 — 13.75x17.5 filled bolt in the 20px session-link icon box. */
-const Bolt = () => (
+/** 6503:22453 — 13.75x17.5 gold padlock in the 20px session-link icon box:
+ *  stroked shackle over a filled, rounded body. */
+const Padlock = () => (
   <Svg width={20} height={20} viewBox="0 0 20 20">
     <Path
-      d="M11.5 1.25 L3.12 11.2 H8.6 L8.5 18.75 L16.87 8.8 H11.4 Z"
-      fill={YELLOW}
+      d="M6.9 9 V5.6 a3.1 3.1 0 0 1 6.2 0 V9"
+      stroke={YELLOW}
+      strokeWidth={2}
+      fill="none"
     />
+    <Rect x={3.13} y={8.4} width={13.75} height={10.35} rx={2.5} fill={YELLOW} />
   </Svg>
 );
 
@@ -137,7 +149,9 @@ export default function DesktopHandoffConnected() {
   }, []);
 
   const live = useMemo(() => {
-    if (!session) return false;
+    // No session row yet (route unbuilt, loading, error) — fall back to the
+    // design's connected state, exactly as every text field does.
+    if (!session) return true;
     if (session.lastHeartbeatAt) {
       const beat = Date.parse(session.lastHeartbeatAt);
       return Number.isFinite(beat) && now - beat < HEARTBEAT_STALE_MS;
@@ -200,15 +214,42 @@ export default function DesktopHandoffConnected() {
 
   return (
     <Screen height={946} background="#ffffff" safeTop={false} scroll>
-      {/* bg 6503:22409 — four 244px-blurred ellipses; React Native has no layer
-          blur, so each is a low-opacity wash at its spec box. "Purple"
-          (6503:22412) starts at y=1307 and never enters the 946pt frame. */}
-      <Abs x={-58} y={-596} w={477} h={2213} radius={238} bg={WASH_YELLOW} opacity={0.25} />
-      <Abs x={65} y={599} w={395} h={2050} radius={198} bg={WASH_BLUE} opacity={0.6} />
-      <Abs x={21} y={706} w={122} h={661} radius={61} bg={WASH_ORANGE} opacity={0.6} />
-
-      {/* mesh-gradient (2) 2 — 6503:22414, white wash over the mesh image */}
-      <Abs x={0} y={0} w={375} h={946} bg="#ffffff" opacity={0.45} />
+      {/* bg 6503:22409 + mesh-gradient 6503:22414 — one gradient sheet. The
+          blurred-ellipse mesh has no hard edges anywhere, so it is redrawn as
+          radial washes over a vertical base ("Purple" 6503:22412 starts at
+          y=1307 and never enters the 946pt frame). */}
+      <Abs x={0} y={0} w={375} h={946}>
+        <Svg width={375} height={946}>
+          <Defs>
+            <LinearGradient id="bgBase" gradientUnits="userSpaceOnUse" x1={0} y1={0} x2={0} y2={946}>
+              <Stop offset={0} stopColor={BG_TOP} />
+              <Stop offset={0.55} stopColor={BG_FLOOR} />
+              <Stop offset={1} stopColor={BG_FLOOR_DEEP} />
+            </LinearGradient>
+            <RadialGradient id="bgBlue" gradientUnits="userSpaceOnUse" cx={0} cy={70} r={430}>
+              <Stop offset={0} stopColor={BG_BLUE} stopOpacity={1} />
+              <Stop offset={1} stopColor={BG_BLUE} stopOpacity={0} />
+            </RadialGradient>
+            <RadialGradient id="bgPeach" gradientUnits="userSpaceOnUse" cx={375} cy={110} r={470}>
+              <Stop offset={0} stopColor={BG_PEACH} stopOpacity={1} />
+              <Stop offset={1} stopColor={BG_PEACH} stopOpacity={0} />
+            </RadialGradient>
+            <RadialGradient id="bgMint" gradientUnits="userSpaceOnUse" cx={0} cy={470} r={300}>
+              <Stop offset={0} stopColor={BG_MINT} stopOpacity={1} />
+              <Stop offset={1} stopColor={BG_MINT} stopOpacity={0} />
+            </RadialGradient>
+            <RadialGradient id="bgCream" gradientUnits="userSpaceOnUse" cx={375} cy={430} r={300}>
+              <Stop offset={0} stopColor={BG_CREAM} stopOpacity={1} />
+              <Stop offset={1} stopColor={BG_CREAM} stopOpacity={0} />
+            </RadialGradient>
+          </Defs>
+          <Rect x={0} y={0} width={375} height={946} fill="url(#bgBase)" />
+          <Rect x={0} y={0} width={375} height={946} fill="url(#bgCream)" />
+          <Rect x={0} y={0} width={375} height={946} fill="url(#bgMint)" />
+          <Rect x={0} y={0} width={375} height={946} fill="url(#bgPeach)" />
+          <Rect x={0} y={0} width={375} height={946} fill="url(#bgBlue)" />
+        </Svg>
+      </Abs>
 
       {/* ------------------------------ Header ------------------------------ */}
       {/* Container 6503:22415 — transparent fill, 1px bottom hairline */}
@@ -274,11 +315,13 @@ export default function DesktopHandoffConnected() {
       </Txt>
 
       {/* Container 6503:22434 — the device/browser it opened on are the
-          session's, and collapse to the design's copy when there is none. */}
+          session's, and collapse to the design's copy when there is none.
+          Box is wider than the spec's 251.14 (same centre) because the app
+          face runs wider than Liberation Sans and line 2 must not rewrap. */}
       <Txt
-        x={62.42}
+        x={24.5}
         y={380.25}
-        w={251.14}
+        w={327}
         size={18}
         font="inter"
         color={SUBTLE}
@@ -400,7 +443,7 @@ export default function DesktopHandoffConnected() {
       />
       {/* SVG 6503:22452 */}
       <Abs x={49} y={691} w={20} h={20}>
-        <Bolt />
+        <Padlock />
       </Abs>
       {/* Text 6503:22456 — the live session URL, truncated as the design shows */}
       <Txt

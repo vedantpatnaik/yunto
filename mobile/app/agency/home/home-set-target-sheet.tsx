@@ -332,7 +332,7 @@ export default function HomeSetTargetSheetScreen() {
             <Abs x={254} y={-15} w={96} h={96} radius={48} bg={NUDGE_ORB} />
           </Abs>
           <Abs x={41} y={221.25} w={40} h={40} radius={20} bg={GLASS_50} center>
-            <Feather name="alert-circle" size={20} color={INK} />
+            <MaterialCommunityIcons name="creation" size={20} color={INK} />
           </Abs>
           <Txt x={97} y={220.5} w={149} size={16} weight="medium" color={INK} lineHeight={24} numberOfLines={1}>
             {leadsLoading
@@ -502,15 +502,13 @@ export default function HomeSetTargetSheetScreen() {
         </Pressable>
 
         {/* ----------------------------- CTA ----------------------------- */}
-        {/* Same 0.5 dim the empty-amount state already used, now also while the
-            PATCH is in flight — no new visual vocabulary, and no double submit. */}
+        {/* The frame paints the resting button at full #312b28 even with an
+            empty amount, so there is no dimmed state — `disabled` alone guards
+            empty input and in-flight PATCHes without changing the pixels. */}
         <Pressable
           onPress={submit}
           disabled={!canSave}
-          style={({ pressed }) => [
-            styles.cta,
-            { opacity: canSave ? (pressed ? 0.9 : 1) : 0.5 },
-          ]}
+          style={({ pressed }) => [styles.cta, pressed && styles.pressed]}
         >
           <Txt x={0} y={18} w={301} size={16} weight="bold" font="inter" color={WHITE} lineHeight={19.36} align="center">
             Set Target

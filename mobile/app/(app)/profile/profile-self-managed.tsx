@@ -169,7 +169,7 @@ const MENU: MenuSpec[] = [
     key: "landing",
     tint: "rgba(209,244,224,0.4)",
     ink: "#3B8A5A",
-    icon: "globe-outline",
+    icon: "browsers-outline",
     label: "landing page",
     labelW: 95.47,
     rule: true,
@@ -388,12 +388,13 @@ export default function ProfileSelfManaged() {
             <Txt
               x={15}
               y={279 - IY}
-              w={108}
+              w={345}
               size={15}
               weight="medium"
               font="inter"
               color={INK_MUTED}
               lineHeight={18.15}
+              numberOfLines={1}
             >
               {followers}
             </Txt>
@@ -506,7 +507,7 @@ export default function ProfileSelfManaged() {
               onPress={() => router.push("/leads/leads" as never)}
               style={({ pressed }) => [styles.contact, { top: 462 - IY }, pressed && styles.pressed]}
             >
-              <Ionicons name="chatbubble-outline" size={24} color="#FFFFFF" />
+              <Ionicons name="call-outline" size={24} color="#FFFFFF" />
             </Pressable>
 
             {/* ------------------------- Level System ------------------------- */}

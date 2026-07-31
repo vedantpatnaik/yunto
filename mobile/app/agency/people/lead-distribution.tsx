@@ -2,7 +2,6 @@ import { useMemo, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
-import Svg, { Defs, Ellipse, RadialGradient, Rect, Stop } from "react-native-svg";
 import { Abs, Screen, Txt } from "../../../src/ui/Frame";
 import { useUsers } from "../../../src/api/hooks";
 import type { User } from "../../../src/api/hooks";
@@ -11,12 +10,11 @@ import type { User } from "../../../src/api/hooks";
  * Lead Distribution — Figma 7754:8373 (375x876), traced 1:1.
  *
  * The routing rule for incoming leads, reached from People. The warm #f8f5ef
- * page carries the 876-gen backdrop (three radial washes over a full-bleed
- * rect, a fourth in the bottom-right box, a blurred lilac blob off the
- * bottom-left edge) under the 36pt back disc and the heading. One 335x598
- * frosted panel (20,104) holds the intro copy above a hairline, the three
- * radio options at a 60pt step, a second hairline, the assignment list, and
- * the "Save Preferences" CTA at y=602.
+ * page sits under the 36pt back disc and the heading; the frame's Gradient
+ * layers (7754:8374-:8376) render invisibly in the design export, so the page
+ * is drawn flat. One 335x598 frosted panel (20,104) holds the intro copy above
+ * a hairline, the three radio options at a 60pt step, a second hairline, the
+ * assignment list, and the "Save Preferences" CTA at y=602.
  *
  * The list is the rotation order, not a picker: legacy 899:6120 titles the same
  * block "Assignment Order" and every row carries the hugeicons:menu-09 drag
@@ -40,7 +38,6 @@ import type { User } from "../../../src/api/hooks";
  */
 
 /* ------------------------------- geometry -------------------------------- */
-const FRAME_W = 375;
 const FRAME_H = 876;
 
 /** Overlay+Border+Shadow+OverlayBlur — 7754:8384. */
@@ -79,56 +76,6 @@ const ROW_FILL = "#ffffff";
 const ROW_LINE = "#e5e7eb";
 const NAME_INK = "rgba(0,0,0,0.7)";
 const CTA_FILL = "#312b28"; // Button — 7797:23071
-
-/* -------------------------------- backdrop -------------------------------- */
-/**
- * Gradient / Gradient / Overlay+Blur — 7754:8374, :8375, :8376.
- *
- * Figma states each wash as a radial paint on a rectangle with the stops laid
- * along the handle radius; they are restated here in user space so the ellipse
- * centres land on the same points. The blob carries a 55pt layer blur, which RN
- * cannot express, so it is drawn as a radial falloff with the blur folded into
- * the radii.
- */
-function Backdrop() {
-  return (
-    <Svg width={FRAME_W} height={FRAME_H} style={styles.backdrop}>
-      <Defs>
-        {/* 7754:8374 — #ffd7eb 38%, centre (1.08, 0.30) of the full frame */}
-        <RadialGradient id="rose" cx={405} cy={262.8} rx={262.5} ry={438} gradientUnits="userSpaceOnUse">
-          <Stop offset="0" stopColor="#ffd7eb" stopOpacity={0.38} />
-          <Stop offset="0.55" stopColor="#ffd7eb" stopOpacity={0} />
-        </RadialGradient>
-        {/* 7754:8374 — #ebd7ff 40%, centre (-0.05, 0.40) */}
-        <RadialGradient id="lilac" cx={-18.75} cy={350.4} rx={300} ry={438} gradientUnits="userSpaceOnUse">
-          <Stop offset="0" stopColor="#ebd7ff" stopOpacity={0.4} />
-          <Stop offset="0.55" stopColor="#ebd7ff" stopOpacity={0} />
-        </RadialGradient>
-        {/* 7754:8374 — #c3cdff 65%, centre (0.50, -0.06) */}
-        <RadialGradient id="peri" cx={187.5} cy={-52.56} rx={450} ry={438} gradientUnits="userSpaceOnUse">
-          <Stop offset="0" stopColor="#c3cdff" stopOpacity={0.65} />
-          <Stop offset="0.5" stopColor="#c3cdff" stopOpacity={0} />
-        </RadialGradient>
-        {/* 7754:8375 — #bee1ff 50%, centred on the 262.5x350.4 box's far corner */}
-        <RadialGradient id="sky" cx={375} cy={876} rx={236.25} ry={262.8} gradientUnits="userSpaceOnUse">
-          <Stop offset="0" stopColor="#bee1ff" stopOpacity={0.5} />
-          <Stop offset="0.65" stopColor="#bee1ff" stopOpacity={0} />
-        </RadialGradient>
-        {/* 7754:8376 — #dcd2ff at 30%, 55pt layer blur */}
-        <RadialGradient id="blob" cx={46.875} cy={604.425} rx={139.375} ry={177.635} gradientUnits="userSpaceOnUse">
-          <Stop offset="0" stopColor="#dcd2ff" stopOpacity={0.3} />
-          <Stop offset="0.45" stopColor="#dcd2ff" stopOpacity={0.18} />
-          <Stop offset="1" stopColor="#dcd2ff" stopOpacity={0} />
-        </RadialGradient>
-      </Defs>
-      <Rect x={0} y={0} width={FRAME_W} height={FRAME_H} fill="url(#rose)" />
-      <Rect x={0} y={0} width={FRAME_W} height={FRAME_H} fill="url(#lilac)" />
-      <Rect x={0} y={0} width={FRAME_W} height={FRAME_H} fill="url(#peri)" />
-      <Rect x={112.5} y={525.6} width={262.5} height={350.4} fill="url(#sky)" />
-      <Ellipse cx={46.875} cy={604.425} rx={139.375} ry={177.635} fill="url(#blob)" />
-    </Svg>
-  );
-}
 
 /* -------------------------------- options --------------------------------- */
 type Mode = "random" | "broadcast" | "round_robin";
@@ -241,14 +188,12 @@ export default function LeadDistribution() {
 
   return (
     <Screen height={FRAME_H} background={PAGE} scroll>
-      <Backdrop />
-
       {/* -------------------------------- Header ----------------------------- */}
       <Pressable
         onPress={() => router.back()}
         style={({ pressed }) => [styles.back, pressed && styles.pressed]}
       >
-        <Feather name="chevron-left" size={16} color={BACK_INK} />
+        <Feather name="arrow-left" size={16} color={BACK_INK} />
       </Pressable>
       <Txt
         x={72} y={28} w={222} size={20} weight="medium" font="inter"
@@ -349,7 +294,6 @@ export default function LeadDistribution() {
 }
 
 const styles = StyleSheet.create({
-  backdrop: { position: "absolute", left: 0, top: 0 },
   pressed: { opacity: 0.9 },
 
   back: {

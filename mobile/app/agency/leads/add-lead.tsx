@@ -424,7 +424,7 @@ export default function AddLeadScreen() {
           opacity: pressed ? 0.8 : 1, ...BACK_SHADOW,
         })}
       >
-        <Feather name="chevron-left" size={16} color={BACK_ICON} />
+        <Feather name="arrow-left" size={16} color={BACK_ICON} />
       </Pressable>
       <Txt x={72} y={28} w={192} size={20} weight="medium" font="inter" color={HEAD_INK} lineHeight={24} letterSpacing={-0.6}>
         Add Lead

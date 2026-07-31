@@ -3,15 +3,7 @@ import type { ReactNode } from "react";
 import { Pressable, StyleSheet } from "react-native";
 import { useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
-import Svg, {
-  Circle,
-  Defs,
-  Ellipse,
-  Path,
-  RadialGradient,
-  Rect,
-  Stop,
-} from "react-native-svg";
+import Svg, { Circle, Ellipse, Path } from "react-native-svg";
 import { Abs, Screen, Txt } from "../../../src/ui/Frame";
 import { useContacts, useLeads } from "../../../src/api/hooks";
 import type { Contact, Lead } from "../../../src/api/hooks";
@@ -19,12 +11,12 @@ import type { Contact, Lead } from "../../../src/api/hooks";
 /**
  * Integrations — Figma 7756:8482 (375x876), traced 1:1.
  *
- * Lead-source connection settings, reached from Profile > Account. The warm
- * #f8f5ef page carries the 876-gen backdrop — a full-bleed rect washed with
- * three radial gradients, a fourth wash in the bottom-right corner box, and a
- * blurred lilac blob off the bottom-left edge — under a 36pt back disc and the
- * "Integrations" heading. One 335x457 frosted panel (16,104) holds three
- * 327x136 provider cards at a 152pt step.
+ * Lead-source connection settings, reached from Profile > Account. The page is
+ * flat #f8f5ef: the frame's three backdrop layers (7756:8483/:8484/:8485)
+ * flatten to nothing in Figma's own render — the exported reference is the
+ * uniform frame fill at every sampled point — so no wash is drawn here. A 36pt
+ * back disc and the "Integrations" heading sit over one 335x457 frosted panel
+ * (16,104) holding three 327x136 provider cards at a 152pt step.
  *
  * Every card is the same component driven by a single `connected` boolean: it
  * picks the chip copy ("Connected" / "Not Connected") and the action pill
@@ -44,7 +36,7 @@ import type { Contact, Lead } from "../../../src/api/hooks";
  */
 
 /* ------------------------------- geometry -------------------------------- */
-const FRAME_W = 375;
+/** The frame is 375 wide; only its 876 height is needed for the scroll canvas. */
 const FRAME_H = 876;
 
 /** HorizontalBorder — 7756:8793. */
@@ -85,56 +77,6 @@ const BLURB_INK = "#999999";
 const PILL_FILL = "#111111";
 const PILL_INK = "#f4f6f8";
 const CHIP_INK = "rgba(0,0,0,0.7)";
-
-/* -------------------------------- backdrop -------------------------------- */
-/**
- * Gradient / Gradient / Overlay+Blur — 7756:8483, :8484, :8485.
- *
- * Figma expresses each wash as a radial paint over a rectangle, with the stop
- * positions running along the handle radius; they are re-stated here in user
- * space so the ellipse centres land on the same points. The blob carries a 55pt
- * layer blur, which React Native has no equivalent for, so it is drawn as a
- * radial falloff at the spec's centre with the blur folded into the radii.
- */
-function Backdrop() {
-  return (
-    <Svg width={FRAME_W} height={FRAME_H} style={styles.backdrop}>
-      <Defs>
-        {/* 7756:8483 — #ffd7eb 38%, centre (1.08, 0.30) of the full frame */}
-        <RadialGradient id="rose" cx={405} cy={262.8} rx={262.5} ry={438} gradientUnits="userSpaceOnUse">
-          <Stop offset="0" stopColor="#ffd7eb" stopOpacity={0.38} />
-          <Stop offset="0.55" stopColor="#ffd7eb" stopOpacity={0} />
-        </RadialGradient>
-        {/* 7756:8483 — #ebd7ff 40%, centre (-0.05, 0.40) */}
-        <RadialGradient id="lilac" cx={-18.75} cy={350.4} rx={300} ry={438} gradientUnits="userSpaceOnUse">
-          <Stop offset="0" stopColor="#ebd7ff" stopOpacity={0.4} />
-          <Stop offset="0.55" stopColor="#ebd7ff" stopOpacity={0} />
-        </RadialGradient>
-        {/* 7756:8483 — #c3cdff 65%, centre (0.50, -0.06) */}
-        <RadialGradient id="peri" cx={187.5} cy={-52.56} rx={450} ry={438} gradientUnits="userSpaceOnUse">
-          <Stop offset="0" stopColor="#c3cdff" stopOpacity={0.65} />
-          <Stop offset="0.5" stopColor="#c3cdff" stopOpacity={0} />
-        </RadialGradient>
-        {/* 7756:8484 — #bee1ff 50%, centre at the 262.5x350.4 box's bottom-right */}
-        <RadialGradient id="sky" cx={375} cy={876} rx={236.25} ry={262.8} gradientUnits="userSpaceOnUse">
-          <Stop offset="0" stopColor="#bee1ff" stopOpacity={0.5} />
-          <Stop offset="0.65" stopColor="#bee1ff" stopOpacity={0} />
-        </RadialGradient>
-        {/* 7756:8485 — #dcd2ff at 30%, 55pt layer blur */}
-        <RadialGradient id="blob" cx={46.875} cy={604.425} rx={139.375} ry={177.635} gradientUnits="userSpaceOnUse">
-          <Stop offset="0" stopColor="#dcd2ff" stopOpacity={0.3} />
-          <Stop offset="0.45" stopColor="#dcd2ff" stopOpacity={0.18} />
-          <Stop offset="1" stopColor="#dcd2ff" stopOpacity={0} />
-        </RadialGradient>
-      </Defs>
-      <Rect x={0} y={0} width={FRAME_W} height={FRAME_H} fill="url(#rose)" />
-      <Rect x={0} y={0} width={FRAME_W} height={FRAME_H} fill="url(#lilac)" />
-      <Rect x={0} y={0} width={FRAME_W} height={FRAME_H} fill="url(#peri)" />
-      <Rect x={112.5} y={525.6} width={262.5} height={350.4} fill="url(#sky)" />
-      <Ellipse cx={46.875} cy={604.425} rx={139.375} ry={177.635} fill="url(#blob)" />
-    </Svg>
-  );
-}
 
 /* ------------------------------ provider marks ---------------------------- */
 /**
@@ -371,8 +313,6 @@ export default function Integrations() {
 
   return (
     <Screen height={FRAME_H} background={BG} scroll>
-      <Backdrop />
-
       {/* =============================== Header ============================== */}
       {/* Button — 7756:8487, 36pt disc with twin 1.8/2.7pt drop shadows */}
       <Pressable
@@ -429,8 +369,6 @@ export default function Integrations() {
 }
 
 const styles = StyleSheet.create({
-  backdrop: { position: "absolute", left: 0, top: 0 },
-
   back: {
     position: "absolute",
     left: 16,

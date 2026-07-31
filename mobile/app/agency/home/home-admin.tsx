@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { Image, Pressable, StyleSheet } from "react-native";
 import { useRouter } from "expo-router";
-import { Feather } from "@expo/vector-icons";
+import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { Abs, Screen, Txt } from "../../../src/ui/Frame";
 import {
@@ -504,16 +504,20 @@ export default function HomeAdmin() {
         {/* Soft mint bloom, clipped by the card exactly as the spec draws it. */}
         <Abs x={254} y={-15} w={96} h={96} radius={48} bg="rgba(212,226,212,0.3)" />
         <Abs x={21} y={21.75} w={40} h={40} radius={20} bg={GLASS_50} center>
-          <Feather name="alert-circle" size={20} color={INK} />
+          <MaterialCommunityIcons name="creation" size={20} color={INK} />
         </Abs>
-        <Txt x={77} y={21} w={149} size={16} weight="medium" font="inter" color={INK} lineHeight={24}>
+        <Txt
+          x={77} y={21} w={197}
+          size={16} weight="medium" font="inter" color={INK} lineHeight={24}
+          numberOfLines={1}
+        >
           {`${newLeads} new lead${newLeads === 1 ? "" : "s"} waiting`}
         </Txt>
         <Txt x={77} y={46.5} w={160} size={12} weight="regular" font="inter" color={INK_70} lineHeight={16}>
           Tap to review pipeline
         </Txt>
         <Abs x={282} y={25.75} w={32} h={32} radius={16} bg={DARK} center>
-          <Feather name="arrow-up-right" size={16} color={ICON_ON_DARK} />
+          <Feather name="arrow-right" size={16} color={ICON_ON_DARK} />
         </Abs>
       </Pressable>
 
@@ -629,7 +633,7 @@ export default function HomeAdmin() {
         accessibilityLabel="Open people overview"
         style={({ pressed }) => [styles.glanceCta, pressed && styles.pressed]}
       >
-        <Feather name="arrow-up-right" size={14} color={ICON_ON_DARK} />
+        <Feather name="arrow-right" size={14} color={ICON_ON_DARK} />
       </Pressable>
 
       {/* ============================ Performance ============================ */}
@@ -666,7 +670,7 @@ export default function HomeAdmin() {
         <Abs x={206} y={1} w={128} h={128} radius={64} bg="#f2eff6" />
 
         <Abs x={25} y={25} w={28} h={28} radius={14} bg={GLASS_50} center>
-          <Feather name="arrow-up" size={14} color={INK} />
+          <Feather name="dollar-sign" size={14} color={INK} />
         </Abs>
         <Txt
           x={61} y={30.5} w={140}
@@ -684,7 +688,7 @@ export default function HomeAdmin() {
         {/* Delta chip */}
         <Abs x={25} y={117} w={182.62} h={34} radius={17} bg={GLASS_80} />
         <Abs x={38} y={124} w={20} h={20} radius={10} bg="#bee3b0" center>
-          <Feather name={deltaPct >= 0 ? "arrow-up" : "arrow-down"} size={12} color={INK} />
+          <Feather name={deltaPct >= 0 ? "arrow-up-right" : "arrow-down-right"} size={12} color={INK} />
         </Abs>
         <Txt x={64} y={123.25} size={13} weight="bold" font="inter" color={INK} lineHeight={19.5}>
           {`${deltaPct >= 0 ? "+" : ""}${deltaPct.toFixed(1)}%`}
@@ -718,7 +722,7 @@ export default function HomeAdmin() {
             size={10} weight="bold" font="inter" color={INK} lineHeight={15} letterSpacing={0.5}
             style={styles.setTargetLabel}
           >
-            Set Target
+            SET TARGET
           </Txt>
         </Pressable>
 

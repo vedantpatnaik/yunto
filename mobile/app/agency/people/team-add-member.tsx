@@ -27,9 +27,8 @@ import type { Lead, User } from "../../../src/api/hooks";
  * white@80% / r20 field the collapsed row uses. Expanding grows the field by
  * 240pt and pushes the CTA (and the sheet) down by the same amount, which is
  * what the scroll is for. Legacy also carries a "Send Invite" pill beside the
- * heading alongside its "Save Permissions" button; both are kept — the pill is
- * redrawn with this frame's chip tokens (34pt, r36, #312b28) — and both fire
- * the same invite.
+ * heading, but this frame does not — its only submit affordance is the
+ * "Save Permissions" CTA, so the pill is not drawn.
  *
  * Wiring notes:
  *  - The roster behind the scrim is the live user list; it is pointer-inert
@@ -85,12 +84,16 @@ const CTA_BG = "#312b28";
 const BACK_BG = "#1f1a17";
 const BACK_INK = "#faf7f2";
 const FIELD_BG = "rgba(255,255,255,0.8)";
+const FIELD_BORDER = "#e5e5e5";
+/** The name field's stroke is a hair lighter than its siblings' in the frame. */
+const FIELD_BORDER_NAME = "#e8e8e8";
 const GLASS_70 = "rgba(255,255,255,0.7)";
 const GLASS_60 = "rgba(255,255,255,0.6)";
 const GLASS_55 = "rgba(255,255,255,0.55)";
 const CLOSE_BG = "#f8f8f8";
 const CLOSE_INK = "#555555";
 const TILE_BG = "#f3e8ff";
+const TILE_INK = "#9333ea";
 const HANDLE = "#e5e5e5";
 const TRACK_OFF = "#e1dfdf";
 const PILL_BG = "rgba(240,253,244,0.6)";
@@ -156,18 +159,20 @@ const FieldLabel = ({ y, children }: { y: number; children: string }) => (
   </Txt>
 );
 
-/** One 52pt text input: label above, white@80% r20 box with its shadow pair. */
+/** One 52pt text input: label above, white@80% r20 stroked box + shadow pair. */
 function Field({
   labelY, boxY, label, placeholder, value, onChange, keyboard, caps,
+  border = FIELD_BORDER,
 }: {
   labelY: number; boxY: number; label: string; placeholder: string;
   value: string; onChange: (v: string) => void;
-  keyboard?: KeyboardTypeOptions; caps?: "none" | "words";
+  keyboard?: KeyboardTypeOptions; caps?: "none" | "words"; border?: string;
 }) {
   return (
     <View>
       <FieldLabel y={labelY}>{label}</FieldLabel>
-      <Abs x={24} y={boxY} w={327} h={52} radius={20} bg={FIELD_BG} style={FIELD_SHADOW}>
+      <Abs x={24} y={boxY} w={327} h={52} radius={20} bg={FIELD_BG} border={border} style={FIELD_SHADOW}>
+        {/* insets are 1pt shy of the frame's 21/16 — the border eats the rest */}
         <TextInput
           value={value}
           onChangeText={onChange}
@@ -176,7 +181,7 @@ function Field({
           keyboardType={keyboard}
           autoCapitalize={caps}
           style={{
-            position: "absolute", left: 21, top: 16, width: 268, height: 20,
+            position: "absolute", left: 20, top: 15, width: 268, height: 20,
             padding: 0, fontFamily: fonts.interMedium, fontSize: 15, color: SLATE,
           }}
         />
@@ -331,7 +336,7 @@ export default function TeamAddMemberScreen() {
       >
         {/* ------------------------------ header ----------------------------- */}
         <Abs x={16} y={22} w={36} h={36} radius={18} bg={BACK_BG} center>
-          <Feather name="chevron-left" size={16} color={BACK_INK} />
+          <Feather name="arrow-left" size={16} color={BACK_INK} />
         </Abs>
         <Txt
           x={72} y={28} w={222} size={20} weight="medium" font="inter"
@@ -349,13 +354,14 @@ export default function TeamAddMemberScreen() {
           }}
         />
         <Abs x={33} y={129} w={48} h={48} radius={20} bg={TILE_BG} center>
-          <Feather name="users" size={20} color={SLATE} />
+          {/* spec draws arcticons:vk-teams, a 24pt #9333ea stroke — nearest glyph */}
+          <Feather name="users" size={24} color={TILE_INK} />
         </Abs>
         <Txt x={97} y={143.5} w={189} size={16} weight="semibold" font="inter" color={SLATE} lineHeight={19.36}>
           Team
         </Txt>
         <Abs x={302} y={135} w={36} h={36} radius={18} bg={GLASS_60} center>
-          <Feather name="chevron-down" size={14} color={SLATE} />
+          <Feather name="chevron-up" size={14} color={SLATE} />
         </Abs>
 
         {/* team row */}
@@ -451,24 +457,6 @@ export default function TeamAddMemberScreen() {
         Add Member
       </Txt>
 
-      {/* Legacy 5279:21945 ships this pill beside the heading — same invite. */}
-      <Pressable
-        onPress={submit}
-        disabled={!canSubmit}
-        style={({ pressed }) => ({
-          position: "absolute", left: 187, top: 256, width: 118, height: 34,
-          borderRadius: 36, backgroundColor: CTA_BG,
-          opacity: canSubmit ? (pressed ? 0.85 : 1) : 0.4,
-        })}
-      >
-        <Abs x={13.5} y={7} w={20} h={20} center>
-          <Feather name="arrow-up" size={12} color="#ffffff" />
-        </Abs>
-        <Txt x={33.5} y={9.5} w={71} size={12} weight="semibold" font="inter" color="#ffffff" lineHeight={14.52} align="center">
-          Send Invite
-        </Txt>
-      </Pressable>
-
       <Pressable
         onPress={() => router.back()}
         style={({ pressed }) => ({
@@ -484,7 +472,7 @@ export default function TeamAddMemberScreen() {
       <Field
         labelY={317} boxY={342}
         label="Enter name" placeholder="Full Name"
-        value={name} onChange={setName} caps="words"
+        value={name} onChange={setName} caps="words" border={FIELD_BORDER_NAME}
       />
       <Field
         labelY={404} boxY={431}
@@ -504,20 +492,22 @@ export default function TeamAddMemberScreen() {
         style={({ pressed }) => ({
           position: "absolute", left: 24, top: 616, width: 327, height: 52,
           borderRadius: 20, backgroundColor: FIELD_BG, opacity: pressed ? 0.85 : 1,
+          borderWidth: 1, borderColor: FIELD_BORDER,
           ...FIELD_SHADOW,
         })}
       >
-        <Txt x={21} y={17} w={268} size={15} weight="medium" font="inter" color={SLATE} lineHeight={18.15}>
+        {/* children sit inside the 1pt border, hence the 20/16 insets */}
+        <Txt x={20} y={16} w={268} size={15} weight="medium" font="inter" color={SLATE} lineHeight={18.15}>
           {roleLabel}
         </Txt>
-        <Abs x={289} y={16} w={20} h={20} center>
+        <Abs x={288} y={15} w={20} h={20} center>
           <Feather name="chevron-down" size={14} color={SLATE} />
         </Abs>
       </Pressable>
 
       {/* -------------------------- Advance Settings ------------------------- */}
       <FieldLabel y={689}>Advance Settings</FieldLabel>
-      <Abs x={24} y={ADV_BOX_Y} w={327} h={ADV_BOX_H + advExtra} radius={20} bg={FIELD_BG} style={FIELD_SHADOW} />
+      <Abs x={24} y={ADV_BOX_Y} w={327} h={ADV_BOX_H + advExtra} radius={20} bg={FIELD_BG} border={FIELD_BORDER} style={FIELD_SHADOW} />
       <Pressable
         onPress={() => setAdvOpen(!advOpen)}
         style={({ pressed }) => ({
@@ -558,13 +548,14 @@ export default function TeamAddMemberScreen() {
         : null}
 
       {/* ------------------------------- CTA --------------------------------- */}
+      {/* The frame paints the CTA solid #312b28 even at rest — no disabled dim. */}
       <Pressable
         onPress={submit}
         disabled={!canSubmit}
         style={({ pressed }) => ({
           position: "absolute", left: 37, top: ctaY, width: 301, height: 55,
           borderRadius: 100, backgroundColor: CTA_BG,
-          opacity: canSubmit ? (pressed ? 0.9 : 1) : 0.5,
+          opacity: pressed ? 0.9 : 1,
         })}
       >
         <Txt x={82} y={18} w={137} size={16} weight="semibold" font="inter" color="#ffffff" lineHeight={19.36} align="center">

@@ -136,7 +136,7 @@ export default function GenerateAgencyCodeScreen() {
           end={{ x: 1, y: 1 }}
           style={StyleSheet.absoluteFill}
         />
-        <Ionicons name="briefcase-outline" size={28} color={INDIGO} />
+        <Ionicons name="business-outline" size={28} color={INDIGO} />
       </Abs>
 
       <Txt
@@ -146,7 +146,7 @@ export default function GenerateAgencyCodeScreen() {
         Generate Agency Code
       </Txt>
       <Txt
-        x={47.5} y={218} w={280} size={14} weight="regular" font="inter"
+        x={24} y={218} w={327} size={14} weight="regular" font="inter"
         color={SLATE} lineHeight={20} align="center"
       >
         Set up your agency workspace in seconds
@@ -165,7 +165,7 @@ export default function GenerateAgencyCodeScreen() {
       {/* ------------------------------ Agency Name -------------------------- */}
       <Label y={295}>AGENCY NAME</Label>
       <FieldShell y={317}>
-        <Icon name="briefcase-outline" x={17} y={17} size={16} color={SLATE} />
+        <Icon name="business-outline" x={17} y={17} size={16} color={SLATE} />
         <TextInput
           value={name}
           onChangeText={setName}
@@ -195,9 +195,9 @@ export default function GenerateAgencyCodeScreen() {
           onPress={() => setTypeOpen((o) => !o)}
           style={{ position: "absolute", left: 0, top: 0, right: 0, bottom: 0 }}
         >
-          <Icon name="list-outline" x={17} y={17} size={16} color={SLATE} />
+          <Icon name="layers-outline" x={17} y={17} size={16} color={SLATE} />
           <Txt
-            x={45} y={15} w={183} size={14} weight="regular" font="inter"
+            x={45} y={15} w={206} size={14} weight="regular" font="inter"
             color={type ? INK : SLATE} lineHeight={20} numberOfLines={1}
           >
             {type || "Creator / Influencer Agency"}
@@ -212,7 +212,7 @@ export default function GenerateAgencyCodeScreen() {
         disabled={!canSubmit}
         style={({ pressed }) => ({
           position: "absolute", left: 45, top: 563, width: 285, height: 52,
-          opacity: canSubmit ? (pressed ? 0.9 : 1) : 0.55,
+          opacity: pressed && canSubmit ? 0.9 : 1,
           shadowColor: INDIGO, shadowOpacity: 0.35,
           shadowRadius: 20, shadowOffset: { width: 0, height: 6 }, elevation: 6,
         })}
@@ -264,7 +264,7 @@ export default function GenerateAgencyCodeScreen() {
           shadowRadius: 12, shadowOffset: { width: 0, height: 2 }, elevation: 2,
         })}
       >
-        <Icon name="shapes-outline" x={59.5} y={19.5} size={15} color={INDIGO} />
+        <Icon name="key-outline" x={59.5} y={19.5} size={15} color={INDIGO} />
         <Txt
           x={82.5} y={17} w={185} size={14} weight="semibold" font="inter"
           color={INDIGO} lineHeight={20} align="center"

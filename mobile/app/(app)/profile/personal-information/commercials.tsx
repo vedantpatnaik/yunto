@@ -496,7 +496,10 @@ export default function PersonalInformationCommercials() {
         <SectionHead
           tile="#D1FAE5"
           ink="#059669"
-          icon={{ set: "ion", name: "cash-outline" }}
+          /* Spec draws the flat single banknote (Lucide-style), which in the
+             available families is MCI "cash" — Ionicons cash-outline adds a
+             stack of bills the design does not have. */
+          icon={{ set: "mci", name: "cash" }}
           label="Commercials"
           expanded
         />

@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 import { Pressable, StyleSheet } from "react-native";
 import type { ViewStyle } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { Feather, FontAwesome, MaterialCommunityIcons } from "@expo/vector-icons";
+import { Feather, FontAwesome } from "@expo/vector-icons";
 import Svg, {
   Defs,
   LinearGradient as SvgLinear,
@@ -107,7 +107,7 @@ const PLATFORMS: Record<string, PlatformStyle> = {
   youtube: {
     tint: "#fc3d3d",
     fill: "rgba(252,61,61,0.12)",
-    badge: <MaterialCommunityIcons name="youtube" size={14} color="#ff0000" />,
+    badge: <FontAwesome name="youtube-play" size={14} color="#ff0000" />,
   },
   instagram: {
     tint: "#ff8fbc",

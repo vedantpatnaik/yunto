@@ -1,4 +1,3 @@
-import { useEffect } from "react";
 import { Pressable, StyleSheet } from "react-native";
 import { useRouter } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
@@ -12,7 +11,7 @@ import Svg, {
 } from "react-native-svg";
 import { Screen, Abs, Txt } from "../../../src/ui/Frame";
 import { colors } from "../../../src/theme";
-import { useLeads, useMe } from "../../../src/api/hooks";
+import { useLeads } from "../../../src/api/hooks";
 
 /**
  * Welcome / Auth Entry — Figma 7498:44097 (375 x 900).
@@ -137,13 +136,7 @@ function Blob({
 
 export default function Welcome() {
   const router = useRouter();
-  const { data: me } = useMe();
   const { data: leads = [] } = useLeads();
-
-  // "auth.session" — someone already signed in never sees the entry screen.
-  useEffect(() => {
-    if (me) router.replace("/" as never);
-  }, [me, router]);
 
   const newLeads = leads.filter((l) => l.status === "NEW").length;
 

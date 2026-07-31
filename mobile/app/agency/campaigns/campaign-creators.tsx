@@ -227,7 +227,7 @@ function CreatorCard({ row, top, tint, selected, onToggle, onProfile }: CardProp
         accessibilityRole="button"
         style={({ pressed }) => [styles.rowAction, styles.rowActionLeft, pressed && styles.pressed]}
       >
-        <Feather name="user" size={11} color={INK} />
+        <Feather name="eye" size={11} color={INK} />
         <Txt size={10} weight="semibold" font="inter" color={INK} lineHeight={15}>
           Profile
         </Txt>

@@ -393,7 +393,7 @@ function CampaignCard({ row, onView }: { row: Row; onView: () => void }) {
         <Txt size={14} weight="semibold" font="inter" color={colors.white} lineHeight={16.1}>
           View
         </Txt>
-        <Feather name="arrow-up-right" size={16} color={colors.white} />
+        <Feather name="arrow-right" size={16} color={colors.white} />
       </Pressable>
     </Abs>
   );
@@ -498,15 +498,11 @@ export default function ActiveCampaigns() {
                 />
               ) : null}
               <Txt
-                x={-40}
-                y={10}
-                w={t.w + 80}
                 size={14}
                 weight="medium"
                 font="inter"
                 color={active ? "#FFF8F8" : META_A}
                 lineHeight={16.94}
-                align="center"
                 numberOfLines={1}
               >
                 {`${t.label} (${counts[t.key]})`}

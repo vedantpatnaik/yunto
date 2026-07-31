@@ -323,7 +323,7 @@ export default function CampaignCreatorMatch() {
         onPress={() => router.back()}
         style={({ pressed }) => [styles.backButton, pressed && styles.pressed]}
       >
-        <Feather name="chevron-left" size={16} color={ON_DARK} />
+        <Feather name="arrow-left" size={16} color={ON_DARK} />
       </Pressable>
       <Txt
         x={72} y={28} w={192} numberOfLines={1}

@@ -2,7 +2,7 @@ import type { ComponentProps } from "react";
 import { useMemo, useState } from "react";
 import { Pressable, StyleSheet, TextInput, View } from "react-native";
 import { useRouter } from "expo-router";
-import { Ionicons } from "@expo/vector-icons";
+import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import Svg, {
   Defs,
   LinearGradient as SvgLinear,
@@ -189,7 +189,19 @@ function Backdrop({ h }: { h: number }) {
 }
 
 /* ----------------------------- accordion rows ----------------------------- */
-type IconName = ComponentProps<typeof Ionicons>["name"];
+/** Tile glyphs span two families: the spec's ruler (Measurements) only exists
+ *  in MaterialCommunityIcons; every other glyph is Ionicons. */
+type Glyph =
+  | { set: "ion"; name: ComponentProps<typeof Ionicons>["name"] }
+  | { set: "mci"; name: ComponentProps<typeof MaterialCommunityIcons>["name"] };
+
+function TileGlyph({ glyph, color }: { glyph: Glyph; color: string }) {
+  return glyph.set === "mci" ? (
+    <MaterialCommunityIcons name={glyph.name} size={24} color={color} />
+  ) : (
+    <Ionicons name={glyph.name} size={24} color={color} />
+  );
+}
 
 interface SectionSpec {
   key: string;
@@ -199,7 +211,7 @@ interface SectionSpec {
   tile: string;
   /** Tile glyph stroke colour. */
   ink: string;
-  icon: IconName;
+  icon: Glyph;
   label: string;
   /** Sibling route, where one exists. Otherwise the row returns to the list. */
   href?: string;
@@ -212,14 +224,14 @@ const SECTIONS_ABOVE: SectionSpec[] = [
     y: ROW_Y0,
     tile: "#F3E8FF",
     ink: "#9333EA",
-    icon: "person-outline",
+    icon: { set: "ion", name: "person-outline" },
     label: "Basics",
     href: "/profile/personal-information/basics",
   },
-  { key: "language", y: ROW_Y0 + ROW_STEP, tile: "#DBEAFE", ink: "#2563EB", icon: "globe-outline", label: "Language" },
-  { key: "address", y: ROW_Y0 + ROW_STEP * 2, tile: "#CCFBF1", ink: "#0D9488", icon: "location-outline", label: "Address" },
-  { key: "measurements", y: ROW_Y0 + ROW_STEP * 3, tile: "#FFEDD5", ink: "#EA580C", icon: "resize-outline", label: "Measurements" },
-  { key: "commercials", y: ROW_Y0 + ROW_STEP * 4, tile: "#D1FAE5", ink: "#059669", icon: "cash-outline", label: "Commercials" },
+  { key: "language", y: ROW_Y0 + ROW_STEP, tile: "#DBEAFE", ink: "#2563EB", icon: { set: "ion", name: "language-outline" }, label: "Language" },
+  { key: "address", y: ROW_Y0 + ROW_STEP * 2, tile: "#CCFBF1", ink: "#0D9488", icon: { set: "ion", name: "location-outline" }, label: "Address" },
+  { key: "measurements", y: ROW_Y0 + ROW_STEP * 3, tile: "#FFEDD5", ink: "#EA580C", icon: { set: "mci", name: "ruler" }, label: "Measurements" },
+  { key: "commercials", y: ROW_Y0 + ROW_STEP * 4, tile: "#D1FAE5", ink: "#059669", icon: { set: "ion", name: "cash-outline" }, label: "Commercials" },
 ];
 
 /** Header strip shared by the collapsed rows and the expanded card. */
@@ -232,7 +244,7 @@ function SectionHead({
 }: {
   tile: string;
   ink: string;
-  icon: IconName;
+  icon: Glyph;
   label: string;
   expanded?: boolean;
 }) {
@@ -240,7 +252,7 @@ function SectionHead({
     <>
       {/* Background+Shadow — 48x48 r20 icon tile. */}
       <Abs x={TILE_OFF} y={TILE_OFF} w={TILE_SIZE} h={TILE_SIZE} radius={20} bg={tile} center style={styles.tileShadow}>
-        <Ionicons name={icon} size={24} color={ink} />
+        <TileGlyph glyph={icon} color={ink} />
       </Abs>
 
       {/* Label — Inter 600 16 / 19.36. */}
@@ -395,7 +407,7 @@ function DealBlock({
           platform column, so cycling this re-labels the field but is deliberately
           not persisted. The value shown is the creator's own platform. */}
       <Caption x={41} y={top} w={297}>
-        SELECT PLATFORM
+        Select Platform
       </Caption>
       <Pressable
         onPress={onCyclePlatform}
@@ -456,7 +468,7 @@ function DealBlock({
 
       {/* ----------------------------- DELIVERABLES --------------------------- */}
       <Caption x={41} y={top + D_DELIVERABLES_LABEL} w={297}>
-        DELIVERABLES
+        Deliverables
       </Caption>
       {DELIVERABLES.map((chip) => {
         const on = deliverables.includes(chip.label);
@@ -742,7 +754,7 @@ export default function PersonalInformationBarterCommercials() {
         onPress={() => router.back()}
         style={({ pressed }) => [styles.expandedHead, pressed && styles.pressed]}
       >
-        <SectionHead tile="#FCE7F3" ink="#DB2777" icon="gift-outline" label="Barter Commercials" expanded />
+        <SectionHead tile="#FCE7F3" ink="#DB2777" icon={{ set: "ion", name: "gift-outline" }} label="Barter Commercials" expanded />
       </Pressable>
 
       {/* barterDeals[] — the repeatable deal block, at 637 + i * 632. */}
@@ -775,7 +787,7 @@ export default function PersonalInformationBarterCommercials() {
           y: bankY,
           tile: "#E0E7FF",
           ink: "#4F46E5",
-          icon: "business-outline",
+          icon: { set: "ion", name: "business-outline" },
           label: "Bank Details",
         }}
         onPress={() => router.push("/payments/payout-bank-details")}

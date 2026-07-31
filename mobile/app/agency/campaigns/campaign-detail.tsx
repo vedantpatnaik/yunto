@@ -261,7 +261,7 @@ function SectionHead({
   y: number;
   w: number;
   title: string;
-  chevron: "chevron-down" | "chevron-right";
+  chevron: "chevron-up" | "chevron-down" | "chevron-right";
 }) {
   return (
     <Fragment>
@@ -610,7 +610,7 @@ export default function CampaignDetail() {
           border={BORDER_50}
           borderWidth={1}
         />
-        <SectionHead y={549} w={120.2} title="Brand Message" chevron="chevron-down" />
+        <SectionHead y={549} w={120.2} title="Brand Message" chevron="chevron-up" />
         <Txt x={35} y={CY(581)} w={305} size={14} font="inter" color={MUTED} lineHeight={21}>
           {BRAND_MESSAGE}
         </Txt>

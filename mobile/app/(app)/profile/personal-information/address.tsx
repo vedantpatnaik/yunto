@@ -191,7 +191,7 @@ const SECTIONS: SectionSpec[] = [
     label: "Basics",
     href: "/profile/personal-information/basics",
   },
-  { key: "language", y: 202, tile: "#DBEAFE", ink: "#2563EB", icon: "globe-outline", label: "Language" },
+  { key: "language", y: 202, tile: "#DBEAFE", ink: "#2563EB", icon: "language-outline", label: "Language" },
   {
     key: "measurements",
     y: ROW_BELOW_Y0,

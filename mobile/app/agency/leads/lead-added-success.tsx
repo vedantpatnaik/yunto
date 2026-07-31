@@ -1,5 +1,5 @@
 import { Fragment } from "react";
-import { Pressable, StyleSheet, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
@@ -19,11 +19,13 @@ import type { Lead } from "../../../src/api/hooks";
  *   • Container (20,717 335x123) — "Create Another Lead" / "View Campaign".
  *
  * GEOMETRY NOTE. In Figma the body Container clips at 605, cutting the summary
- * card off at y=701 even though the card itself runs to y=966. The card is the
- * whole point of the screen, so the frame scrolls here instead of clipping: the
- * card is drawn at its full 605 and the action stack keeps the root
- * autolayout's 16pt gap below the card's true bottom. Every other coordinate is
- * the spec's own.
+ * card off at y=701 even though the card itself runs to y=966 — the action
+ * stack sits pinned at 717 and the card slides beneath it. That is reproduced
+ * here as an absolutely positioned ScrollView of the container's own box
+ * (opened 8pt above its 96 so the amber satellite at y=90 isn't shaved) with
+ * the buttons fixed at the spec's 717/783.5. CY() rebases frame coordinates
+ * into the scroll content so the numbers in this file stay the numbers in
+ * Figma.
  *
  * The two "Gradient" rectangles carry no fill in the export (the exporter drops
  * gradient paints), so they use the blush wash the rest of the 876-gen agency
@@ -56,17 +58,19 @@ const VALUE_DY = 11;
 const VALUE_X = 181;
 const VALUE_W = ROW_X + ROW_W - VALUE_X; // 153
 
-/**
- * The root frame stacks header / body / actions with a 16pt gap and 40pt bottom
- * padding. With the body unclipped (see the note above) the action stack lands
- * 16pt under the card; its own 12pt inner gap and 54.5/56.5 button heights are
- * the spec's.
- */
-const ACTIONS_Y = CARD_BOTTOM + 16; // 982
+/** Container (0,96 375x605) — the body clip, opened 8pt high for the satellite. */
+const BODY_TOP = 88;
+const BODY_H = 701 - BODY_TOP; // clip bottom is the container's own 701
+const BODY_CONTENT_H = CARD_BOTTOM - BODY_TOP; // scrolls to the card's true 966
+/** Frame-space y -> body-scroll content y. */
+const CY = (y: number) => y - BODY_TOP;
+
+/** Container (20,717 335x123) — the pinned action stack, 12pt inner gap. */
+const ACTIONS_Y = 717;
 const PRIMARY_H = 54.5;
-const SECONDARY_Y = ACTIONS_Y + PRIMARY_H + 12; // 1048.5
+const SECONDARY_Y = ACTIONS_Y + PRIMARY_H + 12; // 783.5
 const SECONDARY_H = 56.5;
-const FRAME_H = ACTIONS_Y + 123 + 40; // 1145
+const FRAME_H = 876;
 
 /* --------------------------- spec colour tokens --------------------------- */
 const PAGE = "#f8f5ef";

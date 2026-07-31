@@ -1,6 +1,6 @@
 import { useCallback, useEffect } from "react";
 import { Pressable } from "react-native";
-import Svg, { Circle, Path, Rect } from "react-native-svg";
+import Svg, { Circle, Path } from "react-native-svg";
 import { useRouter } from "expo-router";
 import { Abs, Screen, Txt } from "../../../src/ui/Frame";
 import { colors } from "../../../src/theme";
@@ -21,35 +21,44 @@ import { useMe } from "../../../src/api/hooks";
 
 /* Frame palette — these hexes live only on this frame, so they stay local. */
 const SUBTLE = "#b6b6b6"; // 1885:5130 body copy
-const GREEN = "#1a9461"; // progress fill of this frame, reused for the mark
 const CONFETTI_A = "#f2c94c"; // bg / orange
 const CONFETTI_B = "#8ab2dc"; // bg / Blue
-const CONFETTI_C = "#685fd4"; // bg / Purple
 const CONFETTI_D = "#e5e501"; // bg / Yellow
+const SEAL = "#3eb655"; // image 14 — scalloped seal body, sampled from the ref
+const SEAL_INNER = "#8bd399"; // image 14 — lighter inner disc
 
 /**
- * "image 14" (1887:3108) is a 75x75 raster celebration graphic; the export only
- * carries its imageRef, so it is drawn as vector at the exact same box using
- * colours taken from this frame.
+ * "image 14" (1887:3108) is a 75x75 raster; the export only carries its
+ * imageRef, so it is redrawn as vector at the exact same box: a green
+ * scalloped seal (ten bumps) around a lighter inner disc with a white check,
+ * colours sampled from the reference render.
  */
 function CelebrationMark() {
   return (
     <Abs x={150} y={312} w={75} h={75}>
       <Svg width={75} height={75} viewBox="0 0 75 75">
-        <Circle cx={37.5} cy={40} r={24} fill={GREEN} />
+        {Array.from({ length: 10 }, (_, i) => {
+          const a = (i / 10) * Math.PI * 2 - Math.PI / 2;
+          return (
+            <Circle
+              key={i}
+              cx={37.5 + 28.5 * Math.cos(a)}
+              cy={37.5 + 28.5 * Math.sin(a)}
+              r={8.5}
+              fill={SEAL}
+            />
+          );
+        })}
+        <Circle cx={37.5} cy={37.5} r={30} fill={SEAL} />
+        <Circle cx={37.5} cy={37.5} r={20} fill={SEAL_INNER} />
         <Path
-          d="M27 40.5 L34.5 48 L48.5 33"
+          d="M27.5 36 L33.5 45 L50 27.5"
           stroke={colors.white}
-          strokeWidth={4}
+          strokeWidth={6}
           strokeLinecap="round"
           strokeLinejoin="round"
           fill="none"
         />
-        <Circle cx={8} cy={20} r={3.5} fill={CONFETTI_A} />
-        <Circle cx={67} cy={26} r={3} fill={CONFETTI_B} />
-        <Rect x={62} y={58} width={6} height={6} rx={1.5} fill={CONFETTI_C} />
-        <Rect x={6} y={52} width={5} height={5} rx={1.5} fill={CONFETTI_D} />
-        <Circle cx={37.5} cy={5} r={2.5} fill={CONFETTI_A} />
       </Svg>
     </Abs>
   );

@@ -104,7 +104,7 @@ const SETTING_ROWS: SettingRow[] = [
     route: "/profile/personal-information", rule: true, h: 83,
   },
   {
-    y: 737, chip: "rgba(209,244,224,0.4)", ink: "#3b8a5a", icon: "globe",
+    y: 737, chip: "rgba(209,244,224,0.4)", ink: "#3b8a5a", icon: "layout",
     label: "landing page", labelW: 95.47,
     route: "/profile/landing-page", rule: true, h: 83,
   },
@@ -284,7 +284,7 @@ export default function Profile() {
             <Txt
               x={15}
               y={279}
-              w={108}
+              w={345}
               size={15}
               weight="medium"
               font="inter"
@@ -384,7 +384,7 @@ export default function Profile() {
               <Txt
                 x={73}
                 y={34}
-                w={109.63}
+                w={180}
                 size={15}
                 weight="bold"
                 font="inter"

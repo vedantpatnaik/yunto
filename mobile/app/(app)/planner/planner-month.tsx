@@ -608,7 +608,7 @@ export default function PlannerMonth() {
         onPress={() => router.push("/content/content-itinerary")}
         style={[styles.footerButton, { left: 88 }, footShadow]}
       >
-        <Feather name="upload" size={20} color={INK_STEP} />
+        <Feather name="share" size={20} color={INK_STEP} />
       </Pressable>
 
       <Pressable

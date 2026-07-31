@@ -2,17 +2,16 @@ import { useMemo, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
-import Svg, { Defs, Ellipse, RadialGradient, Rect, Stop } from "react-native-svg";
 import { Abs, Screen, Txt } from "../../../src/ui/Frame";
 import { useUsers } from "../../../src/api/hooks";
 
 /**
  * Lead Distribution — Figma 7754:8373 (375x876), traced 1:1.
  *
- * The routing rule for incoming leads, reached from the leads pipeline. Over the
- * warm #f8f5ef page sit the frame's three background rects (a full-bleed wash, a
- * 262.5x350.4 wash in the bottom-right, a blurred blob hanging off the
- * bottom-left edge at -37.5), then the 36pt back disc and the heading, then one
+ * The routing rule for incoming leads, reached from the leads pipeline. The
+ * frame carries three background rect nodes, but the exported render shows them
+ * as imperceptible over the warm #f8f5ef page, so the page is drawn flat — no
+ * washes. On it sit the 36pt back disc and the heading, then one
  * 335x598 frosted panel at (20,104): intro copy above a hairline, the three
  * radio options on a 60pt step from y=196, a second hairline, the assigned
  * list, and the "Save Preferences" CTA at y=602. Everything lands inside 876.
@@ -36,7 +35,6 @@ import { useUsers } from "../../../src/api/hooks";
  */
 
 /* ------------------------------- geometry -------------------------------- */
-const FRAME_W = 375;
 const FRAME_H = 876;
 
 /** Overlay+Border+Shadow+OverlayBlur — 7754:8384. */
@@ -73,53 +71,6 @@ const ROW_LINE = "#e5e7eb";
 const NAME_INK = "rgba(0,0,0,0.7)";
 const CTA_FILL = "#312b28"; // Button — 7797:23071
 const CTA_INK = "#ffffff";
-
-/* -------------------------------- backdrop -------------------------------- */
-/**
- * Gradient / Gradient / Overlay+Blur — 7754:8374, :8375, :8376.
- *
- * The cached spec carries the three rects' geometry but not their paints, so the
- * washes are the ones this frame family uses — the same reading as the sibling
- * trace of this node in app/(agency)/people — restated in user space so the
- * ellipse centres land on the spec's boxes. The blob's layer blur is folded into
- * the falloff radii, which is as close as RN gets without expo-blur.
- */
-function Backdrop() {
-  return (
-    <Svg width={FRAME_W} height={FRAME_H} style={styles.backdrop}>
-      <Defs>
-        <RadialGradient id="ld-rose" cx={405} cy={262.8} rx={262.5} ry={438} gradientUnits="userSpaceOnUse">
-          <Stop offset="0" stopColor="#ffd7eb" stopOpacity={0.38} />
-          <Stop offset="0.55" stopColor="#ffd7eb" stopOpacity={0} />
-        </RadialGradient>
-        <RadialGradient id="ld-lilac" cx={-18.75} cy={350.4} rx={300} ry={438} gradientUnits="userSpaceOnUse">
-          <Stop offset="0" stopColor="#ebd7ff" stopOpacity={0.4} />
-          <Stop offset="0.55" stopColor="#ebd7ff" stopOpacity={0} />
-        </RadialGradient>
-        <RadialGradient id="ld-peri" cx={187.5} cy={-52.56} rx={450} ry={438} gradientUnits="userSpaceOnUse">
-          <Stop offset="0" stopColor="#c3cdff" stopOpacity={0.65} />
-          <Stop offset="0.5" stopColor="#c3cdff" stopOpacity={0} />
-        </RadialGradient>
-        {/* 7754:8375 — the 262.5x350.4 box, wash centred on its far corner */}
-        <RadialGradient id="ld-sky" cx={375} cy={876} rx={236.25} ry={262.8} gradientUnits="userSpaceOnUse">
-          <Stop offset="0" stopColor="#bee1ff" stopOpacity={0.5} />
-          <Stop offset="0.65" stopColor="#bee1ff" stopOpacity={0} />
-        </RadialGradient>
-        {/* 7754:8376 — 168.75x245.27 pill at (-37.5, 481.79), fully rounded */}
-        <RadialGradient id="ld-blob" cx={46.875} cy={604.425} rx={139.375} ry={177.635} gradientUnits="userSpaceOnUse">
-          <Stop offset="0" stopColor="#dcd2ff" stopOpacity={0.3} />
-          <Stop offset="0.45" stopColor="#dcd2ff" stopOpacity={0.18} />
-          <Stop offset="1" stopColor="#dcd2ff" stopOpacity={0} />
-        </RadialGradient>
-      </Defs>
-      <Rect x={0} y={0} width={FRAME_W} height={FRAME_H} fill="url(#ld-rose)" />
-      <Rect x={0} y={0} width={FRAME_W} height={FRAME_H} fill="url(#ld-lilac)" />
-      <Rect x={0} y={0} width={FRAME_W} height={FRAME_H} fill="url(#ld-peri)" />
-      <Rect x={112.5} y={525.6} width={262.5} height={350.4} fill="url(#ld-sky)" />
-      <Ellipse cx={46.875} cy={604.425} rx={139.375} ry={177.635} fill="url(#ld-blob)" />
-    </Svg>
-  );
-}
 
 /* --------------------------------- options -------------------------------- */
 /** The shape the settings payload would carry: GET/PUT /agency/lead-distribution. */
@@ -187,14 +138,12 @@ export default function LeadDistributionScreen() {
 
   return (
     <Screen height={FRAME_H} background={PAGE} scroll>
-      <Backdrop />
-
       {/* -------------------------------- Header ------------------------------ */}
       <Pressable
         onPress={() => router.back()}
         style={({ pressed }) => [styles.back, pressed && styles.pressed]}
       >
-        <Feather name="chevron-left" size={16} color={BACK_ICON} />
+        <Feather name="arrow-left" size={16} color={BACK_ICON} />
       </Pressable>
       <Txt x={72} y={28} w={222} size={20} weight="medium" font="inter" color={HEAD_INK} lineHeight={24} letterSpacing={-0.6}>
         Lead Distribution
@@ -278,7 +227,6 @@ export default function LeadDistributionScreen() {
 }
 
 const styles = StyleSheet.create({
-  backdrop: { position: "absolute", left: 0, top: 0 },
   pressed: { opacity: 0.9 },
 
   /** Button — 7754:8378, with its 2.7/0.9 drop shadow. */

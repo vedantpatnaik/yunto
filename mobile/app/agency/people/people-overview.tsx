@@ -260,7 +260,7 @@ function SectionHead({
         {title}
       </Txt>
       <Abs x={318} y={top + CHEV_DY} w={16} h={16} center>
-        <Feather name="chevron-down" size={16} color={CHEVRON} />
+        <Feather name="chevron-up" size={16} color={CHEVRON} />
       </Abs>
       <Abs x={21} y={top + RULE_DY} w={333} h={1} bg={HEAD_RULE} />
     </>
@@ -596,7 +596,7 @@ export default function PeopleOverview() {
         People
       </Txt>
       <Abs x={318} y={138} w={16} h={16} center>
-        <Feather name="chevron-down" size={16} color={CHEVRON} />
+        <Feather name="chevron-up" size={16} color={CHEVRON} />
       </Abs>
       <Abs x={21} y={186} w={333} h={1} bg={HEAD_RULE} />
 

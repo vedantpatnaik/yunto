@@ -194,15 +194,17 @@ export default function OrderSummaryPartial() {
         <Txt x={104.91} y={161.79} w={6.37} size={5.92} font="inter" color={colors.ink} lineHeight={9.28}>
           {"📍"}
         </Txt>
+        {/* Wider than the spec's "Delhi" box (23.2) so live city names render
+            whole instead of ellipsizing; left-aligned, so short names still sit
+            where the sample does. */}
         <Txt
           x={111.29}
           y={161.79}
-          w={23.2}
+          w={58}
           size={7.54}
           weight="medium"
           color={SUBTLE_INK}
           lineHeight={16.24}
-          align="center"
           numberOfLines={1}
         >
           {editorCity}
@@ -353,10 +355,14 @@ const styles = StyleSheet.create({
     top: 191,
     width: 192.54,
     height: 299.83,
-    borderRadius: 6.96,
     borderWidth: 1.6,
     borderColor: "#000000",
-    /** The slot reads as a placeholder in the design: dashed, ~5pt on / 5pt off. */
+    /**
+     * The slot reads as a placeholder in the design: dashed, ~5pt on / 5pt off,
+     * square corners. No borderRadius on purpose — iOS renders dashed borders
+     * as solid the moment a radius is present, and the design's dashes run
+     * straight into sharp corners anyway.
+     */
     borderStyle: "dashed",
   },
 

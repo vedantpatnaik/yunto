@@ -1,0 +1,16 @@
+# Caddy fronts the whole app over HTTPS.
+#
+# SITE_HOST is the nip.io hostname (e.g. 13.202.99.173.nip.io). Caddy solves the
+# ACME HTTP-01 challenge on :80 and serves everything else on :443 with the
+# resulting Let's Encrypt certificate — auto-renewed, no manual steps.
+#
+# Plain http on :80 is redirected to https (Caddy's default for a named site),
+# which is exactly what a browser expects, so the force-upgrade that was hitting
+# a closed :443 now lands on a real certificate.
+
+{$SITE_HOST} {
+	encode zstd gzip
+	# Everything — SPA, /api, /health — is one origin behind nginx, which already
+	# routes /api to the API container and serves the SPA with history fallback.
+	reverse_proxy web:80
+}

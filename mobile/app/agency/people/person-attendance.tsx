@@ -267,7 +267,9 @@ export default function PersonAttendance() {
         onPress={() => router.back()}
         style={({ pressed }) => [styles.back, pressed && styles.pressed]}
       >
-        <Feather name="arrow-left" size={16} color={HEAD_INK} />
+        {/* meteor-icons:arrow-up, 14x14 vector at 2pt stroke in a 24x24 frame —
+            Feather's glyph reaches that at the full 24pt size. */}
+        <Feather name="arrow-left" size={24} color={HEAD_INK} />
       </Pressable>
       <Txt x={44} y={82} w={298} size={20} weight="medium" color={HEAD_INK} lineHeight={37}>
         Team &amp; Roles
@@ -286,9 +288,11 @@ export default function PersonAttendance() {
         Teams &amp; Roles
       </Txt>
       {/* weui:arrow-outlined, rotated -90° in the frame: the section is open, so
-          the disclosure caret points up. */}
-      <Abs x={319} y={156.5} w={24} h={12} center>
-        <Feather name="chevron-up" size={13} color="#000000" />
+          the disclosure caret points up. Its 12.97x7.13 vector needs a 22pt
+          Feather glyph; the box is squared on the same 162.5 centre so the
+          oversize text line cannot clip. */}
+      <Abs x={319} y={150.5} w={24} h={24} center>
+        <Feather name="chevron-up" size={22} color="#000000" />
       </Abs>
 
       {/* ------------------------------- Input -------------------------------- */}
@@ -302,7 +306,7 @@ export default function PersonAttendance() {
         {person?.team?.name ?? (isLoading ? "Loading…" : "No team")}
       </Txt>
       <Abs x={99} y={228.5} w={16} h={16} center>
-        <Ionicons name="people" size={13} color="#000000" />
+        <Ionicons name="people" size={15} color="#000000" />
       </Abs>
       <Txt x={120} y={226} w={110} size={10} color={INK_70} lineHeight={24}>
         {`${members.length} Members`}
@@ -349,8 +353,11 @@ export default function PersonAttendance() {
           </Abs>
         ) : null}
 
+        {/* pepicons-pop:dots-y — three filled 4pt dots on a 5pt pitch, which is
+            MCI's filled dots-vertical at 20pt (Feather's stroked rings read too
+            light at this size). */}
         <Pressable style={({ pressed }) => [styles.kebab, pressed && styles.pressed]}>
-          <Feather name="more-vertical" size={14} color="#000000" />
+          <MaterialCommunityIcons name="dots-vertical" size={20} color="#000000" />
         </Pressable>
       </Abs>
 

@@ -175,7 +175,9 @@ interface PriorityCardProps {
   shadow: string;
   cardOpacity: number;
   pillOpacity: number;
-  icon: IconName;
+  icon?: IconName;
+  /** Text glyph drawn instead of a Feather icon (₹ has no Feather glyph). */
+  iconGlyph?: string;
   iconInk: string;
   /** Child offsets, card-relative and already 1pt in from the stroke. */
   pillY: number;
@@ -191,7 +193,7 @@ interface PriorityCardProps {
 
 /** 335-wide tinted card: 44pt icon pill, two-line text stack, chevron. */
 function PriorityCard({
-  y, h, fill, stroke, shadow, cardOpacity, pillOpacity, icon, iconInk,
+  y, h, fill, stroke, shadow, cardOpacity, pillOpacity, icon, iconGlyph, iconInk,
   pillY, titleY, titleLines, subY, chevronY, title, sub, subColor, onPress,
 }: PriorityCardProps) {
   return (
@@ -217,7 +219,13 @@ function PriorityCard({
         x={16} y={pillY} w={44} h={44} radius={22} bg={GLASS_80} center
         style={[styles.pillShadow, { shadowColor: shadow, shadowOpacity: pillOpacity }]}
       >
-        <Feather name={icon} size={22} color={iconInk} />
+        {iconGlyph ? (
+          <Txt size={24} weight="regular" font="inter" color={iconInk} lineHeight={28}>
+            {iconGlyph}
+          </Txt>
+        ) : icon ? (
+          <Feather name={icon} size={22} color={iconInk} />
+        ) : null}
       </Abs>
 
       <Txt
@@ -448,12 +456,12 @@ export default function AgencyNotifications() {
   return (
     <Screen height={Math.max(FRAME_H, contentBottom + BOTTOM_PAD)} background={BG} scroll>
       {/* =============================== Header ============================== */}
-      {/* Button — 36pt #1F1A17 disc holding the 9.45pt back chevron. */}
+      {/* Button — 36pt #1F1A17 disc holding the back arrow. */}
       <Pressable
         onPress={() => router.back()}
         style={({ pressed }) => [styles.back, pressed && styles.pressed]}
       >
-        <Feather name="chevron-left" size={16} color={BACK_INK} />
+        <Feather name="arrow-left" size={16} color={BACK_INK} />
       </Pressable>
       {/* Heading 1 — Geist 500 20 / 24, -0.6 tracking. */}
       <Txt
@@ -540,7 +548,7 @@ export default function AgencyNotifications() {
         y={419} h={78}
         fill="#FFF3E0" stroke={HAIRLINE_90}
         shadow="#F57C00" cardOpacity={0.06} pillOpacity={0.1}
-        icon="dollar-sign" iconInk="#333333"
+        iconGlyph="₹" iconInk="#333333"
         pillY={16} titleY={19} titleLines={1} subY={41} chevronY={28}
         title={pending ? `Payment pending from ${pending.brandName}` : "No payments pending"}
         sub="Tap to review"

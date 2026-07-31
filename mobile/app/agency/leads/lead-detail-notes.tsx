@@ -20,7 +20,7 @@ import {
  * Lead Detail — Notes & Activity — Figma 7691:5900 (375x876), traced 1:1.
  *
  * Second tab of the agency lead-detail shell. The chrome is the same as the
- * Lead Info tab — dark back disc, "Lead Detail" heading, flag action, the
+ * Lead Info tab — dark back disc, "Lead Detail" heading, red trash action, the
  * lavender identity card and the "Lead Info | Notes & Activity" pill — and the
  * body below y=397 is this tab's own: the pink Add Follow-Up strip, the quick
  * note composer, and the TODAY / YESTERDAY activity timeline.
@@ -49,9 +49,11 @@ const CARD_W = 345;
 const CARD_H = 205;
 
 const GROUP_Y = 563; // "Group: Today"
-const GROUP_STEP = 191; // 754 - 563, to "Group: Yesterday"
 const ROW_Y = 31; // first event card, group-relative (594 - 563)
 const ROW_STEP = 74; // 668 - 594
+const ROW_H = 62; // "Overlay+Border" event card
+const GROUP_GAP = 24; // last card bottom (730) to "Group: Yesterday" (754)
+const RAIL_TOP = 599; // "Vertical Divider", first card + 5
 /** 754 + 31 + 74 = 859, the last event card the 382pt block holds. */
 const MAX_GROUPS = 2;
 const MAX_ROWS = 2;
@@ -70,6 +72,7 @@ const CARD_FILL = "#f2edff";
 const CHIP_ALT = "rgba(252,250,255,0.75)";
 const FOLLOWUP_FILL = "#ffe4e8";
 const FOLLOWUP_INK = "#d81b60";
+const TRASH_INK = "#e74c3c"; // header trash stroke
 const CONVERT_FILL = "#312b28";
 const BAR_FILL = "rgba(246,239,233,0.85)";
 const GLASS_40 = "rgba(255,255,255,0.4)";
@@ -224,6 +227,21 @@ export default function LeadDetailNotes() {
 
   const timelineLoading = notesLoading || remindersLoading;
 
+  /**
+   * Groups flow with the live row count — the frame's 191pt group step assumes
+   * two rows per day, and a one-row day must not leave a 74pt hole before the
+   * next heading. The rail runs from RAIL_TOP to 4pt past the last card, the
+   * frame's 599..925 span over its four sample cards.
+   */
+  const laidOut: { group: TimelineGroup; top: number }[] = [];
+  let railBottom = GROUP_Y + ROW_Y + ROW_H; // the loading/empty card's bottom
+  let groupTop = GROUP_Y;
+  for (const group of groups) {
+    laidOut.push({ group, top: groupTop });
+    railBottom = groupTop + ROW_Y + (group.rows.length - 1) * ROW_STEP + ROW_H;
+    groupTop = railBottom + GROUP_GAP;
+  }
+
   return (
     <View style={styles.root}>
       <Screen height={CANVAS_H} background={BG} scroll>
@@ -243,9 +261,9 @@ export default function LeadDetailNotes() {
         >
           Lead Detail
         </Txt>
-        {/* Overlay+Border+Shadow+OverlayBlur — the flag action. */}
+        {/* Overlay+Border+Shadow+OverlayBlur — the #E74C3C trash action. */}
         <View style={styles.flag}>
-          <Feather name="flag" size={18} color={INK_DARK} />
+          <Feather name="trash-2" size={18} color={TRASH_INK} />
         </View>
 
         {/* =========================== Identity card ========================== */}
@@ -362,20 +380,20 @@ export default function LeadDetailNotes() {
             onPress={submitNote}
             style={({ pressed }) => [styles.send, pressed && styles.pressed]}
           >
-            <Feather name="arrow-up" size={16} color={INK_BODY} />
+            <Feather name="edit-2" size={16} color={INK_BODY} />
           </Pressable>
         </Abs>
 
         {/* ======================= 3. Activity Timeline ======================= */}
-        {/* Vertical Divider — 2x326 black-8% rail fading out over its last fifth. */}
+        {/* Vertical Divider — 2pt black-8% rail fading out over its last fifth;
+            326 tall in the frame, here sized to the live cards. */}
         <LinearGradient
           colors={["rgba(0,0,0,0.08)", "rgba(0,0,0,0.08)", "rgba(0,0,0,0)"] as const}
           locations={[0, 0.8, 1] as const}
-          style={styles.divider}
+          style={[styles.divider, { height: railBottom + 4 - RAIL_TOP }]}
         />
 
-        {groups.map((group, gi) => {
-          const groupY = GROUP_Y + gi * GROUP_STEP;
+        {laidOut.map(({ group, top: groupY }) => {
           return (
             <View key={group.key}>
               <Txt
@@ -609,7 +627,7 @@ const styles = StyleSheet.create({
   },
 
   /* 3. timeline */
-  divider: { position: "absolute", left: 31, top: 599, width: 2, height: 326 },
+  divider: { position: "absolute", left: 31, top: RAIL_TOP, width: 2 },
 
   /* action bar — re-applies the canvas scale so it lines up with the body */
   dock: { position: "absolute", left: 0 },

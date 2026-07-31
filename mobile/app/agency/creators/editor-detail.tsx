@@ -42,8 +42,9 @@ import { inr, useCalendar, useCampaigns, useCreators } from "../../../src/api/ho
 /* ------------------------------- geometry -------------------------------- */
 const FRAME_W = 375;
 const FRAME_H = 876;
-/** Section - EDITING STYLES PACKAGES ends at 1574; the rest is bar clearance. */
-const CONTENT_H = 1694;
+/** Section - EDITING STYLES PACKAGES ends at 1574; the rest is bar clearance
+ *  (the backdrop fade is opaque from ~y=752, so full scroll must clear it). */
+const CONTENT_H = 1730;
 
 /** Editing-styles rail: the container at y=1131, card origins from the spec. */
 const RAIL_Y = 1131;
@@ -666,16 +667,35 @@ export default function EditorDetail() {
       </Txt>
 
       {/* ---------------------------- action bar ---------------------------- */}
+      {/*
+       * Backdrop — in the design the scroll content is fully swallowed by a
+       * page-coloured fade just below the Expertise heading (chips show only a
+       * ~4pt sliver at y=741 before vanishing into #F8F5EF, which then blends
+       * into the #FAF9F6 overlay tone under the buttons). One gradient
+       * reproduces that compound mask+overlay: opaque from the floor, page
+       * colour by ~y=752, transparent by ~y=730.
+       */}
       <LinearGradient
-        colors={["#FAF9F6", "#FAF9F6", "rgba(250,249,246,0)"] as const}
-        locations={[0, 0.6, 1]}
+        colors={["#FAF9F6", "#FAF9F6", "#F8F5EF", "rgba(248,245,239,0)"] as const}
+        locations={[0, 0.55, 0.85, 1]}
         start={{ x: 0.5, y: 1 }}
         end={{ x: 0.5, y: 0 }}
         style={styles.actionBar}
         pointerEvents="none"
       />
       <Pressable onPress={() => router.back()} style={({ pressed }) => [styles.skip, pressed && styles.pressed]}>
-        <Txt x={49.5} y={21} w={29} size={14} weight="medium" font="inter" color={INK_HEAD} lineHeight={16.94} align="center">
+        <Txt
+          x={24}
+          y={21}
+          w={80}
+          size={14}
+          weight="medium"
+          font="inter"
+          color={INK_HEAD}
+          lineHeight={16.94}
+          align="center"
+          numberOfLines={1}
+        >
           Skip
         </Txt>
       </Pressable>
@@ -788,7 +808,7 @@ const styles = StyleSheet.create({
   },
 
   /* action bar */
-  actionBar: { position: "absolute", left: 0, top: 765, width: FRAME_W, height: 108 },
+  actionBar: { position: "absolute", left: 0, top: 730, width: FRAME_W, height: 146 },
   skip: {
     position: "absolute",
     left: 20,

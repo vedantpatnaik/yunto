@@ -389,7 +389,7 @@ export default function ContentDeliveryTimeline() {
                   )}
                 </View>
                 <View style={[styles.actionBadge, { left: cell.x + ACTION_DX, top: cell.y + ACTION_DY }]}>
-                  <Feather name="arrow-right" size={12} color={WHITE} />
+                  <Feather name="plus" size={12} color={WHITE} />
                 </View>
               </Fragment>
             ) : null}

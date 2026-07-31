@@ -169,7 +169,9 @@ interface PriorityCardProps {
   cardOpacity: number;
   pillOpacity: number;
   accent: string;
-  icon: IconName;
+  /** Feather icon for the pill — or a text glyph (the design's ₹) instead. */
+  icon?: IconName;
+  glyph?: string;
   title: string;
   sub: string;
   subColor: string;
@@ -183,7 +185,7 @@ interface PriorityCardProps {
  */
 function PriorityCard({
   y, from, to, start, end, shadow, cardOpacity, pillOpacity,
-  accent, icon, title, sub, subColor, onPress,
+  accent, icon, glyph, title, sub, subColor, onPress,
 }: PriorityCardProps) {
   const titleLines = title.includes("\n") ? 2 : 1;
   const titleH = titleLines === 2 ? 36 : 18;
@@ -223,7 +225,13 @@ function PriorityCard({
         center
         style={[styles.pillShadow, { shadowColor: shadow, shadowOpacity: pillOpacity }]}
       >
-        <Feather name={icon} size={22} color={accent} />
+        {glyph ? (
+          <Txt size={22} weight="semibold" font="inter" color={accent} lineHeight={26}>
+            {glyph}
+          </Txt>
+        ) : (
+          <Feather name={icon} size={22} color={accent} />
+        )}
       </Abs>
 
       <Txt
@@ -566,7 +574,7 @@ export default function Notifications() {
         cardOpacity={0.06}
         pillOpacity={0.1}
         accent="#F57C00"
-        icon="dollar-sign"
+        glyph="₹"
         title={`Payment pending from ${pendingBrand}`}
         sub="Tap to review"
         subColor={INK_SUB}

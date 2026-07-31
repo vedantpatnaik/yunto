@@ -2,7 +2,6 @@ import { useMemo } from "react";
 import { Pressable, StyleSheet } from "react-native";
 import { useRouter } from "expo-router";
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
-import Svg, { Defs, Ellipse, RadialGradient, Rect, Stop } from "react-native-svg";
 import { Abs, Screen, Txt } from "../../../src/ui/Frame";
 import { useCreators } from "../../../src/api/hooks";
 
@@ -41,7 +40,6 @@ import { useCreators } from "../../../src/api/hooks";
  */
 
 /* ------------------------------- geometry -------------------------------- */
-const FRAME_W = 375;
 const FRAME_H = 876;
 
 /** Overlay+Border+Shadow+OverlayBlur — 7753:8333. */
@@ -75,56 +73,12 @@ const LABEL_INK = "#aaaaaa"; // metric captions
 const VALUE_INK = "#111111"; // "90" / "70"
 const UNIT_INK = "#888888"; // "Creators" — 7753:8350
 
-/* -------------------------------- backdrop -------------------------------- */
-/**
- * Gradient / Gradient / Overlay+Blur — 7753:8231, :8232, :8233.
- *
- * The 876-gen page wash: a full-bleed rect carrying three radial paints, a
- * fourth in the bottom-right 262.5x350.4 box, and a blurred lilac blob hanging
- * off the bottom-left edge. This export dropped the paints from the three
- * rects; the stops below are the same shared backdrop measured at identical
- * coordinates on 7756:8482, so nothing here is guessed. The blob's 55pt layer
- * blur has no React Native equivalent and is folded into the radial falloff.
+/*
+ * Backdrop — 7753:8231, :8232, :8233 ("Gradient" / "Gradient" / "Overlay+Blur")
+ * exist in the layer tree but carry no fills in the spec, and the frame's
+ * rendered export shows a flat #f8f5ef page. They are drawn as nothing here;
+ * the plain Screen background is the whole backdrop.
  */
-function Backdrop() {
-  return (
-    <Svg width={FRAME_W} height={FRAME_H} style={styles.backdrop}>
-      <Defs>
-        {/* 7753:8231 — #ffd7eb 38%, centre (1.08, 0.30) of the full frame */}
-        <RadialGradient id="rose" cx={405} cy={262.8} rx={262.5} ry={438} gradientUnits="userSpaceOnUse">
-          <Stop offset="0" stopColor="#ffd7eb" stopOpacity={0.38} />
-          <Stop offset="0.55" stopColor="#ffd7eb" stopOpacity={0} />
-        </RadialGradient>
-        {/* 7753:8231 — #ebd7ff 40%, centre (-0.05, 0.40) */}
-        <RadialGradient id="lilac" cx={-18.75} cy={350.4} rx={300} ry={438} gradientUnits="userSpaceOnUse">
-          <Stop offset="0" stopColor="#ebd7ff" stopOpacity={0.4} />
-          <Stop offset="0.55" stopColor="#ebd7ff" stopOpacity={0} />
-        </RadialGradient>
-        {/* 7753:8231 — #c3cdff 65%, centre (0.50, -0.06) */}
-        <RadialGradient id="peri" cx={187.5} cy={-52.56} rx={450} ry={438} gradientUnits="userSpaceOnUse">
-          <Stop offset="0" stopColor="#c3cdff" stopOpacity={0.65} />
-          <Stop offset="0.5" stopColor="#c3cdff" stopOpacity={0} />
-        </RadialGradient>
-        {/* 7753:8232 — #bee1ff 50%, centred on the box's bottom-right */}
-        <RadialGradient id="sky" cx={375} cy={876} rx={236.25} ry={262.8} gradientUnits="userSpaceOnUse">
-          <Stop offset="0" stopColor="#bee1ff" stopOpacity={0.5} />
-          <Stop offset="0.65" stopColor="#bee1ff" stopOpacity={0} />
-        </RadialGradient>
-        {/* 7753:8233 — #dcd2ff at 30%, 55pt layer blur */}
-        <RadialGradient id="blob" cx={46.875} cy={604.425} rx={139.375} ry={177.635} gradientUnits="userSpaceOnUse">
-          <Stop offset="0" stopColor="#dcd2ff" stopOpacity={0.3} />
-          <Stop offset="0.45" stopColor="#dcd2ff" stopOpacity={0.18} />
-          <Stop offset="1" stopColor="#dcd2ff" stopOpacity={0} />
-        </RadialGradient>
-      </Defs>
-      <Rect x={0} y={0} width={FRAME_W} height={FRAME_H} fill="url(#rose)" />
-      <Rect x={0} y={0} width={FRAME_W} height={FRAME_H} fill="url(#lilac)" />
-      <Rect x={0} y={0} width={FRAME_W} height={FRAME_H} fill="url(#peri)" />
-      <Rect x={112.5} y={525.6} width={262.5} height={350.4} fill="url(#sky)" />
-      <Ellipse cx={46.875} cy={604.425} rx={139.375} ry={177.635} fill="url(#blob)" />
-    </Svg>
-  );
-}
 
 /* -------------------------------- columns --------------------------------- */
 type ColKey = "assigned" | "unassigned" | "pending";
@@ -182,8 +136,6 @@ export default function AssignCreatorsScreen() {
 
   return (
     <Screen height={FRAME_H} background={BG} scroll>
-      <Backdrop />
-
       {/* ============================ Frame 2147223268 ======================== */}
       <Pressable
         onPress={() => router.back()}
@@ -277,7 +229,6 @@ export default function AssignCreatorsScreen() {
 }
 
 const styles = StyleSheet.create({
-  backdrop: { position: "absolute", left: 0, top: 0 },
   pressed: { opacity: 0.85 },
   upper: { textTransform: "uppercase" },
 

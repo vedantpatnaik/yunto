@@ -300,7 +300,7 @@ export default function AgencySetting() {
               center
               style={styles.softShadow}
             >
-              <Ionicons name="briefcase-outline" size={36} color={ACCENT} />
+              <Ionicons name="business-outline" size={36} color={ACCENT} />
             </Abs>
 
             {/*
@@ -326,9 +326,9 @@ export default function AgencySetting() {
             {/* "MANAGED BY AGENCY" pill — 101.07,259 171x27 */}
             <Abs x={101.07} y={259} w={171} h={27} radius={100} bg={GLASS_60} style={styles.softShadow} />
             <Txt
-              x={115.07}
+              x={101.07}
               y={265}
-              w={143}
+              w={171}
               size={12}
               weight="semibold"
               font="inter"
@@ -336,6 +336,7 @@ export default function AgencySetting() {
               lineHeight={14.52}
               letterSpacing={0.5}
               align="center"
+              numberOfLines={1}
             >
               MANAGED BY AGENCY
             </Txt>

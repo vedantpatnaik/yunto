@@ -117,15 +117,15 @@ const NICHES = [
   { label: "Travel", x: 16, y: 329, w: 90.21, size: 13, lh: 15.73, ty: 338 },
   { label: "Artists & Films", x: 119.1, y: 329, w: 123.92, size: 12, lh: 14.52, ty: 338 },
   { label: "Finance", x: 250.94, y: 329, w: 108.06, size: 12, lh: 14.52, ty: 337 },
-  { label: "Fashion & lifestyle", x: 16, y: 373, w: 144, size: 12, lh: 14.52, ty: 382 },
+  { label: "Fashion & Lifestyle", x: 16, y: 373, w: 144, size: 12, lh: 14.52, ty: 382 },
   { label: "Health & Fitness", x: 165.69, y: 373, w: 126.89, size: 12, lh: 14.52, ty: 382 },
-  { label: "beauty & wellness", x: 16, y: 417, w: 159.61, size: 12, lh: 14.52, ty: 425 },
+  { label: "Beauty & Wellness", x: 16, y: 417, w: 159.61, size: 12, lh: 14.52, ty: 425 },
   { label: "Crafts & DIY", x: 16, y: 461, w: 121.93, size: 12, lh: 14.52, ty: 471 },
-  { label: "other ", x: 155.94, y: 461, w: 119.95, size: 12, lh: 14.52, ty: 470 },
+  { label: "Other ", x: 155.94, y: 461, w: 119.95, size: 12, lh: 14.52, ty: 470 },
 ] as const;
 
 /** Two chips carry the near-black selected stroke in the frame. */
-const NICHES_ON: string[] = ["Travel", "Fashion & lifestyle"];
+const NICHES_ON: string[] = ["Travel", "Fashion & Lifestyle"];
 
 /** Gender rows at the x steps the spec lays out (checkbox 16 / 94 / 155). */
 const GENDERS = [
@@ -142,11 +142,11 @@ const TAG_VOCAB: string[] = ["Couple"];
 const tokensOf = (label: string) =>
   label.toLowerCase().split(/[^a-z]+/).filter((t) => t.length >= 4);
 
-/** "other" is the residue bucket: a niche no other chip claims. */
+/** "Other" is the residue bucket: a niche no other chip claims. */
 function matchesNiche(label: string, niche: string): boolean {
-  if (label.trim() === "other") {
+  if (label.trim() === "Other") {
     return !NICHES.some(
-      (n) => n.label.trim() !== "other" && tokensOf(n.label).some((t) => niche.includes(t)),
+      (n) => n.label.trim() !== "Other" && tokensOf(n.label).some((t) => niche.includes(t)),
     );
   }
   return tokensOf(label).some((t) => niche.includes(t));
@@ -411,7 +411,7 @@ export default function CreatorsFilterSheet() {
       <View pointerEvents="none" style={{ position: "absolute", left: 0, top: 0, width: FRAME_W, height: FRAME_H }}>
         {/* ------------------------- Frame 2147223266 ------------------------ */}
         <Abs x={16} y={22} w={36} h={36} radius={18} bg="#1f1a17" center>
-          <Ionicons name="chevron-back" size={16} color={PAPER} />
+          <Feather name="arrow-left" size={16} color={PAPER} />
         </Abs>
         <Txt
           x={72} y={20} w={192} size={20} weight="medium" font="inter"
@@ -434,7 +434,7 @@ export default function CreatorsFilterSheet() {
         </Abs>
         <Abs x={144.89} y={106} w={77.5} h={34} radius={17} bg="#ffffff">
           <Abs x={15} y={11} w={12} h={12} center>
-            <Feather name="filter" size={11} color={INK} />
+            <Ionicons name="options-outline" size={13} color={INK} />
           </Abs>
           <Txt x={33} y={9} w={29.5} size={12} weight="semibold" font="inter" color={INK} lineHeight={16} align="center">
             Filter
@@ -442,7 +442,7 @@ export default function CreatorsFilterSheet() {
         </Abs>
         <Abs x={230.39} y={106} w={72.34} h={34} radius={17} bg="#ffffff">
           <Abs x={15} y={11} w={12} h={12} center>
-            <Feather name="sliders" size={11} color={INK} />
+            <Ionicons name="swap-vertical" size={12} color={INK} />
           </Abs>
           <Txt x={33} y={9} w={24.34} size={12} weight="semibold" font="inter" color={INK} lineHeight={16} align="center">
             Sort
@@ -597,18 +597,16 @@ export default function CreatorsFilterSheet() {
         <Abs x={0} y={7} w={TRACK_W} h={9} radius={9999} bg={TRACK_BG} />
         <Abs x={0} y={7} w={fillW} h={9} radius={9999} bg={TRACK_FILL} />
       </Pressable>
-      {/* ion:radio-button-on-outline, centred on the filled edge */}
+      {/* ion:radio-button-on-outline flattened to a solid #000 fill in the frame */}
       <Abs x={TRACK_X + fillW - THUMB / 2} y={TRACK_Y - 7} w={THUMB} h={THUMB} center>
         <Abs
-          w={17.39} h={17.39} radius={8.7} bg="#ffffff" border="#000000" borderWidth={2} center
+          w={17.39} h={17.39} radius={8.7} bg="#000000"
           style={{
             position: "relative",
             shadowColor: "#000000", shadowOpacity: 0.2, shadowRadius: 3,
             shadowOffset: { width: 2, height: 2 }, elevation: 3,
           }}
-        >
-          <Abs w={7} h={7} radius={3.5} bg="#000000" style={{ position: "relative" }} />
-        </Abs>
+        />
       </Abs>
 
       {/* ------------------------------ By Tag ------------------------------ */}
@@ -655,7 +653,7 @@ export default function CreatorsFilterSheet() {
           19 - 25
         </Txt>
         <Abs x={314} y={6} w={20} h={20} center>
-          <Feather name="chevron-down" size={14} color={FIELD_INK} />
+          <Ionicons name="chevron-expand" size={14} color={FIELD_INK} />
         </Abs>
       </Abs>
 
@@ -695,10 +693,14 @@ export default function CreatorsFilterSheet() {
           opacity: pressed ? 0.7 : 1,
         })}
       >
+        {/* iconamoon:location-light — a navigation-arrow glyph, not a map pin */}
         <Abs x={10} y={6} w={20} h={20} center>
-          <Feather name="map-pin" size={14} color="#000000" />
+          <Feather name="navigation" size={14} color="#000000" />
         </Abs>
-        <Txt x={30} y={4} w={71} size={12} weight="medium" font="inter" color="#000000" lineHeight={24} align="center">
+        <Txt
+          x={26.5} y={4} w={80} size={12} weight="medium" font="inter"
+          color="#000000" lineHeight={24} align="center" numberOfLines={1}
+        >
           Add location
         </Txt>
       </Pressable>
@@ -708,9 +710,9 @@ export default function CreatorsFilterSheet() {
             key={p}
             onPress={() => setPlaces(places.filter((k) => k !== p))}
             style={({ pressed }) => ({
-              height: 34, borderRadius: 20, paddingHorizontal: 8, backgroundColor: TAG_CHIP_BG,
+              height: 34, borderRadius: 20, paddingHorizontal: 12, backgroundColor: TAG_CHIP_BG,
               borderWidth: 1, borderColor: "#000000", flexDirection: "row", alignItems: "center",
-              gap: 2, opacity: pressed ? 0.7 : 1,
+              gap: 8, opacity: pressed ? 0.7 : 1,
             })}
           >
             <Txt size={12} font="inter" color={INK_70} lineHeight={24} align="center">

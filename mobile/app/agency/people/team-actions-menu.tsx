@@ -290,8 +290,9 @@ export default function TeamActionsMenu() {
       >
         Team
       </Txt>
+      {/* Card is expanded, so the disclosure points up (5279:22082 rot -90°) */}
       <Abs x={302} y={135} w={36} h={36} radius={18} bg={GLASS_60} center style={styles.chipShadow}>
-        <Feather name="chevron-down" size={20} color={CHEVRON_INK} />
+        <Feather name="chevron-up" size={20} color={CHEVRON_INK} />
       </Abs>
 
       {/* HorizontalBorder — 1pt top rule above the team row */}
@@ -343,8 +344,10 @@ export default function TeamActionsMenu() {
           <Feather name="edit-2" size={12} color={EDIT_INK} />
         </Pressable>
 
+        {/* Auto-layout in the design: 84 was just "Stellar Agency"'s traced
+            width; give the live name the room up to the kebab (x=255). */}
         <Txt
-          x={76} y={40.5} w={84} size={12} weight="medium" font="inter"
+          x={76} y={40.5} w={170} size={12} weight="medium" font="inter"
           color={SUB_INK} lineHeight={18} numberOfLines={1}
         >
           {agency?.name ?? ""}

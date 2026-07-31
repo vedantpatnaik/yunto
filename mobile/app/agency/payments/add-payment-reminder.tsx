@@ -372,7 +372,9 @@ export default function AddPaymentReminderScreen() {
           position: "absolute", left: 71, top: 792, width: 232, height: 55,
           borderRadius: 36, backgroundColor: CTA_BG,
           alignItems: "center", justifyContent: "center",
-          opacity: canSubmit ? (pressed ? 0.9 : 1) : 0.5,
+          // The frame draws the CTA at full ink even in the empty state, so the
+          // disabled affordance is press-gating only — no dimming.
+          opacity: pressed && canSubmit ? 0.9 : 1,
           shadowColor: CTA_BG, shadowOpacity: 0.25,
           shadowRadius: 20, shadowOffset: { width: 0, height: 8 }, elevation: 6,
         })}

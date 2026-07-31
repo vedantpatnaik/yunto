@@ -1,6 +1,13 @@
 import { useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { Pressable, ScrollView, TextInput, View } from "react-native";
+import Svg, {
+  Defs,
+  LinearGradient as SvgLinearGradient,
+  RadialGradient,
+  Rect,
+  Stop,
+} from "react-native-svg";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
@@ -133,13 +140,36 @@ export default function AddReminderScreen() {
 
   return (
     <Screen height={875} background="#f7f0e4" scroll>
-      {/* Frame fill: linear #f7f0e4 -> #f4ebdd */}
-      <LinearGradient
-        colors={["#f7f0e4", "#f4ebdd"]}
-        start={{ x: 0.5, y: 0 }}
-        end={{ x: 0.5, y: 1 }}
-        style={{ position: "absolute", left: 0, top: 0, width: 375, height: 875 }}
-      />
+      {/* Frame fill: linear #f7f0e4 -> #f4ebdd plus four radial bloom tints */}
+      <Svg width={375} height={875} style={{ position: "absolute", left: 0, top: 0 }}>
+        <Defs>
+          <SvgLinearGradient id="base" x1="187.5" y1="0" x2="187.5" y2="875" gradientUnits="userSpaceOnUse">
+            <Stop offset="0" stopColor="#f7f0e4" />
+            <Stop offset="1" stopColor="#f4ebdd" />
+          </SvgLinearGradient>
+          <RadialGradient id="pink" cx="285" cy="542.5" rx="1027.5" ry="568.75" gradientUnits="userSpaceOnUse">
+            <Stop offset="0" stopColor="#f7b7da" stopOpacity={0.34} />
+            <Stop offset="0.26" stopColor="#f7b7da" stopOpacity={0} />
+          </RadialGradient>
+          <RadialGradient id="blue" cx="90" cy="367.5" rx="967.5" ry="533.75" gradientUnits="userSpaceOnUse">
+            <Stop offset="0" stopColor="#bacdf4" stopOpacity={0.36} />
+            <Stop offset="0.24" stopColor="#bacdf4" stopOpacity={0} />
+          </RadialGradient>
+          <RadialGradient id="gold" cx="292.5" cy="157.5" rx="1338.75" ry="735" gradientUnits="userSpaceOnUse">
+            <Stop offset="0" stopColor="#f6d64a" stopOpacity={0.22} />
+            <Stop offset="0.2" stopColor="#f6d64a" stopOpacity={0} />
+          </RadialGradient>
+          <RadialGradient id="haze" cx="75" cy="87.5" rx="1466.25" ry="805" gradientUnits="userSpaceOnUse">
+            <Stop offset="0" stopColor="#ffffff" stopOpacity={0.72} />
+            <Stop offset="0.24" stopColor="#ffffff" stopOpacity={0} />
+          </RadialGradient>
+        </Defs>
+        <Rect width={375} height={875} fill="url(#base)" />
+        <Rect width={375} height={875} fill="url(#haze)" />
+        <Rect width={375} height={875} fill="url(#gold)" />
+        <Rect width={375} height={875} fill="url(#blue)" />
+        <Rect width={375} height={875} fill="url(#pink)" />
+      </Svg>
 
       {/* ------------------------------- Header ------------------------------ */}
       <Pressable
@@ -302,7 +332,9 @@ export default function AddReminderScreen() {
           position: "absolute", left: 71, top: 792, width: 232, height: 55,
           borderRadius: 36, backgroundColor: "#312b28",
           alignItems: "center", justifyContent: "center",
-          opacity: canSubmit ? (pressed ? 0.9 : 1) : 0.5,
+          // The frame shows the CTA at full strength even while the form is
+          // empty — invalid submits are simply ignored, never greyed out.
+          opacity: pressed && canSubmit ? 0.9 : 1,
           shadowColor: "#312b28", shadowOpacity: 0.25,
           shadowRadius: 20, shadowOffset: { width: 0, height: 8 }, elevation: 6,
         })}

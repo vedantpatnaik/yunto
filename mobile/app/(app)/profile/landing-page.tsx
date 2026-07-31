@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { Image, Pressable, ScrollView, StyleSheet, TextInput } from "react-native";
 import { useRouter } from "expo-router";
-import { Feather } from "@expo/vector-icons";
+import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import Svg, {
   Defs,
   LinearGradient as SvgLinear,
@@ -290,7 +290,9 @@ export default function LandingPageEditContentScreen() {
           >
             {name}
           </Txt>
-          <Feather name="check-circle" size={18} color={VERIFIED} />
+          {/* Scalloped verified seal (7358:27423): 15x15 stroke vector in an
+              18x18 box — the decagram outline, not Feather's plain circle. */}
+          <MaterialCommunityIcons name="check-decagram-outline" size={18} color={VERIFIED} />
         </Abs>
         <Txt
           x={128} y={oy(258.5)} w={138.94} size={14} weight="medium" font="inter"

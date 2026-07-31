@@ -436,7 +436,7 @@ export default function PersonalInformationLanguage() {
         onPress={() => router.back()}
         style={({ pressed }) => [styles.back, pressed && styles.pressed]}
       >
-        <Ionicons name="chevron-back" size={20} color={BACK_INK} />
+        <Ionicons name="arrow-back" size={20} color={BACK_INK} />
       </Pressable>
       <Txt
         x={79.5}
@@ -477,7 +477,7 @@ export default function PersonalInformationLanguage() {
         onPress={() => router.back()}
         style={({ pressed }) => [styles.expandedHead, pressed && styles.pressed]}
       >
-        <SectionHead tile="#DBEAFE" ink="#2563EB" icon="globe-outline" label="Language" expanded />
+        <SectionHead tile="#DBEAFE" ink="#2563EB" icon="language-outline" label="Language" expanded />
       </Pressable>
 
       {/* HorizontalBorder — 1pt white hairline above the section body. */}
@@ -705,6 +705,7 @@ const styles = StyleSheet.create({
     backgroundColor: GLASS_60,
     borderWidth: 1,
     borderColor: ACCENT_EDGE,
+    borderStyle: "dashed",
   },
 
   chip: {

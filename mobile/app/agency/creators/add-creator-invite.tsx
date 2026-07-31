@@ -155,7 +155,7 @@ export default function AddCreatorInviteScreen() {
         onPress={() => router.back()}
         style={({ pressed }) => [styles.back, pressed && styles.pressed]}
       >
-        <Feather name="chevron-left" size={16} color={INK_INVERT} />
+        <Feather name="arrow-left" size={16} color={INK_INVERT} />
       </Pressable>
       <Txt
         x={72} y={28} w={222} size={20} weight="medium" font="inter"
@@ -321,13 +321,15 @@ export default function AddCreatorInviteScreen() {
             />
           </Abs>
 
-          {/* Button:margin 37,784.72 — the CTA sits 8pt into it */}
+          {/* Button:margin 37,784.72 — the CTA sits 8pt into it. The frame has
+              no dimmed variant, so the pill stays full #312b28 even while the
+              form is incomplete; submit() simply no-ops until it validates. */}
           <Pressable
             onPress={submit}
             disabled={!canSubmit}
             style={({ pressed }) => [
               styles.cta,
-              { opacity: canSubmit ? (pressed ? 0.9 : 1) : 0.5 },
+              pressed && canSubmit && styles.pressed,
             ]}
           >
             <Txt

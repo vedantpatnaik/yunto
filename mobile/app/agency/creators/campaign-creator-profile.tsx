@@ -477,7 +477,7 @@ export default function CampaignCreatorProfile() {
           value={stats ? pct(stats.engagementRate) : "—"}
         />
         <Tile
-          col={1} row={1} fill={SAND} label="EST. REACH" glyph="target"
+          col={1} row={1} fill={SAND} label="EST. REACH" glyph="radio"
           value={estReach > 0 ? short(estReach) : "—"}
           caption="this campaign"
         />

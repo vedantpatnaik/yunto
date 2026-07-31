@@ -79,8 +79,10 @@ const TABS: readonly Tab[] = [
 
 /* ----------------------------- card treatments ---------------------------- */
 /**
- * The frame ships three card tints, each paired with a status chip. Tint and
- * chip therefore follow the lead's real status rather than its row position.
+ * The frame ships three card tints, each paired with a status chip and an
+ * action-icon set (contact actions while the lead is live, document actions
+ * once it is won). Tint, chip and icons therefore follow the lead's real
+ * status rather than its row position.
  */
 interface Treatment {
   label: string;
@@ -88,6 +90,7 @@ interface Treatment {
   chipInk: string;
   from: string;
   to: string;
+  icons: readonly IconName[];
 }
 
 const NEEDS_RESPONSE: Treatment = {
@@ -96,6 +99,7 @@ const NEEDS_RESPONSE: Treatment = {
   chipInk: "#c07c27",
   from: "#fdf0d5",
   to: "#fef9ef",
+  icons: ["phone", "message-circle", "instagram"],
 };
 const CONTACTED: Treatment = {
   label: "CONTACTED",
@@ -103,6 +107,7 @@ const CONTACTED: Treatment = {
   chipInk: "#7a54b8",
   from: "#f1eafa",
   to: "#f9f6fc",
+  icons: ["phone", "message-circle", "more-horizontal"],
 };
 const WON: Treatment = {
   label: "WON",
@@ -110,6 +115,7 @@ const WON: Treatment = {
   chipInk: "#2e60d1",
   from: "#e8f0fc",
   to: "#f4f8fe",
+  icons: ["file-text", "more-horizontal"],
 };
 
 function treatmentOf(status: string): Treatment {
@@ -132,13 +138,12 @@ interface Slot {
   subLines: number;
   chipY: number;
   btnY: number;
-  icons: readonly IconName[];
 }
 
 const SLOTS: readonly Slot[] = [
-  { y: 242, h: 154, subLines: 1, chipY: 66, btnY: 102, icons: ["phone", "message-circle", "instagram"] },
-  { y: 408, h: 170, subLines: 2, chipY: 82, btnY: 118, icons: ["phone", "message-circle", "more-horizontal"] },
-  { y: 590, h: 170, subLines: 2, chipY: 82, btnY: 118, icons: ["file-text", "more-horizontal"] },
+  { y: 242, h: 154, subLines: 1, chipY: 66, btnY: 102 },
+  { y: 408, h: 170, subLines: 2, chipY: 82, btnY: 118 },
+  { y: 590, h: 170, subLines: 2, chipY: 82, btnY: 118 },
 ];
 
 /* ------------------------------ derivations ------------------------------- */
@@ -276,7 +281,7 @@ function LeadCard({ row, slot }: { row: Row; slot: Slot }) {
       </Abs>
 
       {/* Action buttons */}
-      {slot.icons.map((icon, i) => (
+      {t.icons.map((icon, i) => (
         <View key={icon} style={[styles.action, { left: PAD + i * 44, top: slot.btnY }]}>
           <Feather name={icon} size={16} color={INK} />
         </View>

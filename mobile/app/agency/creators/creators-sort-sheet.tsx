@@ -89,8 +89,10 @@ type SortKey =
 
 const OPTIONS: { key: SortKey; label: string; color: string }[] = [
   { key: "newest_added", label: "Newest Added", color: OPTION_INK },
-  { key: "engagement_rate_desc", label: "Engagement Rate – High to Low", color: OPTION_INK },
-  { key: "avg_views_desc", label: "Avg. Views – High to Low", color: OPTION_INK_ALT },
+  // The Figma nodes carry textCase: TITLE, so the rendered design reads
+  // "High To Low" even though the raw characters say "to".
+  { key: "engagement_rate_desc", label: "Engagement Rate – High To Low", color: OPTION_INK },
+  { key: "avg_views_desc", label: "Avg. Views – High To Low", color: OPTION_INK_ALT },
   { key: "followers_desc", label: "Followers - High To Low", color: OPTION_INK },
 ];
 
