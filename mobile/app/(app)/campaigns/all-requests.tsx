@@ -374,7 +374,7 @@ export default function AllRequests() {
 
       {/* Bottom Floating Browse Button */}
       <Pressable
-        onPress={() => router.push("/creators" as never)}
+        onPress={() => router.push("/services/videographers" as never)}
         style={({ pressed }) => [styles.browseButton, pressed && styles.pressed]}
       >
         <Txt

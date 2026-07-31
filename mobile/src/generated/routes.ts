@@ -23,6 +23,11 @@ export const FLOWS: GeneratedFlow[] = [
         "title": "Active Campaigns"
       },
       {
+        "slug": "active-campaigns",
+        "path": "/campaigns/active-campaigns",
+        "title": "Active Campaigns"
+      },
+      {
         "slug": "all-requests",
         "path": "/campaigns/all-requests",
         "title": "All Requests"
@@ -36,6 +41,31 @@ export const FLOWS: GeneratedFlow[] = [
         "slug": "campaign-brief-workspace-drawer",
         "path": "/campaigns/campaign-brief-workspace-drawer",
         "title": "Campaign Brief Workspace Drawer"
+      },
+      {
+        "slug": "campaign-creator-detail",
+        "path": "/campaigns/campaign-creator-detail",
+        "title": "Campaign Creator Detail"
+      },
+      {
+        "slug": "campaign-creators",
+        "path": "/campaigns/campaign-creators",
+        "title": "Campaign Creators"
+      },
+      {
+        "slug": "campaign-detail",
+        "path": "/campaigns/campaign-detail",
+        "title": "Campaign Detail"
+      },
+      {
+        "slug": "campaign-notes",
+        "path": "/campaigns/campaign-notes",
+        "title": "Campaign Notes"
+      },
+      {
+        "slug": "campaign-requests",
+        "path": "/campaigns/campaign-requests",
+        "title": "Campaign Requests"
       },
       {
         "slug": "invoice-select-campaign",
@@ -82,6 +112,87 @@ export const FLOWS: GeneratedFlow[] = [
         "slug": "plan-select-dates",
         "path": "/content/plan-select-dates",
         "title": "Plan Select Dates"
+      }
+    ]
+  },
+  {
+    "flow": "creators",
+    "title": "Creators",
+    "screens": [
+      {
+        "slug": "add-creator-invite",
+        "path": "/creators/add-creator-invite",
+        "title": "Add Creator Invite"
+      },
+      {
+        "slug": "add-creators",
+        "path": "/creators/add-creators",
+        "title": "Add Creators"
+      },
+      {
+        "slug": "assign-creators",
+        "path": "/creators/assign-creators",
+        "title": "Assign Creators"
+      },
+      {
+        "slug": "campaign-creator-match",
+        "path": "/creators/campaign-creator-match",
+        "title": "Campaign Creator Match"
+      },
+      {
+        "slug": "campaign-creator-profile",
+        "path": "/creators/campaign-creator-profile",
+        "title": "Campaign Creator Profile"
+      },
+      {
+        "slug": "creator-detail",
+        "path": "/creators/creator-detail",
+        "title": "Creator Detail"
+      },
+      {
+        "slug": "creators-filter-sheet",
+        "path": "/creators/creators-filter-sheet",
+        "title": "Creators Filter Sheet"
+      },
+      {
+        "slug": "creators-roster",
+        "path": "/creators/creators-roster",
+        "title": "Creators Roster"
+      },
+      {
+        "slug": "creators-roster-all-tab",
+        "path": "/creators/creators-roster-all-tab",
+        "title": "Creators Roster All Tab"
+      },
+      {
+        "slug": "creators-selected-view",
+        "path": "/creators/creators-selected-view",
+        "title": "Creators Selected View"
+      },
+      {
+        "slug": "creators-sort-sheet",
+        "path": "/creators/creators-sort-sheet",
+        "title": "Creators Sort Sheet"
+      },
+      {
+        "slug": "editor-detail",
+        "path": "/creators/editor-detail",
+        "title": "Editor Detail"
+      },
+      {
+        "slug": "editors-list",
+        "path": "/creators/editors-list",
+        "title": "Editors List"
+      },
+      {
+        "slug": "videographer-detail",
+        "path": "/creators/videographer-detail",
+        "title": "Videographer Detail"
+      },
+      {
+        "slug": "videographers-list",
+        "path": "/creators/videographers-list",
+        "title": "Videographers List"
       }
     ]
   },
@@ -141,6 +252,11 @@ export const FLOWS: GeneratedFlow[] = [
     "flow": "leads",
     "title": "Leads",
     "screens": [
+      {
+        "slug": "add-lead",
+        "path": "/leads/add-lead",
+        "title": "Add Lead"
+      },
       {
         "slug": "lead-added-success",
         "path": "/leads/lead-added-success",
@@ -668,4 +784,4 @@ export const FLOWS: GeneratedFlow[] = [
   }
 ];
 
-export const TOTAL_SCREENS = 115;
+export const TOTAL_SCREENS = 137;

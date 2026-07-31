@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { prisma } from "../lib/prisma";
 import { asyncHandler, HttpError } from "../middleware/error";
-import { requireAuth } from "../middleware/auth";
+import { requireAuth, type AuthedRequest } from "../middleware/auth";
 
 export const detailRouter = Router();
 detailRouter.use(requireAuth);
@@ -44,6 +44,32 @@ detailRouter.get(
       include: { author: { select: { name: true } } },
     });
     res.json(msgs.map((m) => ({ id: m.id, channelId: m.channelId, body: m.body, createdAt: m.createdAt, authorName: m.author?.name ?? "Member" })));
+  })
+);
+
+/**
+ * Post a message to a channel. Authored by the caller — the client cannot
+ * choose an author, so a message can never be attributed to someone else.
+ */
+detailRouter.post(
+  "/channels/:id/messages",
+  asyncHandler(async (req, res) => {
+    const body = String((req.body as { body?: unknown })?.body ?? "").trim();
+    if (!body) throw new HttpError(400, "Message body is required");
+
+    const channel = await prisma.chatChannel.findUnique({ where: { id: req.params.id } });
+    if (!channel) throw new HttpError(404, "Channel not found");
+
+    // The JWT carries the user id in `sub` (see lib/jwt.ts) — not `id`.
+    const authorId = (req as AuthedRequest).user?.sub ?? null;
+    const msg = await prisma.message.create({
+      data: { channelId: channel.id, body, authorId },
+      include: { author: { select: { name: true } } },
+    });
+    res.status(201).json({
+      id: msg.id, channelId: msg.channelId, body: msg.body,
+      createdAt: msg.createdAt, authorName: msg.author?.name ?? "Member",
+    });
   })
 );
 

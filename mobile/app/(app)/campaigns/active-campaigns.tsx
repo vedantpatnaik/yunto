@@ -543,7 +543,7 @@ export default function ActiveCampaigns() {
 
       {/* Bottom floating browse button */}
       <Pressable
-        onPress={() => router.push("/creator-services" as never)}
+        onPress={() => router.push("/services/videographers" as never)}
         style={({ pressed }) => [styles.browse, pressed && styles.pressed]}
       >
         <Txt
