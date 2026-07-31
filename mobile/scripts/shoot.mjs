@@ -45,7 +45,7 @@ function designHeights() {
 }
 
 const heights = designHeights();
-let list = staticRoutes(path.join(ROOT, "app")).filter((u) => u !== "/login");
+let list = staticRoutes(path.join(ROOT, "app")).filter((u) => u !== "/login" && u !== "/");
 if (filter) list = list.filter((u) => u.includes(filter));
 console.log(`shooting ${list.length} screens…`);
 

@@ -442,6 +442,28 @@ async function main() {
     }
   }
 
+  // `updatedAt` is @updatedAt, so Prisma stamps it to now on the writes above —
+  // which made every lead card read "just now" no matter how old it was. Raw SQL
+  // is the only way to set it, since the client always overrides it. Last touch
+  // lands between the row's creation and today.
+  for (const [table, days] of [["Lead", 45], ["User", 60]] as const) {
+    await prisma.$executeRawUnsafe(
+      // LEAST(..., now()) matters: without it a row created recently gets a
+      // "last touched" date in the future, and every relative label reads
+      // "in 4 days".
+      `UPDATE "${table}"
+          SET "updatedAt" = LEAST("createdAt" + (random() * ($1 || ' days')::interval), now())
+        WHERE "updatedAt" > now() - interval '1 hour'`,
+      String(days)
+    );
+  }
+
+  // Leave a few leads unowned. Every screen that surfaces "unattended" or
+  // "needs response" showed zero because the seed assigned an owner to all of
+  // them, so the feature looked broken rather than empty.
+  const unowned = await prisma.lead.findMany({ where: { status: "NEW" }, take: 4, select: { id: true } });
+  for (const l of unowned) await prisma.lead.update({ where: { id: l.id }, data: { ownerId: null } });
+
   const counts = {
     plans: await prisma.subscriptionPlan.count(),
     users: await prisma.user.count(), agencies: await prisma.agency.count(), creators: await prisma.creator.count(),
