@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { Image, Pressable, StyleSheet, View } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { Feather } from "@expo/vector-icons";
+import { Feather, Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Abs, Screen, Txt, getScale } from "../../../src/ui/Frame";
@@ -45,6 +45,17 @@ import { inr, useAgencies, useCalendar, useCreators } from "../../../src/api/hoo
 const FRAME_W = 375;
 const HEADER_H = 80; // "Frame 2147223269"
 const BAR_H = 108; // bottom "Frame" at y=762
+/**
+ * The design's "Main" region clips at y=744 (h=644), so at rest the frame shows
+ * clean page between the Summary card (bottom y=731) and the dock (y=762) — no
+ * Expertise content peeks out. The scrolling build reproduces that clip by
+ * extending the dock's fade up to y=731: fully opaque by y=750, transparent at
+ * the Summary card's bottom edge, so under-scrolled content fades out before it
+ * can collide with the Skip / reject / confirm buttons.
+ */
+const FADE_LIFT = 762 - 731; // fade box rises above the dock to frame y 731
+const FADE_H = BAR_H + (762 - 731); // 139: frame y 731..870
+const FADE_SOLID = (870 - 750) / FADE_H; // opaque from the bottom up to y=750
 const CONTENT_BOTTOM = 1594.67; // last Past Work tile bottom
 const CONTENT_H = CONTENT_BOTTOM + BAR_H; // scroll extent + dock clearance
 
@@ -64,6 +75,9 @@ const PLACEHOLDER = "#EAEAEA";
 const SLOT_BG = "#E8F5E9";
 const SLOT_INK = "#2E7D32";
 const BACK_FILL = "#1F1A17";
+const BACK_INK = "#FAF7F2"; // back arrow stroke (7778:18126)
+const REJECT_INK = "#FF5252"; // reject ✕ stroke (7778:18137)
+const CIRCLE_RING = "#EAEAEA"; // reject circle border (7778:18134)
 const DARK = "#312B28";
 const GLASS_65 = "rgba(255,255,255,0.65)";
 const GLASS_61 = "rgba(255,255,255,0.61)";
@@ -227,9 +241,9 @@ export default function VideographerDetail() {
             {/* TOP RATED */}
             {topRated ? (
               <>
-                <Abs x={24} y={290} w={108.58} h={28} radius={14} bg={GLASS_20} />
+                <Abs x={24} y={290} w={108.58} h={28} radius={14} bg={GLASS_20} style={styles.badgeRing} />
                 <View style={styles.topRatedIcon}>
-                  <Feather name="award" size={12} color={colors.white} />
+                  <Ionicons name="sparkles-outline" size={12} color={colors.white} />
                 </View>
                 <Txt
                   x={53}
@@ -466,7 +480,7 @@ export default function VideographerDetail() {
             onPress={() => router.back()}
             style={({ pressed }) => [styles.backButton, pressed && styles.pressed]}
           >
-            <Feather name="chevron-left" size={16} color={colors.white} />
+            <Feather name="arrow-left" size={16} color={BACK_INK} />
           </Pressable>
 
           <View pointerEvents="none" style={styles.titlePill}>
@@ -503,7 +517,7 @@ export default function VideographerDetail() {
         >
           <LinearGradient
             colors={["#FAF9F6", "#FAF9F6", "rgba(250,249,246,0)"] as const}
-            locations={[0, 0.6, 1] as const}
+            locations={[0, FADE_SOLID, 1] as const}
             start={{ x: 0.5, y: 1 }}
             end={{ x: 0.5, y: 0 }}
             style={styles.barFade}
@@ -520,14 +534,14 @@ export default function VideographerDetail() {
             onPress={next}
             style={({ pressed }) => [styles.circle, styles.circleLight, pressed && styles.pressed]}
           >
-            <Feather name="x" size={20} color={INK_HEADING} />
+            <Feather name="x" size={28} color={REJECT_INK} />
           </Pressable>
 
           <Pressable
             onPress={() => router.back()}
             style={({ pressed }) => [styles.circle, styles.circleDark, pressed && styles.pressed]}
           >
-            <Feather name="check" size={24} color={colors.white} />
+            <Feather name="check" size={28} color={colors.white} />
           </Pressable>
         </View>
       </View>
@@ -563,6 +577,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  badgeRing: { borderWidth: 1, borderColor: "rgba(255,255,255,0.3)" },
   heroPin: {
     position: "absolute",
     left: 24,
@@ -685,7 +700,7 @@ const styles = StyleSheet.create({
   },
 
   /* action bar */
-  barFade: { position: "absolute", left: 0, top: 0, width: FRAME_W, height: BAR_H },
+  barFade: { position: "absolute", left: 0, top: -FADE_LIFT, width: FRAME_W, height: FADE_H },
   skip: {
     position: "absolute",
     left: 20,
@@ -716,6 +731,6 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 8 },
     elevation: 4,
   },
-  circleLight: { left: 193, backgroundColor: colors.white },
+  circleLight: { left: 193, backgroundColor: colors.white, borderWidth: 1, borderColor: CIRCLE_RING },
   circleDark: { left: 298, backgroundColor: DARK },
 });

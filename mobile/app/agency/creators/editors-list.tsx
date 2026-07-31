@@ -47,8 +47,15 @@ const FRAME_H = 876;
 /** "Container" 7778:18014 — the 375x543 deck box; card tops are relative to it. */
 const DECK_Y = 188;
 
-/** Figma reports rotation in radians (0.09 = the back card's fan angle). */
-const deg = (rad: number) => `${((rad * 180) / Math.PI).toFixed(2)}deg`;
+/*
+ * Deck rotation. The spec stores each fanned card as its rotated axis-aligned
+ * bounding box (x/y/w/h) plus a rotation in radians (Figma CCW-positive). The
+ * geometry below is the unrotated card recovered from that: same centre as the
+ * bbox, W/H solved from bw = W·cosθ + H·sinθ / bh = W·sinθ + H·cosθ, and the
+ * angle negated for RN's clockwise-positive `rotate`. The front card is a child
+ * of the mid card, so its +0.05 rad cancels the parent's −0.05 rad: it renders
+ * flat, exactly as the design PNG draws it.
+ */
 
 /* --------------------------- spec colour tokens --------------------------- */
 const PAGE = "#f8f5ef"; // frame fill
@@ -79,12 +86,17 @@ const TILE_TO = "#3a3a3c";
 const PHOTO_FILL = [gradients.creators[0], gradients.creators[1]] as const;
 
 /* ------------------------------ filter chrome ----------------------------- */
-/** Category row — labels and box metrics are the spec's, verbatim. */
+/**
+ * Category row — labels and pill boxes are the spec's, verbatim. The label is
+ * centred inside the fixed-width pill rather than boxed to Figma's measured
+ * text width: RN draws emoji wider than Figma does, and a hard text box wraps
+ * and clips the single-line label.
+ */
 const CATEGORIES = [
-  { niche: "Fashion", label: "✨ Fashion", x: 20, w: 106.08, tw: 68.08 },
-  { niche: "Travel", label: "✈️ Travel", x: 138.08, w: 94.2, tw: 56.2 },
-  { niche: "Event", label: "🎉 Event", x: 244.28, w: 90.64, tw: 52.64 },
-  { niche: "Beauty", label: "💄 Beauty", x: 346.92, w: 100.16, tw: 62.16 },
+  { niche: "Fashion", label: "✨ Fashion", x: 20, w: 106.08 },
+  { niche: "Travel", label: "✈️ Travel", x: 138.08, w: 94.2 },
+  { niche: "Event", label: "🎉 Event", x: 244.28, w: 90.64 },
+  { niche: "Beauty", label: "💄 Beauty", x: 346.92, w: 100.16 },
 ] as const;
 
 /** The three 44x44 shoot-type tiles under "SELECT YOUR SHOOT TYPE". */
@@ -136,7 +148,7 @@ function Photo({ x, y, w, h, radius, uri, opacity }: PhotoProps) {
 }
 
 interface StackCardProps {
-  /** Card box + fan angle, straight from the spec. */
+  /** Unrotated card box (see the deck-rotation note above) + RN fan angle in degrees. */
   x: number;
   y: number;
   w: number;
@@ -164,7 +176,7 @@ function StackCard({ x, y, w, h, rotate, fade, photo, name, rate, creator, onPre
         bg={GLASS_70}
         border={BORDER_90}
         borderWidth={1}
-        style={[styles.cardShadow, { transform: [{ rotate: deg(rotate) }] }]}
+        style={[styles.cardShadow, { transform: [{ rotate: `${rotate}deg` }] }]}
       >
         <Photo x={photo.x} y={photo.y} w={photo.w} h={photo.h} radius={20} uri={creator.avatarUrl} opacity={fade} />
 
@@ -333,15 +345,13 @@ export default function EditorsList() {
               ]}
             >
               <Txt
-                x={19}
-                y={11}
-                w={c.tw}
                 size={14}
                 weight="semibold"
                 font="inter"
                 color={active ? INK : SUBTLE}
                 lineHeight={16.94}
                 align="center"
+                numberOfLines={1}
               >
                 {c.label}
               </Txt>
@@ -354,17 +364,17 @@ export default function EditorsList() {
       <Abs x={0} y={DECK_Y} w={FRAME_W} h={543}>
         {back ? (
           <StackCard
-            x={30.47}
-            y={78.63}
-            w={314.02}
-            h={436.74}
-            rotate={0.09}
+            x={48.49}
+            y={90.29}
+            w={277.99}
+            h={413.43}
+            rotate={-5.16}
             fade={0.3}
-            photo={{ x: 34.3, y: 16.57, w: 263.15, h: 200.97 }}
-            name={{ x: 30.3, y: 213.82, w: 68.72 }}
+            photo={{ x: 32.91, y: 16.9, w: 248.03, h: 179.4 }}
+            name={{ x: 12.67, y: 196.75, w: 66.5 }}
             rate={{
-              x: 16.54, y: 368.46, w: 143.09, h: 42.76,
-              tx: 14.15, ty: 9.24, tw: 114.78,
+              x: -15.54, y: 356.19, w: 140.94, h: 30.21,
+              tx: 13.48, ty: 8.06, tw: 113.98,
             }}
             creator={back}
             onPress={advance}
@@ -373,17 +383,17 @@ export default function EditorsList() {
 
         {mid ? (
           <StackCard
-            x={29}
-            y={58.1}
-            w={316.97}
-            h={451.81}
-            rotate={-0.05}
+            x={39.75}
+            y={65.21}
+            w={295.47}
+            h={437.59}
+            rotate={2.86}
             fade={0.5}
-            photo={{ x: 16.97, y: 16.97, w: 271.78, h: 203.46 }}
-            name={{ x: 27.91, y: 236.23, w: 62.12 }}
+            photo={{ x: 5.47, y: 16.72, w: 262.58, h: 190.57 }}
+            name={{ x: 19.32, y: 235.56, w: 60.72 }}
             rate={{
-              x: 36.46, y: 394.76, w: 150.74, h: 40.07,
-              tx: 14.68, ty: 9.29, tw: 121.39,
+              x: 35.93, y: 393.46, w: 149.29, h: 32.65,
+              tx: 14.27, ty: 8.58, tw: 120.77,
             }}
             creator={mid}
             onPress={advance}
@@ -400,7 +410,7 @@ export default function EditorsList() {
             bg={GLASS_85}
             border={BORDER_90}
             borderWidth={1}
-            style={[styles.cardShadow, { transform: [{ rotate: deg(0.05) }] }]}
+            style={styles.cardShadow}
           >
             <Abs x={17} y={17} w={276} h={200} radius={20} style={styles.clip}>
               <Photo x={0} y={-1.5} w={276} h={203} radius={6.63} uri={front.avatarUrl} />
@@ -421,23 +431,14 @@ export default function EditorsList() {
               {firstName(front.name)}
             </Txt>
 
-            {/* Location chip — omitted when the record carries no city. */}
+            {/* Location chip — omitted when the record carries no city. Figma
+                hugs the pill to its content (padding 10, gap 4) with the right
+                edge on the card's 17pt content margin, so it grows leftward
+                when the live city outruns the sample "Delhi". */}
             {front.location ? (
-              <Abs x={225.2} y={237} w={67.8} h={27} radius={12} bg={GLASS_80} style={styles.locationChip}>
-                <Abs x={10} y={6.5} w={14} h={14} center>
-                  <Feather name="map-pin" size={14} color={SUBTLE} />
-                </Abs>
-                <Txt
-                  x={28}
-                  y={6}
-                  w={29.8}
-                  size={12}
-                  weight="bold"
-                  font="inter"
-                  color={SUBTLE}
-                  lineHeight={14.52}
-                  numberOfLines={1}
-                >
+              <Abs y={237} h={27} radius={12} bg={GLASS_80} row gap={4} style={[styles.locationChip, styles.hugRight]}>
+                <Feather name="map-pin" size={14} color={SUBTLE} />
+                <Txt size={12} weight="bold" font="inter" color={SUBTLE} lineHeight={14.52} numberOfLines={1}>
                   {front.location}
                 </Txt>
               </Abs>
@@ -457,28 +458,18 @@ export default function EditorsList() {
               {bio}
             </Txt>
 
-            {/* Flat per-edit rate — no "Hrs Shoot" suffix, unlike the videographer deck. */}
-            <Abs x={17} y={335} w={108} h={34} radius={16} style={[styles.clip, styles.ratePill]}>
+            {/* Flat per-edit rate — no "Hrs Shoot" suffix, unlike the videographer
+                deck. Figma hugs the pill (padding 14, gap 6): the spec's 108pt is
+                just what "₹3000" produced, so the box widens for the live rate. */}
+            <Abs x={17} y={335} h={34} radius={16} row gap={6} style={[styles.clip, styles.ratePill]}>
               <LinearGradient
                 colors={[RATE_FROM, RATE_TO] as const}
                 start={{ x: 0.2, y: -1.12 }}
                 end={{ x: 0.8, y: 2.12 }}
                 style={StyleSheet.absoluteFill}
               />
-              <Abs x={15} y={10} w={14} h={14} center>
-                <Feather name="image" size={14} color={INK} />
-              </Abs>
-              <Txt
-                x={35}
-                y={9}
-                w={58}
-                size={13}
-                weight="bold"
-                font="inter"
-                color={INK}
-                lineHeight={15.73}
-                numberOfLines={1}
-              >
+              <Feather name="image" size={14} color={INK} />
+              <Txt size={13} weight="bold" font="inter" color={INK} lineHeight={15.73} numberOfLines={1}>
                 {rateLabel(front)}
               </Txt>
             </Abs>
@@ -573,27 +564,14 @@ export default function EditorsList() {
         SELECT CITY
       </Txt>
 
+      {/* Figma hugs the control (padding 18, gap 8); anchored to the frame's
+          20pt right margin it grows leftward when the live city is long. */}
       <Pressable onPress={nextCity} style={({ pressed }) => [styles.cityButton, pressed && styles.pressed]}>
-        <Abs x={19} y={14} w={16} h={16} center>
-          <Feather name="map-pin" size={16} color={MUTED} />
-        </Abs>
-        <Txt
-          x={43}
-          y={13.5}
-          w={34.77}
-          size={14}
-          weight="bold"
-          font="inter"
-          color={INK}
-          lineHeight={16.94}
-          align="center"
-          numberOfLines={1}
-        >
+        <Feather name="map-pin" size={16} color={MUTED} />
+        <Txt size={14} weight="bold" font="inter" color={INK} lineHeight={16.94} numberOfLines={1}>
           {city}
         </Txt>
-        <Abs x={85.77} y={13} w={18} h={18} center>
-          <Feather name="chevron-down" size={18} color={MUTED} />
-        </Abs>
+        <Feather name="chevron-down" size={18} color={MUTED} />
       </Pressable>
     </Screen>
   );
@@ -637,6 +615,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: BORDER_80,
     overflow: "hidden",
+    alignItems: "center",
+    justifyContent: "center",
   },
   chipActive: {
     backgroundColor: CHIP_ACTIVE,
@@ -663,12 +643,16 @@ const styles = StyleSheet.create({
     elevation: 8,
   },
   locationChip: {
+    paddingHorizontal: 10,
     shadowColor: "#000000",
     shadowOpacity: 0.02,
     shadowRadius: 4,
     shadowOffset: { width: 0, height: 2 },
   },
+  /** Content-hugging pill pinned to the card's right content edge (293 = 310 − 17). */
+  hugRight: { left: "auto", right: 17 },
   ratePill: {
+    paddingHorizontal: 14,
     borderWidth: 1,
     borderColor: "#ffffff",
     shadowColor: "#000000",
@@ -720,10 +704,13 @@ const styles = StyleSheet.create({
   },
   cityButton: {
     position: "absolute",
-    left: 232.23,
+    right: 20,
     top: 799,
-    width: 122.77,
     height: 44,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 18,
     borderRadius: 16,
     backgroundColor: GLASS_65,
     borderWidth: 1,
