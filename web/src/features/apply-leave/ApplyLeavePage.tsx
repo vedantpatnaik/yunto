@@ -1,8 +1,9 @@
 import type { ReactNode } from "react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import type { LucideIcon } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { useMe, useCreate, useLeaves, useUsers } from "@/api/hooks";
+import { useMe, useCreate, useLeaves, useUsers, type Leave } from "@/api/hooks";
+import { api } from "@/api/client";
 import {
   ArrowUp,
   ArrowDown,
@@ -220,14 +221,21 @@ export default function ApplyLeavePage() {
   const { data: me } = useMe();
   const { data: leaves = [] } = useLeaves();
   const { data: users = [] } = useUsers();
-  const create = useCreate("leaves");
+  const create = useCreate<Leave>("leaves");
   const [selectedType, setSelectedType] = useState("");
   const [reason, setReason] = useState("");
-  // Date Range in the design is a single picker visual ("Select Dates"), not
-  // plain date inputs — so keep the visual and default from=today, to=tomorrow.
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const isoDay = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  // Date Range renders as the design's "Select Dates" pill until clicked, then
+  // swaps to a real from/to picker. Defaults: from=today, to=tomorrow.
   const today = new Date();
-  const fromISO = today.toISOString();
-  const toISO = new Date(today.getTime() + 86_400_000).toISOString();
+  const [datesOpen, setDatesOpen] = useState(false);
+  const [fromStr, setFromStr] = useState(isoDay(today));
+  const [toStr, setToStr] = useState(isoDay(new Date(today.getTime() + 86_400_000)));
+  const [doc, setDoc] = useState<File | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const cardRef = useRef<HTMLDivElement>(null);
 
   /* ---- live derivations (no literals restated) ---- */
   const dayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime();
@@ -252,7 +260,6 @@ export default function ApplyLeavePage() {
   const casualTaken = myLeaves.filter((l) => /ca(su|us)al/i.test(l.type)).length;
   const sickTaken = myLeaves.filter((l) => /sick/i.test(l.type)).length;
 
-  const pad = (n: number) => String(n).padStart(2, "0");
   const dmy = (d: Date) => `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${String(d.getFullYear()).slice(2)}`;
 
   /* ---- live calendar scaffold for the real current month ---- */
@@ -288,18 +295,51 @@ export default function ApplyLeavePage() {
   }
 
   async function handleSubmit() {
-    if (!me?.id) return;
+    if (!me?.id || submitting) return;
+    setSubmitting(true);
     try {
-      await create.mutateAsync({
+      // If a document is attached, land its bytes first (presign → S3 PUT) so a
+      // failed upload never silently drops the doc from a created leave.
+      let fileUrl: string | undefined;
+      if (doc) {
+        const contentType = doc.type || "application/octet-stream";
+        const presigned = await api<{ uploadUrl: string; fileUrl: string }>("/uploads/presign", {
+          method: "POST",
+          body: JSON.stringify({ filename: doc.name, contentType }),
+        });
+        const put = await fetch(presigned.uploadUrl, {
+          method: "PUT",
+          headers: { "Content-Type": contentType },
+          body: doc,
+        });
+        if (!put.ok) throw new Error(`upload ${put.status}`);
+        fileUrl = presigned.fileUrl;
+      }
+      const leave = await create.mutateAsync({
         userId: me.id,
         type: selectedType,
-        from: fromISO,
-        to: toISO,
+        from: new Date(fromStr || isoDay(today)).toISOString(),
+        to: new Date(toStr || fromStr || isoDay(today)).toISOString(),
         reason,
       });
+      if (fileUrl && doc) {
+        await api("/uploads/attach", {
+          method: "POST",
+          body: JSON.stringify({
+            url: fileUrl,
+            filename: doc.name,
+            mimeType: doc.type || undefined,
+            size: doc.size,
+            entityType: "Leave",
+            entityId: leave.id,
+          }),
+        });
+      }
       navigate("/people/leaves");
     } catch {
-      /* swallow so the request never hangs */
+      /* stay on the screen — every input the user typed is kept */
+    } finally {
+      setSubmitting(false);
     }
   }
 
@@ -583,22 +623,34 @@ export default function ApplyLeavePage() {
       </Txt>
 
       {/* ================= dim scrim + modal ================= */}
-      <div className="absolute inset-0 z-50" style={{ background: "rgba(0,0,0,0.5)" }} />
+      <div onClick={() => navigate(-1)} className="absolute inset-0 z-50" style={{ background: "rgba(0,0,0,0.5)" }} />
       <div
+        ref={cardRef}
         className="absolute z-50 rounded-[24px] bg-white shadow-[0_24px_70px_rgba(0,0,0,0.28)]"
         style={{ left: 469, top: 213, width: 502, height: 598 }}
       >
         {/* modal content is positioned in frame coords via the wrapper below */}
       </div>
-      <div className="absolute inset-0 z-50">
+      <div
+        className="absolute inset-0 z-50"
+        onClick={(e) => {
+          // Clicking the dim backdrop (anywhere outside the modal card) closes,
+          // exactly like the X. Clicks inside the card bounds never dismiss.
+          const r = cardRef.current?.getBoundingClientRect();
+          if (r && (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom)) {
+            navigate(-1);
+          }
+        }}
+      >
         {/* title */}
         <Txt l={488} t={238} s={24} lh={30} cls="font-medium text-ink">
           Apply For Leave
         </Txt>
         {/* Send Request */}
         <div
-          className="absolute flex items-center justify-center rounded-[24px] cursor-pointer"
+          className={`absolute flex items-center justify-center rounded-[24px] ${submitting ? "cursor-wait opacity-70" : "cursor-pointer"}`}
           style={{ left: 719, top: 234, width: 146, height: 45, background: "rgba(0,0,0,0.95)" }}
+          aria-disabled={submitting}
           onClick={handleSubmit}
         >
           <span className="text-[20px] font-normal leading-none text-white">Send Request</span>
@@ -640,7 +692,7 @@ export default function ApplyLeavePage() {
           }
           icon={
             <ChevronDown
-              className="absolute h-[14px] w-[15px] text-ink"
+              className="pointer-events-none absolute h-[14px] w-[15px] text-ink"
               style={{ left: 904, top: 359 }}
               strokeWidth={1.8}
             />
@@ -675,9 +727,47 @@ export default function ApplyLeavePage() {
           placeholder="Select Dates"
           phX={504}
           phY={597}
+          control={
+            datesOpen ? (
+              <div
+                className="absolute flex items-center gap-[10px]"
+                style={{ left: 486, top: 592, width: 455, height: 47, paddingLeft: 18, paddingRight: 40 }}
+              >
+                <input
+                  type="date"
+                  autoFocus
+                  value={fromStr}
+                  max={toStr || undefined}
+                  onChange={(e) => setFromStr(e.target.value)}
+                  className="bg-transparent text-[18px] font-normal text-ink outline-none"
+                />
+                <span className="text-[18px] font-normal text-ink/70">–</span>
+                <input
+                  type="date"
+                  value={toStr}
+                  min={fromStr || undefined}
+                  onChange={(e) => setToStr(e.target.value)}
+                  className="bg-transparent text-[18px] font-normal text-ink outline-none"
+                />
+              </div>
+            ) : (
+              <div
+                className="absolute cursor-pointer"
+                style={{ left: 486, top: 592, width: 455, height: 47, borderRadius: 33.57 }}
+                onClick={() => setDatesOpen(true)}
+              >
+                <span
+                  className="absolute whitespace-pre text-[18px] font-normal text-ink/70"
+                  style={{ left: 18, top: 5, lineHeight: "40px" }}
+                >
+                  Select Dates
+                </span>
+              </div>
+            )
+          }
           icon={
             <Calendar
-              className="absolute h-[20px] w-[20px] text-ink"
+              className="pointer-events-none absolute h-[20px] w-[20px] text-ink"
               style={{ left: 901, top: 605 }}
               strokeWidth={1.6}
             />
@@ -692,9 +782,29 @@ export default function ApplyLeavePage() {
           placeholder="Upload medical docs , etc."
           phX={504}
           phY={691}
+          control={
+            <div
+              className="absolute cursor-pointer"
+              style={{ left: 486, top: 686, width: 455, height: 47, borderRadius: 33.57 }}
+              onClick={() => fileRef.current?.click()}
+            >
+              <span
+                className={`absolute max-w-[400px] truncate text-[18px] font-normal ${doc ? "text-ink" : "text-ink/70"}`}
+                style={{ left: 18, top: 5, lineHeight: "40px" }}
+              >
+                {doc ? doc.name : "Upload medical docs , etc."}
+              </span>
+              <input
+                ref={fileRef}
+                type="file"
+                className="hidden"
+                onChange={(e) => setDoc(e.target.files?.[0] ?? null)}
+              />
+            </div>
+          }
           icon={
             <Paperclip
-              className="absolute h-[18px] w-[16px] text-ink"
+              className="pointer-events-none absolute h-[18px] w-[16px] text-ink"
               style={{ left: 902, top: 701 }}
               strokeWidth={1.6}
             />

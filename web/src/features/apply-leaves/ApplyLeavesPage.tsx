@@ -411,6 +411,7 @@ export default function ApplyLeavesPage() {
   });
 
   async function handleSubmit() {
+    if (create.isPending) return; // no double-submit
     try {
       await create.mutateAsync({
         userId: me?.id,
@@ -668,12 +669,20 @@ export default function ApplyLeavesPage() {
       </Txt>
 
       {/* ================= dim scrim + modal ================= */}
-      <div className="absolute inset-0 z-50" style={{ background: "rgba(0,0,0,0.5)" }} />
+      {/* Backdrop click dismisses the modal — the controls painted beneath it
+          (tabs, Add Holiday, Apply for leave, October) live on /people/leaves. */}
+      <div
+        onClick={() => navigate("/people/leaves")}
+        className="absolute inset-0 z-50"
+        style={{ background: "rgba(0,0,0,0.5)" }}
+      />
       <div
         className="absolute z-50 rounded-[24px] bg-white shadow-[0_24px_70px_rgba(0,0,0,0.28)]"
         style={{ left: 469, top: 213, width: 502, height: 598 }}
       />
-      <div className="absolute inset-0 z-50">
+      {/* pointer-events-none so clicks outside the card reach the dismissing scrim;
+          each interactive child re-enables its own pointer events. */}
+      <div className="pointer-events-none absolute inset-0 z-50">
         {/* title */}
         <Txt l={488} t={238} s={24} lh={30} cls="font-medium text-ink">
           Apply For Leave
@@ -681,7 +690,7 @@ export default function ApplyLeavesPage() {
         {/* Send Request */}
         <div
           onClick={handleSubmit}
-          className="absolute flex items-center justify-center rounded-[24px] cursor-pointer"
+          className="pointer-events-auto absolute flex items-center justify-center rounded-[24px] cursor-pointer"
           style={{ left: 719, top: 234, width: 146, height: 45, background: "rgba(0,0,0,0.95)" }}
         >
           <span className="text-[20px] font-normal leading-none text-white">Send Request</span>
@@ -689,7 +698,7 @@ export default function ApplyLeavesPage() {
         {/* close */}
         <div
           onClick={() => navigate(-1)}
-          className="absolute flex items-center justify-center rounded-full border border-black/80 bg-white cursor-pointer"
+          className="pointer-events-auto absolute flex items-center justify-center rounded-full border border-black/80 bg-white cursor-pointer"
           style={{ left: 888, top: 234, width: 45, height: 45 }}
         >
           <X className="h-[20px] w-[20px] text-ink" strokeWidth={1.8} />
@@ -711,7 +720,7 @@ export default function ApplyLeavesPage() {
           <select
             value={type}
             onChange={(e) => setType(e.target.value)}
-            className={`absolute appearance-none bg-transparent text-[18px] font-normal outline-none ${type ? "text-ink" : "text-ink/70"}`}
+            className={`pointer-events-auto absolute appearance-none bg-transparent text-[18px] font-normal outline-none ${type ? "text-ink" : "text-ink/70"}`}
             style={{ left: 504, top: 342, width: 400, height: 47, lineHeight: "40px" }}
           >
             <option value="" disabled>
@@ -729,7 +738,7 @@ export default function ApplyLeavesPage() {
             value={reason}
             onChange={(e) => setReason(e.target.value)}
             placeholder="Enter your reason for leave"
-            className="absolute resize-none bg-transparent text-[18px] font-normal text-ink outline-none placeholder:text-ink/70"
+            className="pointer-events-auto absolute resize-none bg-transparent text-[18px] font-normal text-ink outline-none placeholder:text-ink/70"
             style={{ left: 507, top: 444, width: 413, height: 93 }}
           />
         </Field>
@@ -748,7 +757,7 @@ export default function ApplyLeavesPage() {
             type="date"
             value={from}
             onChange={(e) => setFrom(e.target.value)}
-            className="absolute bg-transparent text-[18px] font-normal text-ink outline-none"
+            className="pointer-events-auto absolute bg-transparent text-[18px] font-normal text-ink outline-none"
             style={{ left: 504, top: 592, width: 175, height: 47 }}
           />
           <span
@@ -761,7 +770,7 @@ export default function ApplyLeavesPage() {
             type="date"
             value={to}
             onChange={(e) => setTo(e.target.value)}
-            className="absolute bg-transparent text-[18px] font-normal text-ink outline-none"
+            className="pointer-events-auto absolute bg-transparent text-[18px] font-normal text-ink outline-none"
             style={{ left: 702, top: 592, width: 175, height: 47 }}
           />
         </Field>
@@ -774,7 +783,19 @@ export default function ApplyLeavesPage() {
           placeholder="Upload medical docs , etc."
           phX={504}
           phY={691}
-          icon={<Paperclip className="absolute h-[18px] w-[16px] text-ink" style={{ left: 902, top: 701 }} strokeWidth={1.6} />}
+          icon={
+            <>
+              <Paperclip className="absolute h-[18px] w-[16px] text-ink" style={{ left: 902, top: 701 }} strokeWidth={1.6} />
+              {/* Leave has no attachment column and no upload endpoint, so this is
+                  honestly disabled rather than faking a file picker. */}
+              <div
+                aria-disabled="true"
+                title="Coming soon"
+                className="pointer-events-auto absolute"
+                style={{ left: 486, top: 686, width: 455, height: 47 }}
+              />
+            </>
+          }
         />
         {/* footer */}
         <Info className="absolute h-[16px] w-[16px] text-ink/70" style={{ left: 488, top: 761 }} strokeWidth={1.6} />

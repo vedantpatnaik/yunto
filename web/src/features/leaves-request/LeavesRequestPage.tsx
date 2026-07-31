@@ -822,6 +822,7 @@ function LeaveRequestModal() {
 /* page                                                                   */
 /* --------------------------------------------------------------------- */
 export default function LeavesRequestPage() {
+  const navigate = useNavigate();
   return (
     <>
       <Background />
@@ -831,7 +832,7 @@ export default function LeavesRequestPage() {
        * TopBar (z-10) and Sidebar (z-20). Lift scrim + modal above that chrome.
        */}
       <div className="absolute inset-0 z-30">
-        <div className="absolute inset-0 bg-black/50" />
+        <div onClick={() => navigate(-1)} className="absolute inset-0 bg-black/50" />
         <LeaveRequestModal />
       </div>
     </>

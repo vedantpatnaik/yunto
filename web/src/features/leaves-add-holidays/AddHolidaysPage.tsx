@@ -663,7 +663,7 @@ export default function AddHolidaysPage() {
       )}
 
       {/* ================= dim scrim + modal ================= */}
-      <div className="absolute inset-0 z-50" style={{ background: "rgba(0,0,0,0.5)" }} />
+      <div onClick={() => navigate(-1)} className="absolute inset-0 z-50" style={{ background: "rgba(0,0,0,0.5)" }} />
       <div
         className="absolute z-50 rounded-[24px] bg-white shadow-[0_24px_70px_rgba(0,0,0,0.28)]"
         style={{ left: 469, top: 213, width: 502, height: 598 }}

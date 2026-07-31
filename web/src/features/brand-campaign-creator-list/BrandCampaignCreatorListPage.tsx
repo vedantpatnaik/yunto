@@ -1,12 +1,14 @@
 import type { ReactNode } from "react";
 import { useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
 import type { LucideIcon } from "lucide-react";
 import {
   useCreators,
   useAgencies,
   useCampaigns,
   useCampaignFull,
+  useUpdate,
   type Creator,
 } from "@/api/hooks";
 import {
@@ -274,10 +276,12 @@ function CreatorCard({
 }
 
 /* -------------------------------- page --------------------------------- */
+/** This screen IS the "Creators" tab of the campaign-detail sub-flow. */
+const ACTIVE_TAB = 1;
+
 export default function BrandCampaignCreatorListPage() {
   const navigate = useNavigate();
   const [params] = useSearchParams();
-  const [activeTab, setActiveTab] = useState(1);
   const [picked, setPicked] = useState<string[] | null>(null);
 
   const { data: campaigns = [] } = useCampaigns();
@@ -322,6 +326,66 @@ export default function BrandCampaignCreatorListPage() {
     setPicked(
       selected.includes(id) ? selected.filter((s) => s !== id) : [...selected, id]
     );
+  const allSelected =
+    creators.length > 0 && selected.length === creators.length;
+
+  /* ------------------------- bulk-bar mutations ------------------------- */
+  const qc = useQueryClient();
+  const updateCreator = useUpdate<Creator>("creators");
+  const updateCampaign = useUpdate("campaigns");
+  const busy = updateCreator.isPending || updateCampaign.isPending;
+
+  /** Shortlist = flip `listed` on each selected creator (PATCH /creators/:id). */
+  async function markShortlisted() {
+    if (busy || selected.length === 0) return;
+    try {
+      for (const id of selected) {
+        await updateCreator.mutateAsync({ id, data: { listed: true } });
+      }
+    } catch {
+      // swallow: selection is kept so the user can retry
+    }
+  }
+
+  // `done` / membership live on the CampaignCreator join, which has no REST
+  // resource of its own — but the campaign update schema passes unknown keys
+  // through to Prisma, so a nested relation write on PATCH /campaigns/:id is
+  // the supported way to touch join rows. campaign-full is invalidated by hand
+  // because useUpdate only invalidates the flat ["campaigns"] list.
+  async function markDone() {
+    if (busy || !campaignId || selected.length === 0) return;
+    try {
+      await updateCampaign.mutateAsync({
+        id: campaignId,
+        data: {
+          creators: {
+            updateMany: {
+              where: { creatorId: { in: selected } },
+              data: { done: true },
+            },
+          },
+        },
+      });
+      qc.invalidateQueries({ queryKey: ["campaign-full", campaignId] });
+    } catch {
+      // swallow: selection is kept so the user can retry
+    }
+  }
+
+  /** Delete = detach the selected creators from this campaign (join rows only). */
+  async function removeFromCampaign() {
+    if (busy || !campaignId || selected.length === 0) return;
+    try {
+      await updateCampaign.mutateAsync({
+        id: campaignId,
+        data: { creators: { deleteMany: { creatorId: { in: selected } } } },
+      });
+      setPicked([]);
+      qc.invalidateQueries({ queryKey: ["campaign-full", campaignId] });
+    } catch {
+      // swallow: selection is kept so the user can retry
+    }
+  }
 
   return (
     <>
@@ -353,10 +417,23 @@ export default function BrandCampaignCreatorListPage() {
         {TABS.map((t, i) => (
           <div
             key={t}
-            onClick={() => setActiveTab(i)}
-            className={`flex h-[42px] cursor-pointer items-center px-[16px] text-[22px] text-[#1A1A1A] ${
+            // Client Details -> the campaign detail screen; Creators is this
+            // screen (clicking the active tab is a no-op); Script has no built
+            // screen yet, so it is disabled rather than left as a dead click.
+            title={i === 2 ? "Coming soon" : undefined}
+            onClick={
+              i === 0
+                ? () =>
+                    navigate(
+                      `/campaigns/detail${campaignId ? `?id=${campaignId}` : ""}`
+                    )
+                : undefined
+            }
+            className={`flex h-[42px] ${
+              i === 2 ? "cursor-not-allowed" : "cursor-pointer"
+            } items-center px-[16px] text-[22px] text-[#1A1A1A] ${
               i > 0 ? "border-t border-black/[0.07]" : ""
-            } ${i === activeTab ? "bg-black/[0.03]" : ""}`}
+            } ${i === ACTIVE_TAB ? "bg-black/[0.03]" : ""}`}
           >
             {t}
           </div>
@@ -399,7 +476,12 @@ export default function BrandCampaignCreatorListPage() {
 
       {/* bottom bulk-action bar */}
       <div className="absolute left-[414px] top-[887px] flex h-[65px] w-[612px] items-center rounded-[33px] bg-black pl-[27px]">
-        <span className="flex h-[25px] w-[25px] items-center justify-center rounded-[7px] bg-white">
+        <span
+          className="flex h-[25px] w-[25px] cursor-pointer items-center justify-center rounded-[7px] bg-white"
+          onClick={() =>
+            setPicked(allSelected ? [] : creators.map((c) => c.id))
+          }
+        >
           <Check className="h-[15px] w-[15px] text-ink/70" strokeWidth={2.5} />
         </span>
         <span className="ml-[13px] whitespace-nowrap text-[16px] leading-none">
@@ -407,20 +489,26 @@ export default function BrandCampaignCreatorListPage() {
           <span className="text-white/55"> of {creators.length} selected</span>
         </span>
         <span
-          className="ml-[52px] cursor-pointer whitespace-nowrap text-[20px] font-light leading-none text-white"
-          onClick={() => navigate("/campaigns/detail")}
+          className={`ml-[52px] cursor-pointer whitespace-nowrap text-[20px] font-light leading-none text-white${
+            busy ? " pointer-events-none opacity-50" : ""
+          }`}
+          onClick={markShortlisted}
         >
           Mark Shortlisted
         </span>
         <span
-          className="ml-[26px] cursor-pointer whitespace-nowrap text-[20px] font-light leading-none text-white"
-          onClick={() => navigate("/campaigns/detail")}
+          className={`ml-[26px] cursor-pointer whitespace-nowrap text-[20px] font-light leading-none text-white${
+            busy ? " pointer-events-none opacity-50" : ""
+          }`}
+          onClick={markDone}
         >
           Mark Done
         </span>
         <span
-          className="ml-[26px] cursor-pointer whitespace-nowrap text-[20px] font-light leading-none text-white"
-          onClick={() => navigate("/campaigns/detail")}
+          className={`ml-[26px] cursor-pointer whitespace-nowrap text-[20px] font-light leading-none text-white${
+            busy ? " pointer-events-none opacity-50" : ""
+          }`}
+          onClick={removeFromCampaign}
         >
           Delete
         </span>

@@ -46,9 +46,9 @@ function Stat({ icon: Icon, iconClass, children }: { icon: LucideIcon; iconClass
   );
 }
 
-function Tag({ children, className = "" }: { children: ReactNode; className?: string }) {
+function Tag({ children, className = "", onClick }: { children: ReactNode; className?: string; onClick?: () => void }) {
   return (
-    <span className={`flex h-[28px] items-center justify-center gap-[4px] whitespace-nowrap rounded-[20px] px-[8px] text-[12px] ${className}`}>
+    <span onClick={onClick} className={`flex h-[28px] items-center justify-center gap-[4px] whitespace-nowrap rounded-[20px] px-[8px] text-[12px] ${className}`}>
       {children}
     </span>
   );

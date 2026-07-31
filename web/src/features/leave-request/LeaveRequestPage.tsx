@@ -818,7 +818,7 @@ export default function LeaveRequestPage() {
       {/* =============================================================== */}
       {/* ===== dim backdrop + Leave Request modal =====                  */}
       {/* =============================================================== */}
-      <div className="absolute inset-0" style={{ background: "rgba(0,0,0,0.5)" }} />
+      <div onClick={() => navigate(-1)} className="absolute inset-0" style={{ background: "rgba(0,0,0,0.5)" }} />
 
       <div
         className="absolute rounded-[24px] bg-white"

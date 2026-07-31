@@ -246,7 +246,7 @@ export default function RatingCreatorPage() {
       {/* ============================== dim scrim ============================== */}
       {/* Figma frame 1171276614: rgba(0,0,0,0.5) over the full 1439×1024 frame.
           TopBar is z-10 and Sidebar z-20, so the scrim must clear them. */}
-      <div className="absolute inset-0 z-30 bg-black/50" />
+      <div onClick={() => navigate(-1)} className="absolute inset-0 z-30 bg-black/50" />
 
       {/* ======================= Rate the creator modal ======================= */}
       <div className="absolute left-[398.5px] top-[174px] z-40 h-[657px] w-[643px] rounded-[24px] bg-white">

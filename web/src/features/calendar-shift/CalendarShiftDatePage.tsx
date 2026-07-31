@@ -352,7 +352,7 @@ export default function CalendarShiftDatePage() {
       {/* --------------------- dim scrim + Date Occupied modal ------------ */}
       {/* z-30 lifts the scrim above the AppShell TopBar (z-10) and Sidebar
           (z-20) so the whole canvas dims uniformly, matching the frame. */}
-      <div className="absolute inset-0 z-30 bg-black/50" />
+      <div onClick={() => navigate(-1)} className="absolute inset-0 z-30 bg-black/50" />
 
       <div className="absolute left-[526px] top-[354px] z-40 h-[313px] w-[387px] rounded-[12px] bg-white">
         {/* avatar */}

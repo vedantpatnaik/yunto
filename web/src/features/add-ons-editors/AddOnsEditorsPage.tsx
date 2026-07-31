@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { ChevronLeft, Calendar, MapPin, Clock, Plus, Star } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import {
@@ -28,6 +28,7 @@ type Slot = {
 };
 
 type Person = Slot & {
+  id?: string;         // backing creator id — absent on the empty-state placeholder
   name: string;
   location: string;
   rating: string;
@@ -116,6 +117,7 @@ function bindPerson(
   }
   return {
     ...slot,
+    id: c.id,
     name: c.name,
     location: c.location ?? "",
     rating: c.stars.toFixed(1),
@@ -186,35 +188,73 @@ function SectionOutline({ top }: { top: number }) {
   );
 }
 
-function FilterRow({ top }: { top: number }) {
+type SortKey = "date" | "city";
+type Tier = "Normal" | "Medium" | "High-end";
+
+/** Active chips darken their border + fill; the resting state stays pixel-exact Figma. */
+const chipState = (on: boolean) => (on ? "border-black bg-[#F1F1F1]" : "border-black/20 bg-white");
+
+function FilterRow({
+  top,
+  sort,
+  tier,
+  onSort,
+  onTier,
+}: {
+  top: number;
+  sort: SortKey | null;
+  tier: Tier | null;
+  onSort: (k: SortKey) => void;
+  onTier: (t: Tier) => void;
+}) {
   return (
     <div className="absolute left-[610px] flex gap-[8px] text-black" style={{ top }}>
-      {/* Date */}
-      <button className="flex h-[45px] w-[118px] items-center gap-[5.5px] rounded-[24px] border border-black/20 bg-white pl-[6.5px]">
+      {/* Date — sort by soonest availability */}
+      <button
+        onClick={() => onSort("date")}
+        aria-pressed={sort === "date"}
+        className={`flex h-[45px] w-[118px] items-center gap-[5.5px] rounded-[24px] border pl-[6.5px] ${chipState(sort === "date")}`}
+      >
         <span className="flex h-[30px] w-[30px] items-center justify-center rounded-full bg-[#F1F1F1]">
           <Calendar className="h-[17px] w-[17px]" strokeWidth={1.5} />
         </span>
         <span className="text-[20px] font-extralight">Date</span>
       </button>
-      {/* City */}
-      <button className="flex h-[45px] w-[118px] items-center gap-[5.5px] rounded-[24px] border border-black/20 bg-white pl-[6.5px]">
+      {/* City — sort alphabetically by location */}
+      <button
+        onClick={() => onSort("city")}
+        aria-pressed={sort === "city"}
+        className={`flex h-[45px] w-[118px] items-center gap-[5.5px] rounded-[24px] border pl-[6.5px] ${chipState(sort === "city")}`}
+      >
         <span className="flex h-[30px] w-[30px] items-center justify-center rounded-full bg-[#F1F1F1]">
           <MapPin className="h-[16px] w-[16px]" strokeWidth={1.5} />
         </span>
         <span className="text-[20px] font-extralight">City</span>
       </button>
       {/* Normal */}
-      <button className="flex h-[45px] w-[128px] items-center justify-center gap-[4px] rounded-[24px] border border-black/20 bg-white">
+      <button
+        onClick={() => onTier("Normal")}
+        aria-pressed={tier === "Normal"}
+        className={`flex h-[45px] w-[128px] items-center justify-center gap-[4px] rounded-[24px] border ${chipState(tier === "Normal")}`}
+      >
         <span className="text-[22px] leading-none">🔥</span>
         <span className="text-[20px] font-extralight">Normal</span>
       </button>
       {/* Medium */}
-      <button className="flex h-[45px] w-[128px] items-center justify-center gap-[4px] rounded-[24px] border border-black/20 bg-white">
+      <button
+        onClick={() => onTier("Medium")}
+        aria-pressed={tier === "Medium"}
+        className={`flex h-[45px] w-[128px] items-center justify-center gap-[4px] rounded-[24px] border ${chipState(tier === "Medium")}`}
+      >
         <span className="text-[22px] leading-none">🔥</span>
         <span className="text-[20px] font-extralight">Medium</span>
       </button>
       {/* High-end */}
-      <button className="flex h-[45px] w-[144px] items-center justify-center gap-[4px] rounded-[24px] border border-black/20 bg-white">
+      <button
+        onClick={() => onTier("High-end")}
+        aria-pressed={tier === "High-end"}
+        className={`flex h-[45px] w-[144px] items-center justify-center gap-[4px] rounded-[24px] border ${chipState(tier === "High-end")}`}
+      >
         <span className="text-[22px] leading-none">🔥</span>
         <span className="text-[20px] font-extralight">High-end</span>
       </button>
@@ -223,9 +263,14 @@ function FilterRow({ top }: { top: number }) {
 }
 
 function PersonCard({ p }: { p: Person }) {
+  const navigate = useNavigate();
+  const openDetail = () => {
+    if (p.id) navigate(`/creators/detail?id=${p.id}`);
+  };
   return (
     <div
-      className="absolute rounded-[18px] shadow-[0_0.83px_1.66px_rgba(0,0,0,0.05)]"
+      onClick={openDetail}
+      className={`absolute rounded-[18px] shadow-[0_0.83px_1.66px_rgba(0,0,0,0.05)]${p.id ? " cursor-pointer" : ""}`}
       style={{ left: p.x, top: p.y, width: 402, height: 295, background: p.tint }}
     >
       {/* avatar */}
@@ -242,8 +287,14 @@ function PersonCard({ p }: { p: Person }) {
         {p.subtitle}
       </div>
 
-      {/* add button */}
-      <button className="absolute left-[364px] top-[6px] flex h-[32px] w-[32px] items-center justify-center rounded-full border-[0.47px] border-[#D6D6D6] bg-white">
+      {/* add button — onboard a new add-on via the add-creator screen */}
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          navigate("/leads/add-creator");
+        }}
+        className="absolute left-[364px] top-[6px] flex h-[32px] w-[32px] items-center justify-center rounded-full border-[0.47px] border-[#D6D6D6] bg-white"
+      >
         <Plus className="h-[15px] w-[15px] text-black" strokeWidth={1.5} />
       </button>
 
@@ -300,11 +351,48 @@ export default function AddOnsEditorsPage() {
   const campaigns = useCampaigns().data ?? [];
   const calendar = useCalendar().data ?? [];
 
+  // Filter chips (shared by both section rows): one sort + one price tier at a time.
+  const [sort, setSort] = useState<SortKey | null>(null);
+  const [tier, setTier] = useState<Tier | null>(null);
+  const toggleSort = (k: SortKey) => setSort((prev) => (prev === k ? null : k));
+  const toggleTier = (t: Tier) => setTier((prev) => (prev === t ? null : t));
+
   // An add-ons directory only offers creators that are listed and not blacklisted;
   // fall back to the full roster if nothing is flagged listed.
   const all = creatorData ?? [];
   const bookable = all.filter((c) => c.listed && !c.blacklisted);
-  const pool = bookable.length > 0 ? bookable : all;
+  const roster = bookable.length > 0 ? bookable : all;
+
+  // Price tiers are relative to this roster: cheapest third = Normal, middle = Medium,
+  // most expensive third = High-end (by cost-per-view).
+  const byCpv = [...roster].sort((a, b) => a.cpv - b.cpv);
+  const tierOf = (c: DirectoryCreator): Tier => {
+    const rank = byCpv.findIndex((r) => r.id === c.id) / byCpv.length;
+    return rank < 1 / 3 ? "Normal" : rank < 2 / 3 ? "Medium" : "High-end";
+  };
+
+  /** Earliest upcoming booking for a creator — drives the Date sort. */
+  const nextSlot = (id: string): string | null =>
+    calendar
+      .filter((k) => k.creatorId === id)
+      .reduce<string | null>((min, k) => (min === null || k.scheduledAt < min ? k.scheduledAt : min), null);
+
+  let pool = tier === null ? roster : roster.filter((c) => tierOf(c) === tier);
+  if (sort === "city") {
+    pool = [...pool].sort((a, b) => {
+      if (!a.location) return b.location ? 1 : 0;
+      if (!b.location) return -1;
+      return a.location.localeCompare(b.location);
+    });
+  } else if (sort === "date") {
+    pool = [...pool].sort((a, b) => {
+      const sa = nextSlot(a.id);
+      const sb = nextSlot(b.id);
+      if (sa === null) return sb === null ? 0 : 1;
+      if (sb === null) return -1;
+      return sa.localeCompare(sb);
+    });
+  }
 
   const videographers = VIDEOGRAPHER_SLOTS.map((s, i) =>
     bindPerson(s, pool[i], campaigns, calendar, isLoading)
@@ -338,13 +426,13 @@ export default function AddOnsEditorsPage() {
       {/* ============ VIDEOGRAPHERS ============ */}
       <SectionOutline top={247} />
       <h2 className="absolute left-[277px] top-[320px] text-[24px] font-normal leading-none text-ink">Videographers</h2>
-      <FilterRow top={247} />
+      <FilterRow top={247} sort={sort} tier={tier} onSort={toggleSort} onTier={toggleTier} />
       {videographers.map((p) => <PersonCard key={p.x} p={p} />)}
 
       {/* ============ EDITORS ============ */}
       <SectionOutline top={706} />
       <h2 className="absolute left-[277px] top-[779px] text-[24px] font-normal leading-none text-ink">Editors</h2>
-      <FilterRow top={706} />
+      <FilterRow top={706} sort={sort} tier={tier} onSort={toggleSort} onTier={toggleTier} />
       {editors.map((p) => <PersonCard key={p.x} p={p} />)}
     </>
   );

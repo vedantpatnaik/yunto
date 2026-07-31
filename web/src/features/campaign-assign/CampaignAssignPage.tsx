@@ -753,6 +753,7 @@ function Background() {
 /* page                                                                   */
 /* --------------------------------------------------------------------- */
 export default function CampaignAssignPage() {
+  const navigate = useNavigate();
   return (
     <>
       <Background />
@@ -764,7 +765,7 @@ export default function CampaignAssignPage() {
        */}
       <div className="absolute inset-0 z-30">
         {/* scrim (Figma frame 1171276614, rgba(0,0,0,0.5)) */}
-        <div className="absolute inset-0 bg-black/50" />
+        <div onClick={() => navigate(-1)} className="absolute inset-0 bg-black/50" />
         <AssignModal />
       </div>
     </>

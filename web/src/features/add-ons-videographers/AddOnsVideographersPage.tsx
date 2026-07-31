@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { ArrowLeft, Calendar, MapPin, Clock, Plus, Star } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useCreators, useCalendar, useCampaigns, type Creator } from "@/api/hooks";
@@ -23,6 +23,7 @@ type Slot = {
 };
 
 type Person = Slot & {
+  id?: string;
   name: string;
   location: string;
   rating: string;
@@ -125,46 +126,61 @@ function SectionOutline({ top }: { top: number }) {
   );
 }
 
-function FilterRow({ top }: { top: number }) {
+type Tier = "Normal" | "Medium" | "High-end";
+type Filters = { dateSort: boolean; city: string | null; tier: Tier | null };
+
+/** Active chip keeps the exact Figma geometry; only the border darkens. */
+const border = (active: boolean) => (active ? "border-black" : "border-black/20");
+
+function FilterRow({ top, f, cycle }: { top: number; f: Filters; cycle: (k: "date" | "city" | Tier) => void }) {
   return (
     <div className="absolute left-[610px] flex gap-[8px] text-black" style={{ top }}>
-      {/* Date */}
-      <button className="flex h-[45px] w-[118px] items-center gap-[5.5px] rounded-[24px] border border-black/20 bg-white pl-[6.5px]">
+      {/* Date — sorts by soonest booked slot */}
+      <button
+        aria-pressed={f.dateSort}
+        onClick={() => cycle("date")}
+        className={`flex h-[45px] w-[118px] cursor-pointer items-center gap-[5.5px] rounded-[24px] border ${border(f.dateSort)} bg-white pl-[6.5px]`}
+      >
         <span className="flex h-[30px] w-[30px] items-center justify-center rounded-full bg-[#F1F1F1]">
           <Calendar className="h-[17px] w-[17px]" strokeWidth={1.5} />
         </span>
         <span className="text-[20px] font-extralight">Date</span>
       </button>
-      {/* City */}
-      <button className="flex h-[45px] w-[118px] items-center gap-[5.5px] rounded-[24px] border border-black/20 bg-white pl-[6.5px]">
+      {/* City — cycles through the roster's cities */}
+      <button
+        aria-pressed={!!f.city}
+        onClick={() => cycle("city")}
+        className={`flex h-[45px] w-[118px] cursor-pointer items-center gap-[5.5px] rounded-[24px] border ${border(!!f.city)} bg-white pl-[6.5px]`}
+      >
         <span className="flex h-[30px] w-[30px] items-center justify-center rounded-full bg-[#F1F1F1]">
           <MapPin className="h-[16px] w-[16px]" strokeWidth={1.5} />
         </span>
-        <span className="text-[20px] font-extralight">City</span>
+        <span className="truncate text-[20px] font-extralight">{f.city ?? "City"}</span>
       </button>
-      {/* Normal */}
-      <button className="flex h-[45px] w-[128px] items-center justify-center gap-[4px] rounded-[24px] border border-black/20 bg-white">
-        <span className="text-[22px] leading-none">🔥</span>
-        <span className="text-[20px] font-extralight">Normal</span>
-      </button>
-      {/* Medium */}
-      <button className="flex h-[45px] w-[128px] items-center justify-center gap-[4px] rounded-[24px] border border-black/20 bg-white">
-        <span className="text-[22px] leading-none">🔥</span>
-        <span className="text-[20px] font-extralight">Medium</span>
-      </button>
-      {/* High-end */}
-      <button className="flex h-[45px] w-[144px] items-center justify-center gap-[4px] rounded-[24px] border border-black/20 bg-white">
-        <span className="text-[22px] leading-none">🔥</span>
-        <span className="text-[20px] font-extralight">High-end</span>
-      </button>
+      {/* Rate tiers — Normal / Medium / High-end */}
+      {(["Normal", "Medium", "High-end"] as const).map((t) => (
+        <button
+          key={t}
+          aria-pressed={f.tier === t}
+          onClick={() => cycle(t)}
+          className={`flex h-[45px] ${t === "High-end" ? "w-[144px]" : "w-[128px]"} cursor-pointer items-center justify-center gap-[4px] rounded-[24px] border ${border(f.tier === t)} bg-white`}
+        >
+          <span className="text-[22px] leading-none">🔥</span>
+          <span className="text-[20px] font-extralight">{t}</span>
+        </button>
+      ))}
     </div>
   );
 }
 
 function PersonCard({ p }: { p: Person }) {
+  const navigate = useNavigate();
+  // Whole card opens the bound creator's profile; empty slots stay inert.
+  const open = p.id ? () => navigate(`/creators/detail?id=${p.id}`) : undefined;
   return (
     <div
-      className="absolute rounded-[18px]"
+      onClick={open}
+      className={`absolute rounded-[18px]${open ? " cursor-pointer" : ""}`}
       style={{ left: p.x, top: p.y, width: 402, height: 295, background: p.tint }}
     >
       {/* avatar */}
@@ -181,8 +197,14 @@ function PersonCard({ p }: { p: Person }) {
         {p.subtitle}
       </div>
 
-      {/* add button */}
-      <button className="absolute left-[364px] top-[6px] flex h-[32px] w-[32px] items-center justify-center rounded-full bg-white">
+      {/* add button — onboard a new videographer/editor */}
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          navigate("/leads/add-creator");
+        }}
+        className="absolute left-[364px] top-[6px] flex h-[32px] w-[32px] cursor-pointer items-center justify-center rounded-full bg-white"
+      >
         <Plus className="h-[15px] w-[15px] text-black" strokeWidth={1.5} />
       </button>
 
@@ -226,7 +248,7 @@ function PersonCard({ p }: { p: Person }) {
         </div>
       </div>
 
-      {/* see more */}
+      {/* see more — inert child; the click bubbles to the card's own handler */}
       <span className="absolute left-[179px] top-[263px] text-[10.2px] leading-none text-black underline">See more</span>
     </div>
   );
@@ -241,6 +263,35 @@ export default function AddOnsVideographersPage() {
   const list = creators ?? [];
   const cal = calendar ?? [];
   const camps = campaigns ?? [];
+
+  // ponytail: one filter set drives both rows and the shared roster pool;
+  // split per-section state if the sections ever get separate rosters.
+  const [dateSort, setDateSort] = useState(false);
+  const [city, setCity] = useState<string | null>(null);
+  const [tier, setTier] = useState<Tier | null>(null);
+
+  const cities = uniq(list.map((c) => c.location ?? ""));
+  const cycle = (k: "date" | "city" | Tier) => {
+    if (k === "date") setDateSort((v) => !v);
+    else if (k === "city") setCity((prev) => cities[cities.indexOf(prev ?? "") + 1] ?? null);
+    else setTier((prev) => (prev === k ? null : k));
+  };
+
+  // Rate terciles over the roster: bottom third Normal, middle Medium, top High-end.
+  const rates = list.map((c) => c.cpv * c.avgViews).sort((a, b) => a - b);
+  const t1 = rates[Math.floor(rates.length / 3)];
+  const t2 = rates[Math.floor((rates.length * 2) / 3)];
+  const tierOf = (r: number): Tier =>
+    t1 === undefined || r < t1 ? "Normal" : t2 === undefined || r < t2 ? "Medium" : "High-end";
+
+  /** Earliest booked calendar slot, for the Date sort; unbooked sink to the end. */
+  const nextBooked = (id: string) =>
+    cal.filter((k) => k.creatorId === id).map((k) => k.scheduledAt).sort()[0] ?? "9999";
+
+  const pool = list.filter(
+    (c) => (!tier || tierOf(c.cpv * c.avgViews) === tier) && (!city || c.location === city),
+  );
+  if (dateSort) pool.sort((a, b) => nextBooked(a.id).localeCompare(nextBooked(b.id)));
 
   const bind = (slot: Slot, c: Creator | undefined): Person => {
     if (!c) {
@@ -266,6 +317,7 @@ export default function AddOnsVideographersPage() {
 
     return {
       ...slot,
+      id: c.id,
       name: c.name,
       location: c.location ?? "",
       rating: c.stars.toFixed(1),
@@ -278,11 +330,13 @@ export default function AddOnsVideographersPage() {
     };
   };
 
-  // Each slot draws a distinct real creator so no two cards repeat.
-  const videographers: Person[] = VIDEOGRAPHER_SLOTS.map((slot, i) => bind(slot, list[i]));
+  // Each slot draws a distinct real creator from the filtered pool so no two cards repeat.
+  const videographers: Person[] = VIDEOGRAPHER_SLOTS.map((slot, i) => bind(slot, pool[i]));
   const editors: Person[] = EDITOR_SLOTS.map((slot, i) =>
-    bind(slot, list[VIDEOGRAPHER_SLOTS.length + i]),
+    bind(slot, pool[VIDEOGRAPHER_SLOTS.length + i]),
   );
+
+  const filters: Filters = { dateSort, city, tier };
 
   return (
     <>
@@ -313,13 +367,13 @@ export default function AddOnsVideographersPage() {
       {/* ============ VIDEOGRAPHERS ============ */}
       <SectionOutline top={247} />
       <h2 className="absolute left-[277px] top-[320px] text-[24px] font-normal leading-none text-ink">Videographers</h2>
-      <FilterRow top={247} />
+      <FilterRow top={247} f={filters} cycle={cycle} />
       {videographers.map((p) => <PersonCard key={`${p.x}-${p.y}`} p={p} />)}
 
       {/* ============ EDITORS ============ */}
       <SectionOutline top={706} />
       <h2 className="absolute left-[277px] top-[779px] text-[24px] font-normal leading-none text-ink">Editors</h2>
-      <FilterRow top={706} />
+      <FilterRow top={706} f={filters} cycle={cycle} />
       {editors.map((p) => <PersonCard key={`${p.x}-${p.y}`} p={p} />)}
     </>
   );

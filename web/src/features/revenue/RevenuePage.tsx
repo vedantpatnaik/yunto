@@ -1,9 +1,8 @@
-import { TrendingUp, ArrowUpRight, ArrowRightToLine, Paperclip, Copy, ChevronUp, Plus } from "lucide-react";
+import { TrendingUp, ArrowUpRight, Paperclip, ChevronUp, Plus } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import agencyLine from "@/assets/icons/revenue-agency-line.svg";
 import yuntoLine from "@/assets/icons/revenue-yunto-line.svg";
-import { clearToken } from "@/api/client";
-import { useList, useCampaigns, useDashboard, useMe, type Agency, type Invoice, type User } from "@/api/hooks";
+import { useList, useCampaigns, useDashboard, type Agency, type Invoice } from "@/api/hooks";
 
 /** 1_200_000 -> "1.2M", 900_000 -> "900k", 950 -> "950" */
 const compact = (n: number): string =>
@@ -66,8 +65,9 @@ interface Row {
 /**
  * Super Admin — Revenue.
  * Exact reconstruction of Figma frame 5227:14922 ("yunto revenue"), 1440×1024,
- * shown with the profile / Log-Out overlay open (rgba(0,0,0,0.5) scrim on top).
- * Renders inside AppShell (TopBar + Sidebar already provided); the scrim dims them too.
+ * The Figma frame is drawn with the profile dropdown open; that dropdown is the
+ * TopBar's, so it is NOT reproduced here as a page overlay — always-on, it
+ * dimmed the page and blocked every control beneath it.
  */
 
 /* ------------------------------ primitives ----------------------------- */
@@ -140,15 +140,6 @@ export default function RevenuePage() {
   const { data: invoiceData } = useList<InvoiceRow>("invoices");
   const { data: dash } = useDashboard();
   const { data: dashWeek } = useDashboard("W");
-  // agencyCode exists on the Prisma User model but not on the exported hook type
-  const me = useMe().data as (User & { agencyCode?: string }) | undefined;
-  const roleLabel = (me?.role ?? "")
-    .toLowerCase()
-    .split("_")
-    .filter(Boolean)
-    .map((w) => w[0].toUpperCase() + w.slice(1))
-    .join(" ");
-
   const agencies = agencyData ?? [];
   const plans = planData ?? [];
   const campaigns = campaignData ?? [];
@@ -343,28 +334,9 @@ export default function RevenuePage() {
         </div>
       )}
 
-      {/* ─── overlay: scrim + profile / Log Out popup ─── */}
-      {/* scrim sits above the TopBar (z-10) so the whole 1440×1024 frame dims */}
-      <div onClick={() => navigate(-1)} className="absolute inset-0 z-20 bg-black/50 cursor-pointer" />
-      <div className="absolute left-[1041px] top-[66px] z-30 h-[299px] w-[309px] rounded-[12px] border border-[#D2D2D2] bg-white shadow-[0_12px_40px_rgba(0,0,0,0.12)]">
-        {/* avatar */}
-        <span className="absolute left-[114px] top-[26px] h-[82px] w-[82px] rounded-full border border-black/10 bg-gradient-to-br from-[#EAD9FF] to-[#C3A9F0]" />
-        <span className="absolute left-[146px] top-[31px] text-[17px] leading-none">👑</span>
-        {/* name / role */}
-        <span className="absolute left-[87px] top-[120px] w-[135px] text-center text-[20px] font-semibold text-[#111827]">{me?.name ?? ""}</span>
-        <span className="absolute left-[87px] top-[143px] w-[135px] text-center text-[12px] text-[#6B7280]">{roleLabel}</span>
-        {/* agency code pill */}
-        <div className="absolute left-[83px] top-[168px] flex h-[28px] w-[144px] items-center justify-center gap-[6px] rounded-full border border-black/10 bg-white/60">
-          <span className="text-[10px]">
-            <span className="text-black/50">Agency Code </span>
-            <span className="text-black/85">{me?.agencyCode ?? "—"}</span>
-          </span>
-          <Copy onClick={() => navigator.clipboard.writeText(me?.agencyCode ?? "")} className="h-[13px] w-[13px] text-black cursor-pointer" strokeWidth={1.7} />
-        </div>
-        {/* log out */}
-        <ArrowRightToLine onClick={() => { clearToken(); navigate("/login"); }} className="absolute left-[27px] top-[231px] h-[22px] w-[22px] text-black cursor-pointer" strokeWidth={1.8} />
-        <span onClick={() => { clearToken(); navigate("/login"); }} className="absolute left-[69px] top-[229px] text-[18px] text-black cursor-pointer">Log Out</span>
-      </div>
+      {/* Profile / Log Out lives in the TopBar dropdown — the Figma frame merely
+          shows that dropdown open, so tracing it as an always-on overlay dimmed
+          the whole page and made every control beneath it unclickable. */}
     </>
   );
 }
