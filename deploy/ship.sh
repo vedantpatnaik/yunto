@@ -73,7 +73,7 @@ $SSH 'cd ~/app/deploy && docker compose -f docker-compose.prod.yml up -d --build
 
 echo "▸ waiting for the API to answer…"
 for i in $(seq 1 40); do
-  code=$(curl -s -o /dev/null -w '%{http_code}' "http://$IP/health" || echo 000)
+  code=$(curl -sL -o /dev/null -w '%{http_code}' "http://$IP/health" || echo 000)
   [ "$code" = "200" ] && { echo "▸ api healthy"; break; }
   [ "$i" = 40 ] && echo "⚠ api did not report healthy — check: $SSH 'cd ~/app/deploy && docker compose -f docker-compose.prod.yml logs api'"
   sleep 5
