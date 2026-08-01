@@ -6,6 +6,7 @@ import { useRouter } from "expo-router";
 import { Abs, Screen, Txt } from "../../../src/ui/Frame";
 import { colors, fonts } from "../../../src/theme";
 import { useMe } from "../../../src/api/hooks";
+import { setOnboarding } from "../../../src/onboarding/store";
 
 /**
  * Onboarding — "Enter your Phone Number" (Figma 7489:44001, 375x1024).
@@ -88,7 +89,9 @@ export default function PhoneNumber() {
   // it needs the number, so the number rides across on the URL.
   const submit = () => {
     if (!valid) return;
-    router.push(`/verify-otp?phone=${encodeURIComponent(dial + digits)}`);
+    const phone = dial + digits;
+    setOnboarding({ phone });
+    router.push(`/onboarding/verify-otp?phone=${encodeURIComponent(phone)}`);
   };
 
   return (

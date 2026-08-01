@@ -4,6 +4,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import { Abs, Screen, Txt } from "../../../src/ui/Frame";
 import { colors } from "../../../src/theme";
+import { setOnboarding } from "../../../src/onboarding/store";
 
 /**
  * Onboarding — "How do you want to Join?" (Figma 8249:2326, 375x875).
@@ -73,12 +74,13 @@ function Blob({
 export default function JoinPath() {
   const router = useRouter();
 
-  // Recording the chosen path in the URL keeps this screen stateless: the
-  // agency-code step reads "agency", phone-number reads "solo".
-  const choose = (path: "agency" | "solo") =>
-    router.push(
-      path === "agency" ? "/agency-code?joinPath=agency" : "/phone-number?joinPath=solo",
-    );
+  // Record the chosen path in the onboarding accumulator, then branch: agency
+  // creators go through the agency-code step, solo influencers straight to
+  // profile setup. Downstream steps read joinPath from the store.
+  const choose = (path: "agency" | "solo") => {
+    setOnboarding({ joinPath: path });
+    router.push(path === "agency" ? "/onboarding/agency-code" : "/onboarding/profile-setup");
+  };
 
   return (
     <Screen height={875} background={CANVAS} scroll>

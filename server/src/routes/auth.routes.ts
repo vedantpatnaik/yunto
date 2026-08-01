@@ -31,6 +31,62 @@ authRouter.post("/register", asyncHandler(async (req, res) => {
   res.status(201).json({ token: signToken({ sub: user.id, role: user.role }), user: sanitize(user) });
 }));
 
+/**
+ * Influencer onboarding — turns the accumulated signup flow into a real account.
+ *
+ * The creator app signs up by phone, niche and (optionally) an agency code, not
+ * by email/password, so this creates BOTH the auth identity (a User, e-mail
+ * synthesized from the handle so login still has a key) AND the Creator profile
+ * that shows up in the roster. If an agencyCode matches an agency, the creator
+ * is linked to it (agency-managed); otherwise they are solo. Returns a token so
+ * the app lands the new user straight on the home screen, logged in.
+ */
+const onboardSchema = z.object({
+  name: z.string().min(1),
+  handle: z.string().optional(),
+  phone: z.string().optional(),
+  niche: z.string().optional(),
+  bio: z.string().optional(),
+  location: z.string().optional(),
+  joinPath: z.enum(["agency", "solo"]).optional(),
+  agencyCode: z.string().optional(),
+});
+
+authRouter.post("/onboard", asyncHandler(async (req, res) => {
+  const data = onboardSchema.parse(req.body);
+  const handle = (data.handle || data.name).toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 20) || "creator";
+  // Synthesize a login key; keep it unique if the handle is taken.
+  let email = `${handle}@creators.yunto.app`;
+  if (await prisma.user.findUnique({ where: { email } })) {
+    email = `${handle}.${Date.now().toString(36)}@creators.yunto.app`;
+  }
+  // Agency-managed if the code matches a real agency's code (seed uses "55678").
+  const agency = data.agencyCode
+    ? await prisma.agency.findFirst({ where: { OR: [{ id: data.agencyCode }, { name: data.agencyCode }] } })
+    : null;
+
+  const passwordHash = await bcrypt.hash(`otp-${handle}`, 10);
+  const user = await prisma.user.create({
+    data: { email, passwordHash, name: data.name, phone: data.phone ?? null },
+  });
+  const creator = await prisma.creator.create({
+    data: {
+      name: data.name,
+      handle: handle.startsWith("@") ? handle : `@${handle}`,
+      niche: data.niche ?? null,
+      location: data.location ?? null,
+      agencyId: agency?.id ?? null,
+      listed: true,
+    },
+  });
+  res.status(201).json({
+    token: signToken({ sub: user.id, role: user.role }),
+    user: sanitize(user),
+    creator,
+    joinedAgency: agency?.name ?? null,
+  });
+}));
+
 const loginSchema = z.object({ email: z.string().email(), password: z.string() });
 
 authRouter.post("/login", asyncHandler(async (req, res) => {

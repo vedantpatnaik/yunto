@@ -98,6 +98,19 @@ export default function Login() {
             </Txt>
           )}
         </Pressable>
+
+        {/* Entry into the signup journey for a brand-new creator. */}
+        <Pressable
+          onPress={() => router.push("/onboarding/welcome")}
+          style={{ marginTop: 18, alignItems: "center" }}
+        >
+          <Txt size={13} color={colors.muted}>
+            New here?{" "}
+            <Txt size={13} weight="medium" color={colors.ink}>
+              Create an account
+            </Txt>
+          </Txt>
+        </Pressable>
       </View>
     </Screen>
   );

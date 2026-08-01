@@ -6,6 +6,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import Svg, { Circle, Defs, RadialGradient, Stop } from "react-native-svg";
 import { Screen, Abs, Txt } from "../../../src/ui/Frame";
 import { useAgencies } from "../../../src/api/hooks";
+import { setOnboarding } from "../../../src/onboarding/store";
 
 /**
  * Enter Agency Code — Figma frame 7485:43519 (375x875), traced 1:1.
@@ -91,13 +92,12 @@ export default function AgencyCodeScreen() {
   const [typed, setTyped] = useState<string | null>(null);
   const value = typed ?? seeded;
 
-  const match = codes.find((c) => c.code === value);
   // Figma highlights the box holding the most recently typed character.
   const active = Math.min(Math.max(value.length - 1, 0), CODE_LENGTH - 1);
 
   const submit = () => {
-    if (!match) return;
-    router.push({ pathname: "/profile-setup", params: { agencyId: match.id } });
+    setOnboarding({ agencyCode: value });
+    router.push("/onboarding/profile-setup");
   };
 
   return (

@@ -10,7 +10,7 @@ import {
   Outfit_600SemiBold, Outfit_700Bold,
 } from "@expo-google-fonts/outfit";
 import { Inter_400Regular, Inter_500Medium } from "@expo-google-fonts/inter";
-import { getToken } from "../src/api/client";
+import { getToken, getTokenSync, onAuthChange } from "../src/api/client";
 
 SplashScreen.preventAutoHideAsync().catch(() => {
   /* already hidden — harmless on fast reloads */
@@ -43,16 +43,26 @@ function useAuthGate(ready: boolean) {
       setAuthed(!!t);
       setChecked(true);
     });
+    // Re-evaluate whenever a token is set/cleared (login, signup, logout) so the
+    // gate does not keep bouncing a freshly-authenticated user back to /login.
+    const off = onAuthChange(() => setAuthed(!!getTokenSync()));
     return () => {
       alive = false;
+      off();
     };
   }, []);
 
   useEffect(() => {
     if (!checked || !ready) return;
-    const onAuthScreen = segments[0] === "login";
-    if (!authed && !onAuthScreen) router.replace("/login");
-    else if (authed && onAuthScreen) router.replace("/");
+    // A logged-out user is allowed on /login AND anywhere in the signup flow
+    // (/onboarding/*), so the whole journey from welcome to account creation is
+    // reachable before a token exists. The onboarding screens live under the
+    // (app) route GROUP, so "onboarding" is not segments[0] (that is "(app)") —
+    // it sits deeper, hence includes() rather than an index check.
+    const onLogin = segments.includes("login");
+    const inOnboarding = segments.includes("onboarding");
+    if (!authed && !onLogin && !inOnboarding) router.replace("/login");
+    else if (authed && onLogin) router.replace("/");
   }, [checked, ready, authed, segments, router]);
 
   return checked;

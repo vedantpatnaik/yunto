@@ -5,6 +5,7 @@ import { useRouter } from "expo-router";
 import { Abs, Screen, Txt } from "../../../src/ui/Frame";
 import { colors } from "../../../src/theme";
 import { useMe } from "../../../src/api/hooks";
+import { useOnboarding, resetOnboarding } from "../../../src/onboarding/store";
 
 /**
  * Onboarding — "Authentication Success" (Figma 765:11122 → Frame 1171276421).
@@ -69,8 +70,16 @@ export default function SignupSuccess() {
   // The session minted by OTP verify. Advancing only once it has resolved means
   // the dashboard never mounts against a half-written session.
   const { isLoading } = useMe();
+  // The name captured during profile-setup, used to personalise the copy below.
+  const { name } = useOnboarding();
 
-  const go = useCallback(() => router.replace("/home/home-dashboard"), [router]);
+  // Final hand-off out of the signup flow: clear the onboarding accumulator so
+  // the wizard's data does not linger, then replace (not push) so Back cannot
+  // re-enter the flow.
+  const go = useCallback(() => {
+    resetOnboarding();
+    router.replace("/home/home-dashboard");
+  }, [router]);
 
   useEffect(() => {
     if (isLoading) return;
@@ -146,7 +155,9 @@ export default function SignupSuccess() {
         lineHeight={21.78}
         align="center"
       >
-        Congratulations! You have been successfully authenticated
+        {name
+          ? `Congratulations, ${name}! You have been successfully authenticated`
+          : "Congratulations! You have been successfully authenticated"}
       </Txt>
     </Screen>
   );

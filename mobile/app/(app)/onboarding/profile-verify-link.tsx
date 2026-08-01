@@ -7,6 +7,7 @@ import { Abs, Screen, Txt } from "../../../src/ui/Frame";
 import { colors } from "../../../src/theme";
 import { useAgencies, useCreators, useMe, useUpdate } from "../../../src/api/hooks";
 import type { Creator } from "../../../src/api/hooks";
+import { setOnboarding } from "../../../src/onboarding/store";
 
 /**
  * Onboarding — "Link-in-Bio Verification" (Figma 7487:43798, 375x1024).
@@ -190,11 +191,10 @@ export default function ProfileVerifyLink() {
   };
 
   const onVerify = () => {
-    if (!creator || verify.isPending) return;
-    verify.mutate(
-      { id: creator.id, data: { listed: true } },
-      { onSuccess: () => router.push("/onboarding/phone-number") },
-    );
+    // Signup flow: no creator record exists yet, so capture the profile handle
+    // into the onboarding accumulator and advance. handle is already @-stripped.
+    setOnboarding({ handle });
+    router.push("/onboarding/phone-number");
   };
 
   return (

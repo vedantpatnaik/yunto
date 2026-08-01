@@ -54,6 +54,26 @@ async function removeStored(): Promise<void> {
   await SecureStore.deleteItemAsync(TOKEN_KEY);
 }
 
+/**
+ * Auth subscribers. The root layout's auth gate reads the token once at mount;
+ * without a notification, a token set later (login OR signup) leaves the gate
+ * thinking the user is still logged out, so it bounces /home back to /login.
+ * setToken/clearToken publish here so the gate re-evaluates immediately.
+ */
+const authListeners = new Set<() => void>();
+export function onAuthChange(cb: () => void): () => void {
+  authListeners.add(cb);
+  return () => authListeners.delete(cb);
+}
+function emitAuth() {
+  for (const l of authListeners) l();
+}
+
+/** Synchronous read of the in-memory token — for the gate's re-check. */
+export function getTokenSync(): string | null {
+  return cachedToken ?? null;
+}
+
 export async function getToken(): Promise<string | null> {
   if (cachedToken !== undefined) return cachedToken;
   try {
@@ -72,6 +92,7 @@ export async function setToken(t: string): Promise<void> {
   } catch {
     /* keep the in-memory token so the session still works this launch */
   }
+  emitAuth();
 }
 
 export async function clearToken(): Promise<void> {
@@ -81,6 +102,7 @@ export async function clearToken(): Promise<void> {
   } catch {
     /* already gone */
   }
+  emitAuth();
 }
 
 export class ApiError extends Error {

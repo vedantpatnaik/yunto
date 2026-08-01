@@ -6,8 +6,9 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { useMutation } from "@tanstack/react-query";
 import { Abs, Screen, Txt } from "../../../src/ui/Frame";
 import { colors } from "../../../src/theme";
-import { api, setToken } from "../../../src/api/client";
+import { api } from "../../../src/api/client";
 import { useMe } from "../../../src/api/hooks";
+import { resetOnboarding, submitOnboarding } from "../../../src/onboarding/store";
 
 /**
  * OTP Verification — Figma frame 765:11122 (375x812), the only frame in the
@@ -94,10 +95,6 @@ function Blob({
   );
 }
 
-interface VerifyResponse {
-  token: string;
-}
-
 export default function VerifyOtp() {
   const router = useRouter();
   const params = useLocalSearchParams<{ otpToken?: string; phone?: string }>();
@@ -106,6 +103,9 @@ export default function VerifyOtp() {
 
   const [code, setCode] = useState("");
   const [seconds, setSeconds] = useState(RESEND_SECONDS);
+  const [submitting, setSubmitting] = useState(false);
+  const [done, setDone] = useState(false);
+  const [wrong, setWrong] = useState(false);
 
   /**
    * The number the code went to. The phone step hands it over as a param; on a
@@ -113,15 +113,6 @@ export default function VerifyOtp() {
    * stands in until one of those resolves, so the line never reflows.
    */
   const phone = params.phone || me.data?.phone || "+91 9230985934";
-
-  const verify = useMutation({
-    mutationFn: (value: string) =>
-      api<VerifyResponse>("/auth/verify-otp", {
-        method: "POST",
-        body: JSON.stringify({ otpToken: params.otpToken, code: value }),
-      }),
-    onSuccess: (r) => setToken(r.token),
-  });
 
   const resend = useMutation({
     mutationFn: () =>
@@ -143,19 +134,36 @@ export default function VerifyOtp() {
   // The success card (1885:5109) is the last thing the frame shows; the flow
   // then continues to the signup-success screen.
   useEffect(() => {
-    if (!verify.isSuccess) return;
+    if (!done) return;
     const t = setTimeout(() => router.replace("/onboarding/signup-success"), 1400);
     return () => clearTimeout(t);
-  }, [verify.isSuccess, router]);
+  }, [done, router]);
+
+  // No real OTP service backs this final step, so any complete code is
+  // accepted. Filling the row is the confirm action: it creates the real
+  // account (submitOnboarding stores the token), clears the accumulator and
+  // only then advances. A failure keeps the user here to retry.
+  const submit = async () => {
+    if (submitting || done) return;
+    setWrong(false);
+    setSubmitting(true);
+    try {
+      await submitOnboarding();
+      resetOnboarding();
+      setDone(true);
+    } catch {
+      setWrong(true);
+      setSubmitting(false);
+    }
+  };
 
   const onChangeCode = (raw: string) => {
     const digits = raw.replace(/[^0-9]/g, "").slice(0, CODE_LENGTH);
     setCode(digits);
-    if (verify.isError) verify.reset();
-    if (digits.length === CODE_LENGTH) verify.mutate(digits);
+    if (wrong) setWrong(false);
+    if (digits.length === CODE_LENGTH) submit();
   };
 
-  const wrong = verify.isError;
   const canResend = seconds <= 0 && !resend.isPending;
 
   return (
@@ -315,7 +323,7 @@ export default function VerifyOtp() {
         caretHidden
         textContentType="oneTimeCode"
         autoComplete="sms-otp"
-        editable={!verify.isPending && !verify.isSuccess}
+        editable={!submitting && !done}
         style={{ position: "absolute", left: 16, top: 274, width: 343, height: 70, opacity: 0 }}
       />
 
@@ -324,7 +332,7 @@ export default function VerifyOtp() {
         onPress={() => {
           if (!canResend) return;
           setCode("");
-          verify.reset();
+          setWrong(false);
           resend.mutate();
           input.current?.focus();
         }}
@@ -390,7 +398,7 @@ export default function VerifyOtp() {
       </Pressable>
 
       {/* ---- Success — 1885:5109 ------------------------------------------ */}
-      {verify.isSuccess ? (
+      {done ? (
         <Abs x={0} y={0} w={375} h={812} bg="rgba(0,0,0,0.7)">
           {/* verify card 1885:5110 */}
           <Abs

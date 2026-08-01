@@ -6,6 +6,7 @@ import { useRouter } from "expo-router";
 import { Abs, Screen, Txt } from "../../../src/ui/Frame";
 import { colors, fonts } from "../../../src/theme";
 import { useCreators, useMe, useUpdate, type Creator } from "../../../src/api/hooks";
+import { setOnboarding } from "../../../src/onboarding/store";
 
 /**
  * Onboarding — "Profile Setup" (Figma 7485:43606, 375x1394).
@@ -170,6 +171,9 @@ export default function ProfileSetup() {
         },
       });
     }
+    // Carry this step's identity into the signup accumulator so the final
+    // step's submitOnboarding() POSTs it with the rest of the journey.
+    setOnboarding({ name, bio, niche: picked.join(", "), creatorType });
     router.push("/onboarding/profile-verify-link");
   };
 
