@@ -100,7 +100,10 @@ authRouter.post("/login", asyncHandler(async (req, res) => {
 
 authRouter.get("/me", requireAuth, asyncHandler(async (req: AuthedRequest, res) => {
   const user = await prisma.user.findUnique({ where: { id: req.user!.sub } });
-  if (!user) throw new HttpError(404, "Not found");
+  // The token is well-formed but its user no longer exists (typically wiped by a
+  // reseed). That is an authentication failure, not a missing resource — return
+  // 401 so the client drops the dead session and re-logs-in cleanly.
+  if (!user) throw new HttpError(401, "Session no longer valid");
   res.json(sanitize(user));
 }));
 

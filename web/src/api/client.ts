@@ -16,6 +16,21 @@ export async function api<T>(path: string, opts: RequestInit = {}): Promise<T> {
       ...opts.headers,
     },
   });
+  // A dead session — expired token, or (very common in this demo) a token whose
+  // user was removed by a database reseed — must force a clean re-login rather
+  // than leave the app in a half-broken state where "me" fails but list calls
+  // still return data. We treat a 401 anywhere, or a 404 on /auth/me, as "your
+  // session is no longer valid": drop the token and bounce to /login so the next
+  // sign-in is fresh. Without this, a stale tab looks logged-in but broken.
+  if (res.status === 401 || (res.status === 404 && path.startsWith("/auth/me"))) {
+    if (token) {
+      clearToken();
+      if (typeof window !== "undefined" && !window.location.pathname.startsWith("/login")) {
+        window.location.assign("/login");
+      }
+    }
+    throw new Error(`API ${res.status} ${path} — session ended`);
+  }
   if (!res.ok) throw new Error(`API ${res.status} ${path}`);
   if (res.status === 204) return undefined as T;
   return res.json() as Promise<T>;
