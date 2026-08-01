@@ -38,7 +38,7 @@ const AVATAR_GRADIENTS = [
 function ContactCard({ cell, onOpen }: { cell: Cell; onOpen: () => void }) {
   const Icon = cell.icon;
   return (
-    <div className="relative h-[117px] w-[266px] rounded-[12px] bg-[#F5F5F5]">
+    <div onClick={onOpen} className="relative h-[117px] w-[266px] cursor-pointer rounded-[12px] bg-[#F5F5F5] transition hover:bg-[#EDEDED]">
       {/* arrow */}
       <span
         onClick={onOpen}

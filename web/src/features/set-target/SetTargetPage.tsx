@@ -1,7 +1,7 @@
 import type { CSSProperties, ReactNode } from "react";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useUsers, useCampaigns, useList, type User, type Campaign } from "@/api/hooks";
+import { useUsers, useUpdate, useCampaigns, useList, type User, type Campaign } from "@/api/hooks";
 import type { LucideIcon } from "lucide-react";
 import {
   X,
@@ -491,6 +491,34 @@ export default function SetTargetPage() {
   const orgMonthly = sum(users, "targetMonthly");
   const orgYearly = sum(users, "targetYearly");
 
+  /* Set-your-targets: two amount fields + Save that actually persists. The
+     entered team total is split evenly across the sales+ops members, so the
+     org rollup above (which sums member targets) reflects what was saved. */
+  const [monthlyInput, setMonthlyInput] = useState("");
+  const [yearlyInput, setYearlyInput] = useState("");
+  const updateUser = useUpdate<User>("users");
+  const teamMembers = [...salesUsers, ...opsUsers];
+  const [saving, setSaving] = useState(false);
+  const saveTargets = async () => {
+    const m = Number(monthlyInput.replace(/[^0-9]/g, ""));
+    const y = Number(yearlyInput.replace(/[^0-9]/g, ""));
+    if ((!m && !y) || !teamMembers.length || saving) { navigate(-1); return; }
+    setSaving(true);
+    try {
+      const per = teamMembers.length;
+      await Promise.all(teamMembers.map((u) => updateUser.mutateAsync({
+        id: u.id,
+        data: {
+          ...(m ? { targetMonthly: Math.round(m / per) } : {}),
+          ...(y ? { targetYearly: Math.round(y / per) } : {}),
+        },
+      })));
+      navigate(-1);
+    } catch {
+      setSaving(false); // keep the entered amounts so the user can retry
+    }
+  };
+
   return (
     <div className="absolute inset-0 z-30">
       {/* ==================== Scrim A ==================== */}
@@ -503,12 +531,12 @@ export default function SetTargetPage() {
       <span className="absolute left-[159px] top-[97px] text-[24px] font-medium text-black">
         Set your targets
       </span>
-      {/* Save (panel) */}
+      {/* Save (panel) — persists the team targets */}
       <div
-        onClick={() => navigate(-1)}
-        className="absolute left-[1096px] top-[100px] flex h-[42px] w-[118px] cursor-pointer items-center justify-center rounded-[24px] bg-black/95"
+        onClick={saveTargets}
+        className={`absolute left-[1096px] top-[100px] flex h-[42px] w-[118px] cursor-pointer items-center justify-center rounded-[24px] bg-black/95 ${saving ? "opacity-60" : ""}`}
       >
-        <span className="text-[20px] font-medium text-white">Save</span>
+        <span className="text-[20px] font-medium text-white">{saving ? "Saving…" : "Save"}</span>
       </div>
       {/* close (panel) */}
       <span
@@ -617,10 +645,10 @@ export default function SetTargetPage() {
           Change Team Targets
         </span>
         <div
-          onClick={() => navigate(-1)}
-          className="absolute left-[482px] top-[28px] flex h-[48px] w-[188px] cursor-pointer items-center justify-center rounded-[24px] bg-black/95"
+          onClick={saveTargets}
+          className={`absolute left-[482px] top-[28px] flex h-[48px] w-[188px] cursor-pointer items-center justify-center rounded-[24px] bg-black/95 ${saving ? "opacity-60" : ""}`}
         >
-          <span className="text-[20px] font-medium text-white">Save Targets</span>
+          <span className="text-[20px] font-medium text-white">{saving ? "Saving…" : "Save Targets"}</span>
         </div>
         <span
           onClick={() => navigate(-1)}
@@ -643,11 +671,25 @@ export default function SetTargetPage() {
         {/* Monthly / Yearly inputs */}
         <span className="absolute left-[51px] top-[259px] text-[24px] text-black">Monthly Target</span>
         <div className="absolute left-[51px] top-[292px] flex h-[46px] w-[332px] items-center rounded-[12px] border border-black/[0.06] bg-[#FAFAFA] px-[13px]">
-          <span className="text-[16px] font-light text-black/70">₹ Enter amount</span>
+          <span className="mr-[4px] text-[16px] font-light text-black/70">₹</span>
+          <input
+            value={monthlyInput}
+            onChange={(e) => setMonthlyInput(e.target.value)}
+            inputMode="numeric"
+            placeholder="Enter amount"
+            className="h-full w-full bg-transparent text-[16px] font-light text-black outline-none placeholder:text-black/40"
+          />
         </div>
         <span className="absolute left-[398px] top-[259px] text-[24px] text-black">Yearly Target</span>
         <div className="absolute left-[398px] top-[292px] flex h-[46px] w-[335px] items-center rounded-[12px] border border-black/[0.06] bg-[#FAFAFA] px-[13px]">
-          <span className="text-[16px] font-light text-black/70">₹ Enter amount</span>
+          <span className="mr-[4px] text-[16px] font-light text-black/70">₹</span>
+          <input
+            value={yearlyInput}
+            onChange={(e) => setYearlyInput(e.target.value)}
+            inputMode="numeric"
+            placeholder="Enter amount"
+            className="h-full w-full bg-transparent text-[16px] font-light text-black outline-none placeholder:text-black/40"
+          />
         </div>
 
         {/* Effective Form */}

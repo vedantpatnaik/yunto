@@ -70,15 +70,26 @@ for (const route of routes) {
 
     const beforeUrl = page.url();
     const beforeWrites = writes;
-    const beforeDom = await page.evaluate(() => document.body.innerHTML.length);
+    // Hash, not length: a class swap of equal length (star fill toggles, active
+    // states) changes the DOM without changing its size, and a length compare
+    // marks a perfectly working control as dead.
+    const beforeDom = await page.evaluate(() => {
+      let h = 0; const s = document.body.innerHTML;
+      for (let k = 0; k < s.length; k += 7) h = (h * 31 + s.charCodeAt(k)) | 0;
+      return h + ":" + s.length;
+    });
 
     await el.click({ timeout: 1500, force: false }).catch(() => {});
     await page.waitForTimeout(700);
 
     const moved = page.url() !== beforeUrl;
     const wrote = writes > beforeWrites;
-    const afterDom = await page.evaluate(() => document.body.innerHTML.length).catch(() => beforeDom);
-    const mutated = Math.abs(afterDom - beforeDom) > 40;
+    const afterDom = await page.evaluate(() => {
+      let h = 0; const s = document.body.innerHTML;
+      for (let k = 0; k < s.length; k += 7) h = (h * 31 + s.charCodeAt(k)) | 0;
+      return h + ":" + s.length;
+    }).catch(() => beforeDom);
+    const mutated = afterDom !== beforeDom;
 
     if (!moved && !wrote && !mutated) {
       deadHere++;

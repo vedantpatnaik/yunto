@@ -36,6 +36,38 @@ usersRouter.post(
   })
 );
 
+/** Fields a member-edit screen may change. Deliberately excludes passwordHash,
+ *  email and agencyCode — only safe, editable profile/target columns. */
+const updateSchema = z.object({
+  name: z.string().min(1).optional(),
+  phone: z.string().nullable().optional(),
+  role: z.string().optional(),
+  teamId: z.string().nullable().optional(),
+  targetMonthly: z.coerce.number().int().optional(),
+  targetYearly: z.coerce.number().int().optional(),
+  avatarUrl: z.string().nullable().optional(),
+  dateOfBirth: z.coerce.date().nullable().optional(),
+  address: z.string().nullable().optional(),
+});
+
+/** Update a member (set-target, people/team screens). Returns the sanitized row. */
+usersRouter.patch(
+  "/:id",
+  asyncHandler(async (req, res) => {
+    const data = updateSchema.parse(req.body);
+    const u = await prisma.user.update({
+      where: { id: req.params.id },
+      data: data as never,
+      select: {
+        id: true, name: true, email: true, phone: true, role: true, avatarUrl: true,
+        targetMonthly: true, targetYearly: true,
+        team: { select: { id: true, name: true, kind: true } },
+      },
+    });
+    res.json(u);
+  })
+);
+
 /** Sanitized employee list for People / Team screens (never exposes passwordHash). */
 usersRouter.get(
   "/",
