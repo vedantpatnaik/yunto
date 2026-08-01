@@ -9,6 +9,7 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$HERE/.." && pwd)"
 KEY="$HERE/yunto-demo.pem"
 IP="$(cat "$HERE/.instance-ip")"
+SITE_HOST="${SITE_HOST:-$IP.nip.io}"
 SSH="ssh -i $KEY -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=10 ec2-user@$IP"
 
 echo "▸ target: $IP"
@@ -73,7 +74,7 @@ $SSH 'cd ~/app/deploy && docker compose -f docker-compose.prod.yml up -d --build
 
 echo "▸ waiting for the API to answer…"
 for i in $(seq 1 40); do
-  code=$(curl -sL -o /dev/null -w '%{http_code}' "http://$IP/health" || echo 000)
+  code=$(curl -sk -o /dev/null -w '%{http_code}' "https://${SITE_HOST:-$IP}/health" || curl -s -o /dev/null -w '%{http_code}' "http://$IP/health" || echo 000)
   [ "$code" = "200" ] && { echo "▸ api healthy"; break; }
   [ "$i" = 40 ] && echo "⚠ api did not report healthy — check: $SSH 'cd ~/app/deploy && docker compose -f docker-compose.prod.yml logs api'"
   sleep 5
